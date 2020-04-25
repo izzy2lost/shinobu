@@ -983,7 +983,7 @@ void AudioServer::init() {
 
 	channel_disable_threshold_db = GLOBAL_DEF_RST("audio/channel_disable_threshold_db", -60.0);
 	channel_disable_frames = float(GLOBAL_DEF_RST("audio/channel_disable_time", 2.0)) * get_mix_rate();
-	ProjectSettings::get_singleton()->set_custom_property_info("audio/channel_disable_time", PropertyInfo(Variant::FLOAT, "audio/channel_disable_time", PROPERTY_HINT_RANGE, "0,5,0.01,or_greater"));
+	ProjectSettings::get_singleton()->set_custom_property_info("audio/channel_disable_time", PropertyInfo(Variant::REAL, "audio/channel_disable_time", PROPERTY_HINT_RANGE, "0,5,0.01,or_greater"));
 	if (AudioDriver::get_singleton()) {
 		buffer_size = AudioDriver::get_singleton()->get_mix_buffer_size();
 	}

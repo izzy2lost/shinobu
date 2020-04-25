@@ -45,31 +45,45 @@ class AudioDriverWASAPI : public AudioDriver {
 
 	class AudioDeviceWASAPI {
 	public:
-		IAudioClient *audio_client;
-		IAudioRenderClient *render_client;
-		IAudioCaptureClient *capture_client;
-		bool active;
+		IAudioClient *audio_client = nullptr;
+		IAudioRenderClient *render_client = nullptr;
+		IAudioCaptureClient *capture_client = nullptr;
+		bool active = false;
 
-		WORD format_tag;
-		WORD bits_per_sample;
-		unsigned int channels;
-		unsigned int frame_size;
+		WORD format_tag = 0;
+		WORD bits_per_sample = 0;
+		unsigned int channels = 0;
+		unsigned int frame_size = 0;
 
-		String device_name;
-		String new_device;
+		String device_name = "Default";
+		String new_device = "Default";
 
-		AudioDeviceWASAPI() :
-				audio_client(NULL),
-				render_client(NULL),
-				capture_client(NULL),
-				active(false),
-				format_tag(0),
-				bits_per_sample(0),
-				channels(0),
-				frame_size(0),
-				device_name("Default"),
-				new_device("Default") {
-		}
+		class Resampler {
+		private:
+			enum {
+				FP_BITS = 16,
+				FP_LEN = (1 << FP_BITS),
+				FP_MASK = FP_LEN - 1,
+				INTERNAL_BUFFER_LEN = 256,
+				CUBIC_INTERP_HISTORY = 4
+			};
+			Vector<int32_t> internal_buffer;
+			int input_mix_rate = 0;
+			int output_mix_rate = 0;
+			int channels = 0;
+			uint64_t mix_offset = 0;
+			uint64_t mix_increment = 0;
+
+		public:
+			inline int get_input_mix_rate() { return input_mix_rate; }
+			void prepare(int p_input_mix_rate, int p_output_mix_rate, int p_channels);
+			void audio_server_process(AudioDriverWASAPI *p_driver, int32_t *p_output_buffer, int p_frames);
+
+			Resampler() {}
+		};
+		Resampler *resampler = nullptr;
+
+		AudioDeviceWASAPI() {}
 	};
 
 	AudioDeviceWASAPI audio_input;
@@ -80,9 +94,10 @@ class AudioDriverWASAPI : public AudioDriver {
 
 	Vector<int32_t> samples_in;
 
-	unsigned int channels;
-	int mix_rate;
-	int buffer_frames;
+	unsigned int channels = 0;
+	int mix_rate = 0;
+	int buffer_frames = 0;
+	int target_latency_ms = 0;
 
 	bool thread_exited;
 	mutable bool exit_thread;
@@ -128,5 +143,5 @@ public:
 	AudioDriverWASAPI();
 };
 
+#endif // WASAPI_ENABLED
 #endif // AUDIO_DRIVER_WASAPI_H
-#endif
