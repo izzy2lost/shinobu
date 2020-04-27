@@ -144,6 +144,21 @@ private:
 	int32_t state[STATE_MAX] = { 0 };
 
 	static void _audio_thread_func(void *p_data);
+	virtual Error init();
+	virtual void start();
+	void resume();
+	virtual float get_latency();
+	virtual int get_mix_rate() const;
+	virtual int get_mix_buffer_size() const;
+	virtual SpeakerMode get_speaker_mode() const;
+	virtual void lock();
+	virtual void unlock();
+	virtual void finish();
+
+	virtual float get_latency();
+
+	virtual Error capture_start();
+	virtual Error capture_stop();
 
 protected:
 	virtual Error create(int &p_buffer_size, int p_output_channels) override;
