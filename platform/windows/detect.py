@@ -212,7 +212,10 @@ def configure_msvc(env, manual_msvc_config):
     env.AppendUnique(CXXFLAGS=["/TP"])  # assume all sources are C++
     if manual_msvc_config:  # should be automatic if SCons found it
         if os.getenv("WindowsSdkDir") is not None:
-            env.Prepend(CPPPATH=[os.getenv("WindowsSdkDir") + "/Include"])
+            if os.getenv("ANGLE_PATH") is not None:
+                env.Prepend(CPPPATH=[os.getenv("ANGLE_PATH") + "/include", os.getenv("WindowsSdkDir") + "/Include"])
+            else:
+                print("Missing environment variable: ANGLE_PATH")
         else:
             print("Missing environment variable: WindowsSdkDir")
 
@@ -234,10 +237,10 @@ def configure_msvc(env, manual_msvc_config):
         env.AppendUnique(CPPDEFINES=["_WIN64"])
 
     ## Libs
-
     LIBS = [
         "winmm",
-        "opengl32",
+        "libEGL.dll",
+        "libGLESv2.dll",
         "dsound",
         "kernel32",
         "ole32",
@@ -257,11 +260,15 @@ def configure_msvc(env, manual_msvc_config):
         "Avrt",
         "dwmapi",
     ]
+    env.Append(CPPDEFINES=["GLES_ENABLED", "GL_GLEXT_PROTOTYPES", "EGL_EGLEXT_PROTOTYPES", "ANGLE_ENABLED"])
     env.Append(LINKFLAGS=[p + env["LIBSUFFIX"] for p in LIBS])
 
     if manual_msvc_config:
         if os.getenv("WindowsSdkDir") is not None:
-            env.Append(LIBPATH=[os.getenv("WindowsSdkDir") + "/Lib"])
+            if os.getenv("ANGLE_PATH") is not None:
+                env.Append(LIBPATH=[os.getenv("ANGLE_PATH") + "/out/Release", os.getenv("WindowsSdkDir") + "/Lib"])
+            else:
+                print("Missing environment variable: ANGLE_PATH")       
         else:
             print("Missing environment variable: WindowsSdkDir")
 
