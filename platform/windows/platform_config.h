@@ -32,5 +32,10 @@
 //#else
 //#include <alloca.h>
 //#endif
+#ifdef ANGLE_ENABLED
+#define GLES3_INCLUDE_H <GLES3/gl3.h>
+#define GLES2_INCLUDE_H <GLES3/gl3.h>
+#else
 #define GLES3_INCLUDE_H "thirdparty/glad/glad/glad.h"
 #define GLES2_INCLUDE_H "thirdparty/glad/glad/glad.h"
+#endif
