@@ -396,6 +396,9 @@ if selected_platform in platform_list:
 
     # Must happen after the flags definition, so that they can be used by platform detect
     detect.configure(env)
+    if selected_platform == "windows":
+        if env["use_angle"]:
+            suffix += ".ANGLE"
 
     # Set our C and C++ standard requirements.
     # Prepending to make it possible to override
