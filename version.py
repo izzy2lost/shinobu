@@ -1,10 +1,10 @@
-short_name = "godot"
-name = "Godot Engine"
+short_name = "projectheartbeat"
+name = "Project Heartbeat"
 major = 3
 minor = 5
 patch = 0
 status = "rc"
 module_config = ""
 year = 2022
-website = "https://godotengine.org"
 docs = "3.5"
+website = "https://eirteam.moe"
