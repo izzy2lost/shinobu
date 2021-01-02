@@ -2390,7 +2390,17 @@ void OS_Windows::_update_window_style(bool p_repaint, bool p_maximized) {
 		}
 	}
 
-	SetWindowPos(hWnd, video_mode.always_on_top ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE);
+	HWND insertAfterMode = HWND_NOTOPMOST;
+
+	if (video_mode.always_on_top) {
+		insertAfterMode = HWND_TOPMOST;
+	} else {
+		if (video_mode.fullscreen && video_mode.borderless_window) {
+			insertAfterMode = HWND_TOP;
+		}
+	}
+
+	SetWindowPos(hWnd, insertAfterMode, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE);
 
 	if (p_repaint) {
 		RECT rect;
