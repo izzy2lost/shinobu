@@ -1,5 +1,5 @@
 short_name = "projectheartbeat"
-name = "Project Heartbet"
+name = "Project Heartbeat"
 major = 3
 minor = 2
 patch = 4
