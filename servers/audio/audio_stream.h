@@ -92,6 +92,7 @@ public:
 	virtual String get_stream_name() const = 0;
 
 	virtual float get_length() const = 0; //if supported, otherwise return 0
+	virtual int get_channel_count() const {return 2;}; //if supported, otherwise return 2
 };
 
 // Microphone

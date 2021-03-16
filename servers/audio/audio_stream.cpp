@@ -99,6 +99,7 @@ void AudioStreamPlaybackResampled::mix(AudioFrame *p_buffer, float p_rate_scale,
 void AudioStream::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("get_length"), &AudioStream::get_length);
+	ClassDB::bind_method(D_METHOD("get_channel_count"), &AudioStream::get_channel_count);
 }
 
 ////////////////////////////////

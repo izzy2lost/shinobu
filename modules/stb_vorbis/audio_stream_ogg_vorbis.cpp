@@ -45,7 +45,20 @@ void AudioStreamPlaybackOGGVorbis::_mix_internal(AudioFrame *p_buffer, int p_fra
 		if (start_buffer > 0) {
 			buffer = (buffer + start_buffer * 2);
 		}
-		int mixed = stb_vorbis_get_samples_float_interleaved(ogg_stream, 2, buffer, todo * 2);
+		int mixed = 0;
+		if (vorbis_stream->dsc_voice_remap && vorbis_stream->channels >= 4) {
+			float diva_buffer[todo*4] = {};
+			int diva_mixed = stb_vorbis_get_samples_float_interleaved(ogg_stream, 4, diva_buffer, todo * 4);
+			mixed = diva_mixed;
+			for (int i = 0; i < diva_mixed; i++) {
+				int real_i = i * 4;
+				p_buffer[i].l = diva_buffer[real_i+2];
+				p_buffer[i].r = diva_buffer[real_i+3];
+			}
+		} else {
+			mixed = stb_vorbis_get_samples_float_interleaved(ogg_stream, 2, buffer, todo * 2);
+		}
+		
 		if (vorbis_stream->channels == 1 && mixed > 0) {
 			//mix mono to stereo
 			for (int i = start_buffer; i < start_buffer + mixed; i++) {
@@ -249,6 +262,14 @@ bool AudioStreamOGGVorbis::has_loop() const {
 	return loop;
 }
 
+void AudioStreamOGGVorbis::set_dsc_voice_remap(bool p_enable) {
+	dsc_voice_remap = p_enable;
+}
+
+bool AudioStreamOGGVorbis::get_dsc_voice_remap() const {
+	return dsc_voice_remap;
+}
+
 void AudioStreamOGGVorbis::set_loop_offset(float p_seconds) {
 	loop_offset = p_seconds;
 }
@@ -262,6 +283,10 @@ float AudioStreamOGGVorbis::get_length() const {
 	return length;
 }
 
+int AudioStreamOGGVorbis::get_channel_count() const {
+	return channels;
+}
+
 void AudioStreamOGGVorbis::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_data", "data"), &AudioStreamOGGVorbis::set_data);
@@ -273,8 +298,12 @@ void AudioStreamOGGVorbis::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_loop_offset", "seconds"), &AudioStreamOGGVorbis::set_loop_offset);
 	ClassDB::bind_method(D_METHOD("get_loop_offset"), &AudioStreamOGGVorbis::get_loop_offset);
 
+	ClassDB::bind_method(D_METHOD("set_dsc_voice_remap", "enable"), &AudioStreamOGGVorbis::set_dsc_voice_remap);
+	ClassDB::bind_method(D_METHOD("get_dsc_voice_remap"), &AudioStreamOGGVorbis::get_dsc_voice_remap);
+
 	ADD_PROPERTY(PropertyInfo(Variant::POOL_BYTE_ARRAY, "data", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NOEDITOR), "set_data", "get_data");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "loop"), "set_loop", "has_loop");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "dsc_voice_remap"), "set_dsc_voice_remap", "get_dsc_voice_remap");
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "loop_offset"), "set_loop_offset", "get_loop_offset");
 }
 
@@ -288,6 +317,7 @@ AudioStreamOGGVorbis::AudioStreamOGGVorbis() {
 	loop_offset = 0;
 	decode_mem_size = 0;
 	loop = false;
+	dsc_voice_remap = false;
 }
 
 AudioStreamOGGVorbis::~AudioStreamOGGVorbis() {

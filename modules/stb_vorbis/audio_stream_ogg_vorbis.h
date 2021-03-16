@@ -87,6 +87,7 @@ class AudioStreamOGGVorbis : public AudioStream {
 	float length;
 	bool loop;
 	float loop_offset;
+	bool dsc_voice_remap;
 	void clear_data();
 
 protected:
@@ -95,6 +96,9 @@ protected:
 public:
 	void set_loop(bool p_enable);
 	bool has_loop() const;
+
+	void set_dsc_voice_remap(bool p_enable);
+	bool get_dsc_voice_remap() const;
 
 	void set_loop_offset(float p_seconds);
 	float get_loop_offset() const;
@@ -106,6 +110,8 @@ public:
 	PoolVector<uint8_t> get_data() const;
 
 	virtual float get_length() const; //if supported, otherwise return 0
+	virtual int get_channel_count() const;
+
 
 	AudioStreamOGGVorbis();
 	virtual ~AudioStreamOGGVorbis();
