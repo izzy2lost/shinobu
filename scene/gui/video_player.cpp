@@ -145,7 +145,7 @@ void VideoPlayer::_notification(int p_notification) {
 		case NOTIFICATION_INTERNAL_PROCESS: {
 			bus_index = AudioServer::get_singleton()->thread_find_bus_index(bus);
 
-			if (stream.is_null() || paused || playback.is_null() || !playback->is_playing()) {
+			if (stream.is_null() || playback.is_null() || !playback->is_playing()) {
 				return;
 			}
 
@@ -156,6 +156,10 @@ void VideoPlayer::_notification(int p_notification) {
 
 			if (delta == 0) {
 				return;
+			}
+
+			if (paused) {
+				delta = 0;
 			}
 
 			playback->update(delta); // playback->is_playing() returns false in the last video frame
@@ -290,7 +294,8 @@ void VideoPlayer::set_paused(bool p_paused) {
 	paused = p_paused;
 	if (playback.is_valid()) {
 		playback->set_paused(p_paused);
-		set_process_internal(!p_paused);
+		// We process even when paused, wew!!!
+		//set_process_internal(!p_paused);
 	};
 	last_audio_time = 0;
 };
