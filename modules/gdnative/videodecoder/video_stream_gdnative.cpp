@@ -139,7 +139,7 @@ bool VideoStreamPlaybackGDNative::open_file(const String &p_file) {
 }
 
 void VideoStreamPlaybackGDNative::update(float p_delta) {
-	if (!playing || paused) {
+	if (!playing) {
 		return;
 	}
 	if (!file) {
