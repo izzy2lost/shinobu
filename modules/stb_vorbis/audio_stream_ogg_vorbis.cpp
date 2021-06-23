@@ -47,18 +47,18 @@ void AudioStreamPlaybackOGGVorbis::_mix_internal(AudioFrame *p_buffer, int p_fra
 		}
 		int mixed = 0;
 		if (vorbis_stream->dsc_voice_remap && vorbis_stream->channels >= 4) {
-			float diva_buffer[todo*4] = {};
+			float *diva_buffer = new float[todo * 4];
 			int diva_mixed = stb_vorbis_get_samples_float_interleaved(ogg_stream, 4, diva_buffer, todo * 4);
 			mixed = diva_mixed;
 			for (int i = 0; i < diva_mixed; i++) {
 				int real_i = i * 4;
-				p_buffer[i].l = diva_buffer[real_i+2];
-				p_buffer[i].r = diva_buffer[real_i+3];
+				p_buffer[i].l = diva_buffer[real_i + 2];
+				p_buffer[i].r = diva_buffer[real_i + 3];
 			}
 		} else {
 			mixed = stb_vorbis_get_samples_float_interleaved(ogg_stream, 2, buffer, todo * 2);
 		}
-		
+
 		if (vorbis_stream->channels == 1 && mixed > 0) {
 			//mix mono to stereo
 			for (int i = start_buffer; i < start_buffer + mixed; i++) {
