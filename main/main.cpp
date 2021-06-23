@@ -361,6 +361,10 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 	register_core_types();
 	register_core_driver_types();
 
+#ifdef DEBUG_ENABLED
+	OS::get_singleton()->set_console_visible(false);
+#endif
+
 	MAIN_PRINT("Main: Initialize Globals");
 
 	globals = memnew(ProjectSettings);

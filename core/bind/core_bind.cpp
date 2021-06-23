@@ -260,6 +260,14 @@ int _OS::get_audio_driver_count() const {
 	return OS::get_singleton()->get_audio_driver_count();
 }
 
+bool _OS::is_console_visible() const {
+	return OS::get_singleton()->is_console_visible();
+}
+
+void _OS::set_console_visible(bool p_visible) {
+	OS::get_singleton()->set_console_visible(p_visible);
+}
+
 String _OS::get_audio_driver_name(int p_driver) const {
 	return OS::get_singleton()->get_audio_driver_name(p_driver);
 }
@@ -1338,6 +1346,9 @@ void _OS::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_low_processor_usage_mode", "enable"), &_OS::set_low_processor_usage_mode);
 	ClassDB::bind_method(D_METHOD("is_in_low_processor_usage_mode"), &_OS::is_in_low_processor_usage_mode);
 
+	ClassDB::bind_method(D_METHOD("set_console_visible", "visible"), &_OS::set_console_visible);
+	ClassDB::bind_method(D_METHOD("is_console_visible"), &_OS::is_console_visible);
+
 	ClassDB::bind_method(D_METHOD("set_low_processor_usage_mode_sleep_usec", "usec"), &_OS::set_low_processor_usage_mode_sleep_usec);
 	ClassDB::bind_method(D_METHOD("get_low_processor_usage_mode_sleep_usec"), &_OS::get_low_processor_usage_mode_sleep_usec);
 
@@ -1479,6 +1490,7 @@ void _OS::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "window_resizable"), "set_window_resizable", "is_window_resizable");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "window_position"), "set_window_position", "get_window_position");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "window_size"), "set_window_size", "get_window_size");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "console_visible"), "set_console_visible", "is_console_visible");
 
 	// Those default values need to be specified for the docs generator,
 	// to avoid using values from the documentation writer's own OS instance.
