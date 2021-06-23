@@ -32,7 +32,6 @@
 
 #include "core/io/resource_loader.h"
 #include "core/project_settings.h"
-#include "editor/editor_scale.h"
 #include "ph_audio_stream_preview.h"
 
 void PHAudioStreamEditor::_notification(int p_what) {
@@ -205,7 +204,7 @@ float PHAudioStreamEditor::get_end_point() {
 }
 
 PHAudioStreamEditor::PHAudioStreamEditor() {
-	set_custom_minimum_size(Size2(1, 100) * EDSCALE);
+	set_custom_minimum_size(Size2(1, 100) * 1.0);
 
 	VBoxContainer *vbox = memnew(VBoxContainer);
 	vbox->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
