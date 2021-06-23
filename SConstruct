@@ -481,6 +481,8 @@ if selected_platform in platform_list:
             suffix += ".tools"
         else:
             suffix += ".debug"
+    if env["use_angle"]:
+        suffix += ".ANGLE"
 
     if env["arch"] != "":
         suffix += "." + env["arch"]
