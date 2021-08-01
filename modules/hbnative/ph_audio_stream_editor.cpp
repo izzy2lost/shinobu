@@ -35,7 +35,6 @@
 #include "ph_audio_stream_preview.h"
 
 void PHAudioStreamEditor::_notification(int p_what) {
-
 	if (p_what == NOTIFICATION_READY) {
 		PHAudioStreamPreviewGenerator::get_singleton()->connect("preview_updated", this, "_preview_changed");
 	}
@@ -74,7 +73,6 @@ void PHAudioStreamEditor::_draw_preview() {
 	float len = end_point_c - start_point_c;
 
 	for (int i = 0; i < size.width; i++) {
-
 		float ofs = start_point_c + (i * len / size.width);
 		float ofs_n = start_point_c + ((i + 1) * len / size.width);
 		float avg = preview->get_avg(ofs, ofs_n);
@@ -96,7 +94,6 @@ void PHAudioStreamEditor::_draw_preview() {
 		lines_rms.resize(size.width * 2);
 
 		for (int i = 0; i < size.width; i++) {
-
 			float ofs = start_point_c + (i * len / size.width);
 			float ofs_n = start_point_c + ((i + 1) * len / size.width);
 			float avg = preview->get_rms(ofs, ofs_n) * rms_size_multiplier;
@@ -115,21 +112,18 @@ void PHAudioStreamEditor::_draw_preview() {
 }
 
 void PHAudioStreamEditor::_preview_changed(ObjectID p_which) {
-
 	if (stream.is_valid() && stream->get_instance_id() == p_which) {
 		_preview->update();
 	}
 }
 
 void PHAudioStreamEditor::_changed_callback(Object *p_changed, const char *p_prop) {
-
 	if (!is_visible())
 		return;
 	update();
 }
 
 void PHAudioStreamEditor::edit(Ref<AudioStream> p_stream) {
-
 	if (!stream.is_null())
 		stream->remove_change_receptor(this);
 
@@ -144,7 +138,6 @@ void PHAudioStreamEditor::edit(Ref<AudioStream> p_stream) {
 }
 
 void PHAudioStreamEditor::_bind_methods() {
-
 	ClassDB::bind_method(D_METHOD("_preview_changed"), &PHAudioStreamEditor::_preview_changed);
 	ClassDB::bind_method(D_METHOD("_draw_preview"), &PHAudioStreamEditor::_draw_preview);
 	ClassDB::bind_method(D_METHOD("edit", "stream"), &PHAudioStreamEditor::edit);
