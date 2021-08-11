@@ -269,7 +269,6 @@ int AudioDriverCoreAudio::get_mix_rate() const {
 };
 
 int AudioDriverCoreAudio::get_mix_buffer_size() const {
-
 	return (int)buffer_frames;
 }
 
@@ -341,7 +340,6 @@ void AudioDriverCoreAudio::finish() {
 }
 
 float AudioDriverCoreAudio::get_latency() {
-
 	if (mix_rate != 0)
 		return (float)buffer_frames / (float)mix_rate;
 	return 0.f;

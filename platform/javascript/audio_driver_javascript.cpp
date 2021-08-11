@@ -154,7 +154,6 @@ int AudioDriverJavaScript::get_mix_rate() const {
 }
 
 int AudioDriverJavascript::get_mix_buffer_size() const {
-
 	int channel_count = get_total_channels_by_speaker_mode(get_speaker_mode());
 	if (channel_count != 0)
 		return memarr_len(internal_buffer) / channel_count;
@@ -194,7 +193,6 @@ void AudioDriverJavaScript::finish() {
 }
 
 float AudioDriverjavascript::get_latency() {
-
 	int mix_rate = get_mix_rate();
 	if (mix_rate != 0)
 		return (float)buffer_length / (float)mix_rate;

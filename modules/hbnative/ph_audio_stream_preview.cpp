@@ -1,5 +1,5 @@
 /*************************************************************************/
-/*  audio_stream_preview.cpp                                             */
+/*  ph_audio_stream_preview.cpp                                          */
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
@@ -36,7 +36,6 @@ float PHAudioStreamPreview::get_length() const {
 	return length;
 }
 float PHAudioStreamPreview::get_max(float p_time, float p_time_next) const {
-
 	if (length == 0)
 		return 0;
 
@@ -53,7 +52,6 @@ float PHAudioStreamPreview::get_max(float p_time, float p_time_next) const {
 	uint8_t vmax = 0;
 
 	for (int i = time_from; i < time_to; i++) {
-
 		uint8_t v = preview[i * 2 + 1];
 		if (i == 0 || v > vmax) {
 			vmax = v;
@@ -64,7 +62,6 @@ float PHAudioStreamPreview::get_max(float p_time, float p_time_next) const {
 }
 
 float PHAudioStreamPreview::get_avg(float p_time, float p_time_next) const {
-
 	if (length == 0)
 		return 0;
 
@@ -82,7 +79,6 @@ float PHAudioStreamPreview::get_avg(float p_time, float p_time_next) const {
 	int64_t total = 0;
 	int64_t count = 0;
 	for (int i = time_from; i < time_to; i++) {
-
 		uint8_t v = preview[i * 2 + 1];
 		total += v;
 		count++;
@@ -94,7 +90,6 @@ float PHAudioStreamPreview::get_avg(float p_time, float p_time_next) const {
 }
 
 float PHAudioStreamPreview::get_rms(float p_time, float p_time_next) const {
-
 	if (length == 0)
 		return 0;
 
@@ -112,7 +107,6 @@ float PHAudioStreamPreview::get_rms(float p_time, float p_time_next) const {
 	float total = 0;
 	int64_t count = 0;
 	for (int i = time_from; i < time_to; i++) {
-
 		uint8_t v = preview[i * 2 + 1];
 		total += v * v;
 		count++;
@@ -124,7 +118,6 @@ float PHAudioStreamPreview::get_rms(float p_time, float p_time_next) const {
 }
 
 float PHAudioStreamPreview::get_min(float p_time, float p_time_next) const {
-
 	if (length == 0)
 		return 0;
 
@@ -141,7 +134,6 @@ float PHAudioStreamPreview::get_min(float p_time, float p_time_next) const {
 	uint8_t vmin = 255;
 
 	for (int i = time_from; i < time_to; i++) {
-
 		uint8_t v = preview[i * 2];
 		if (i == 0 || v < vmin) {
 			vmin = v;
@@ -170,7 +162,6 @@ void PHAudioStreamPreviewGenerator::_update_emit(ObjectID p_id) {
 }
 
 void PHAudioStreamPreviewGenerator::_preview_thread(void *p_preview) {
-
 	Preview *preview = (Preview *)p_preview;
 
 	float muxbuff_chunk_s = 0.25;
@@ -186,7 +177,6 @@ void PHAudioStreamPreviewGenerator::_preview_thread(void *p_preview) {
 	preview->playback->start();
 
 	while (frames_todo) {
-
 		int ofs_write = uint64_t(frames_total - frames_todo) * uint64_t(preview->preview->preview.size() / 2) / uint64_t(frames_total);
 		int to_read = MIN(frames_todo, mixbuff_chunk_frames);
 		int to_write = uint64_t(to_read) * uint64_t(preview->preview->preview.size() / 2) / uint64_t(frames_total);
@@ -206,7 +196,6 @@ void PHAudioStreamPreviewGenerator::_preview_thread(void *p_preview) {
 			}
 
 			for (int j = from; j < to; j++) {
-
 				max = MAX(max, mix_chunk[j].l);
 				max = MAX(max, mix_chunk[j].r);
 
