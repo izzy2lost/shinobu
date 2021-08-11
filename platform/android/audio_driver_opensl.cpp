@@ -308,7 +308,6 @@ int AudioDriverOpenSL::get_mix_rate() const {
 }
 
 int AudioDriverOpenSL::get_mix_buffer_size() const {
-
 	return buffer_size;
 }
 
@@ -331,7 +330,6 @@ void AudioDriverOpenSL::finish() {
 }
 
 float AudioDriverOpenSL::get_latency() {
-
 	return (float)buffer_size / 44100.1f; // hardcoded for Android, as selected by SL_SAMPLINGRATE_44_1
 }
 

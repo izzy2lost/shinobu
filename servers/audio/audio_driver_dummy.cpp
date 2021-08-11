@@ -82,7 +82,6 @@ int AudioDriverDummy::get_mix_rate() const {
 };
 
 int AudioDriverDummy::get_mix_buffer_size() const {
-
 	return DEFAULT_MIX_BUFFER_SIZE;
 }
 
@@ -108,13 +107,12 @@ void AudioDriverDummy::finish() {
 };
 
 float AudioDriverDummy::get_latency() {
-
 	if (mix_rate != 0)
 		return (float)get_mix_buffer_size() / (float)mix_rate;
 	return 0.f;
 }
 
-AudioDriverDummy::AudioDriverDummy() {
+AudioDriverDummy::AudioDriverDummy(){
 
 };
 

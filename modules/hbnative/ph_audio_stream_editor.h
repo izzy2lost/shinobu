@@ -1,5 +1,5 @@
 /*************************************************************************/
-/*  audio_stream_editor_plugin.h                                         */
+/*  ph_audio_stream_editor.h                                             */
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
@@ -38,7 +38,6 @@
 #include "scene/resources/texture.h"
 
 class PHAudioStreamEditor : public ColorRect {
-
 	GDCLASS(PHAudioStreamEditor, ColorRect);
 
 	Ref<AudioStream> stream;

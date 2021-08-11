@@ -573,7 +573,6 @@ int AudioDriverPulseAudio::get_mix_rate() const {
 }
 
 int AudioDriverPulseAudio::get_mix_buffer_size() const {
-
 	return buffer_frames;
 }
 
