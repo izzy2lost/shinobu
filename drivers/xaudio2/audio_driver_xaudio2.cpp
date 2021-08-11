@@ -132,7 +132,6 @@ int AudioDriverXAudio2::get_mix_rate() const {
 }
 
 int AudioDriverXAudio2::get_mix_buffer_size() const {
-
 	return buffer_size;
 }
 

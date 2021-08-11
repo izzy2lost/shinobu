@@ -110,7 +110,6 @@ public:
 	virtual float get_length() const; //if supported, otherwise return 0
 	virtual int get_channel_count() const;
 
-
 	AudioStreamOGGVorbis();
 	virtual ~AudioStreamOGGVorbis();
 };
