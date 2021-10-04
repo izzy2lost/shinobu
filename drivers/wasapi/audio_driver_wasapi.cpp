@@ -327,7 +327,7 @@ Error AudioDriverWASAPI::audio_device_init(AudioDeviceWASAPI *p_device, bool p_c
 		ERR_PRINT("WASAPI: RegisterEndpointNotificationCallback error");
 	}
 
-	bool using_audio_client_3 = !p_capture; // IID_IAudioClient3 is only used for adjustable output latency (not input)
+	using_audio_client_3 = !p_capture; // IID_IAudioClient3 is only used for adjustable output latency (not input)
 	if (using_audio_client_3) {
 		hr = device->Activate(IID_IAudioClient3, CLSCTX_ALL, nullptr, (void **)&p_device->audio_client);
 		if (hr != S_OK) {
@@ -430,6 +430,19 @@ Error AudioDriverWASAPI::audio_device_init(AudioDeviceWASAPI *p_device, bool p_c
 		}
 		hr = p_device->audio_client->Initialize(AUDCLNT_SHAREMODE_SHARED, streamflags, p_capture ? REFTIMES_PER_SEC : 0, 0, pwfex, nullptr);
 		ERR_FAIL_COND_V_MSG(hr != S_OK, ERR_CANT_OPEN, "WASAPI: Initialize failed with error 0x" + String::num_uint64(hr, 16) + ".");
+		UINT32 max_frames;
+		HRESULT hr = p_device->audio_client->GetBufferSize(&max_frames);
+		ERR_FAIL_COND_V(hr != S_OK, ERR_CANT_OPEN);
+
+		// Due to WASAPI Shared Mode we have no control of the buffer size
+		buffer_frames = max_frames;
+
+		int64_t latency = 0;
+		audio_output.audio_client->GetStreamLatency(&latency);
+		// WASAPI REFERENCE_TIME units are 100 nanoseconds per unit
+		// https://docs.microsoft.com/en-us/windows/win32/directshow/reference-time
+		// Convert REFTIME to seconds as godot uses for latency
+		real_latency = (float)latency / (float)REFTIMES_PER_SEC;
 	} else {
 		IAudioClient3 *device_audio_client_3 = (IAudioClient3 *)p_device->audio_client;
 		// IAudioClient3 won't accept AUDCLNT_STREAMFLAGS_RATEADJUST so resampling is required
@@ -462,6 +475,11 @@ Error AudioDriverWASAPI::audio_device_init(AudioDeviceWASAPI *p_device, bool p_c
 
 		hr = device_audio_client_3->InitializeSharedAudioStream(0, period_frames, pwfex, nullptr);
 		ERR_FAIL_COND_V_MSG(hr != S_OK, ERR_CANT_OPEN, "WASAPI: InitializeSharedAudioStream failed with error 0x" + String::num_uint64(hr, 16) + ".");
+		uint32_t output_latency_in_frames;
+		WAVEFORMATEX *current_pwfex;
+		device_audio_client_3->GetCurrentSharedModeEnginePeriod(&current_pwfex, &output_latency_in_frames);
+		real_latency = (float)output_latency_in_frames / (float)current_pwfex->nSamplesPerSec;
+		CoTaskMemFree(current_pwfex);
 	}
 
 	if (p_capture) {
@@ -580,12 +598,8 @@ int AudioDriverWASAPI::get_mix_rate() const {
 	return mix_rate;
 }
 
-int AudioDriverWASAPI::get_mix_buffer_size() const {
-	return buffer_frames;
-}
-
 float AudioDriverWASAPI::get_latency() {
-	return (float)buffer_frames / (float)mix_rate;
+	return real_latency;
 }
 
 AudioDriver::SpeakerMode AudioDriverWASAPI::get_speaker_mode() const {
