@@ -31,48 +31,27 @@ def get_opts():
 def get_flags():
     return [
         ("tools", False),
-        ('builtin_bullet', False),
+        ('builtin_bullet', True),
         ('builtin_enet', False), # Not in portlibs.
-        ('builtin_freetype', False),
+        #('builtin_freetype', False),
         ('builtin_libogg', False),
-        ('builtin_libpng', False),
-        ('builtin_libtheora', False),
-        ('builtin_libvorbis', False),
         ('builtin_libvpx', False),
-        ('builtin_libwebp', True),
         ('builtin_libwebsockets', True), # Not in portlibs.
         ('builtin_mbedtls', False),
         ('builtin_miniupnpc', False),
         ('builtin_opus', False),
-        ('builtin_pcre2', False),
+        ('builtin_pcre2', True),
+        ('builtin_pcre2_with_jit', False),
         ('builtin_squish', True), # Not in portlibs.
-        ('builtin_zlib', False),
         ('builtin_zstd', True), # Not in portlibs.
         ('module_websocket_enabled', False),
         ('module_mbedtls_enabled', False),
         ('module_upnp_enabled', False),
         ('module_enet_enabled', False),
         ('module_gdnative_enabled', False),
-        ('module_regex_enabled', False),
+        ('module_regex_enabled', True),
         ('module_webm_enabled', False),
         ('module_mobile_vr_enabled', False),
-        ('module_csg_enabled', False),
-        ('module_dds_enabled', False),
-        ('module_visual_script_enabled', False),
-        ('disable_3d', False),
-        ('minizip', False),
-        ('disable_advanced_gui', True),
-        ('deprecated', False),
-        ('module_gdnavigation_enabled', False),
-        ('module_gridmap_enabled', False),
-        ('module_hdr_enabled', False),
-        ('module_opensimplex_enabled', False),
-        ('module_visual_script_enabled', False),
-        ('module_bullet_enabled', False),
-        ('module_webxr_enabled', False),
-        ('module_jsonrpc_enabled', False),
-        ('module_jpg_enabled', False),
-        ('module_tga_enabled', False)
         ]
 
 
