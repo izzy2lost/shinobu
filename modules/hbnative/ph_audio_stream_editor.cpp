@@ -65,7 +65,7 @@ void PHAudioStreamEditor::_draw_preview() {
 		end_point_c = preview_len;
 	}
 
-	ERR_FAIL_COND_MSG(end_point_c <= start_point_c, "End point must be after the start point")
+	ERR_FAIL_COND_MSG(end_point_c <= start_point_c, "End point must be after the start point");
 
 	Vector<Vector2> lines;
 	lines.resize(size.width * 2);
