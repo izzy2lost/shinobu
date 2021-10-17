@@ -75,7 +75,6 @@ float PHAudioStreamPreview::get_avg(float p_time, float p_time_next) const {
 		time_to = time_from + 1;
 	}
 
-	uint8_t vmax = 0;
 	int64_t total = 0;
 	int64_t count = 0;
 	for (int i = time_from; i < time_to; i++) {
@@ -103,7 +102,6 @@ float PHAudioStreamPreview::get_rms(float p_time, float p_time_next) const {
 		time_to = time_from + 1;
 	}
 
-	uint8_t vmax = 0;
 	float total = 0;
 	int64_t count = 0;
 	for (int i = time_from; i < time_to; i++) {
