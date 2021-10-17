@@ -38,6 +38,7 @@
 #include "core/error_list.h"
 #include "core/os/os.h"
 
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
 #include <EGL/egl.h>
