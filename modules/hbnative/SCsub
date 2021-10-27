@@ -2,4 +2,23 @@
 
 Import("env")
 
-env.add_source_files(env.modules_sources, "*.cpp")  # Add all cpp files to the build
+sources = [
+    "ph_audio_stream_editor.cpp",
+    "ph_audio_stream_preview.cpp",
+    "hbnative_singleton.cpp",
+    "register_types.cpp",
+]
+
+env_thirdparty = env.Clone()
+
+thirdparty_sources = [
+    "thirdparty/romaji-cpp/utf8.cpp",
+    "thirdparty/romaji-cpp/romaji.cpp",
+]
+
+env_thirdparty.disable_warnings()
+env_thirdparty.add_source_files(env.modules_sources, thirdparty_sources)
+
+module_env = env.Clone()
+
+module_env.add_source_files(env.modules_sources, sources)
