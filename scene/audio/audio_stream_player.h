@@ -56,6 +56,7 @@ private:
 	SafeFlag active;
 	SafeFlag setstop;
 	SafeFlag stop_has_priority;
+	SafeFlag ready_to_seek;
 
 	float mix_volume_db;
 	float pitch_scale;

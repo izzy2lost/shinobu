@@ -43,7 +43,7 @@ class AudioStreamPlaybackOGGVorbis : public AudioStreamPlaybackResampled {
 
 	stb_vorbis *ogg_stream;
 	stb_vorbis_alloc ogg_alloc;
-	uint32_t frames_mixed;
+	int64_t frames_mixed;
 	bool active;
 	int loops;
 

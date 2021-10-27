@@ -39,6 +39,21 @@ void AudioStreamPlaybackOGGVorbis::_mix_internal(AudioFrame *p_buffer, int p_fra
 
 	int start_buffer = 0;
 
+	if (frames_mixed < 0) {
+		for (int i = 0; i < p_frames; i++) {
+			p_buffer[i] = AudioFrame(0, 0);
+		}
+
+		if (frames_mixed + p_frames < 0) {
+			frames_mixed += p_frames;
+			return;
+		} else {
+			start_buffer = -frames_mixed;
+			frames_mixed = 0;
+			todo = todo - start_buffer;
+		}
+	}
+
 	while (todo && active) {
 		float *buffer = (float *)p_buffer;
 		if (start_buffer > 0) {
@@ -70,7 +85,7 @@ void AudioStreamPlaybackOGGVorbis::_mix_internal(AudioFrame *p_buffer, int p_fra
 		if (todo) {
 			//end of file!
 			bool is_not_empty = mixed > 0 || stb_vorbis_stream_length_in_samples(ogg_stream) > 0;
-			if (vorbis_stream->loop && is_not_empty) {
+			if (vorbis_stream->loop && is_not_empty && start_buffer == 0) {
 				//loop
 				seek(vorbis_stream->loop_offset);
 				loops++;
@@ -120,9 +135,9 @@ void AudioStreamPlaybackOGGVorbis::seek(float p_time) {
 	if (p_time >= vorbis_stream->get_length()) {
 		p_time = 0;
 	}
-	frames_mixed = uint32_t(vorbis_stream->sample_rate * p_time);
+	frames_mixed = int64_t(vorbis_stream->sample_rate * p_time);
 
-	stb_vorbis_seek(ogg_stream, frames_mixed);
+	stb_vorbis_seek(ogg_stream, MAX(frames_mixed, 0));
 }
 
 AudioStreamPlaybackOGGVorbis::~AudioStreamPlaybackOGGVorbis() {

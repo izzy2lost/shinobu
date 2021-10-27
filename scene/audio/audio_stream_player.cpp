@@ -118,7 +118,7 @@ void AudioStreamPlayer::_mix_audio() {
 		setstop.clear();
 	}
 
-	if (setseek.get() >= 0.0 && !stop_has_priority.is_set()) {
+	if (ready_to_seek.is_set() && !stop_has_priority.is_set()) {
 		if (stream_playback->is_playing()) {
 			//fade out to avoid pops
 			_mix_internal(true);
@@ -130,6 +130,7 @@ void AudioStreamPlayer::_mix_audio() {
 	}
 
 	stop_has_priority.clear();
+	ready_to_seek.clear();
 
 	_mix_internal(false);
 }
@@ -143,7 +144,7 @@ void AudioStreamPlayer::_notification(int p_what) {
 	}
 
 	if (p_what == NOTIFICATION_INTERNAL_PROCESS) {
-		if (!active.is_set() || (setseek.get() < 0 && !stream_playback->is_playing())) {
+		if (!active.is_set() || (setseek.get() < 0 && !stream_playback->is_playing() && !ready_to_seek.is_set())) {
 			active.clear();
 			set_process_internal(false);
 			emit_signal("finished");
@@ -198,6 +199,7 @@ void AudioStreamPlayer::set_stream(Ref<AudioStream> p_stream) {
 		stream.unref();
 		active.clear();
 		setseek.set(-1);
+		ready_to_seek.clear();
 		setstop.clear();
 	}
 
@@ -236,6 +238,7 @@ void AudioStreamPlayer::play(float p_from_pos) {
 	if (stream_playback.is_valid()) {
 		//mix_volume_db = volume_db; do not reset volume ramp here, can cause clicks
 		setseek.set(p_from_pos);
+		ready_to_seek.set();
 		stop_has_priority.clear();
 		active.set();
 		set_process_internal(true);
@@ -245,6 +248,7 @@ void AudioStreamPlayer::play(float p_from_pos) {
 void AudioStreamPlayer::seek(float p_seconds) {
 	if (stream_playback.is_valid()) {
 		setseek.set(p_seconds);
+		ready_to_seek.set();
 	}
 }
 
