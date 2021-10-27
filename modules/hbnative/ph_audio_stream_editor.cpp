@@ -58,12 +58,8 @@ void PHAudioStreamEditor::_draw_preview() {
 	Ref<PHAudioStreamPreview> preview = PHAudioStreamPreviewGenerator::get_singleton()->generate_preview(stream);
 	float preview_len = preview->get_length();
 
-	float start_point_c = CLAMP(start_point, 0.0, preview_len);
-	float end_point_c = CLAMP(end_point, 0.0, preview_len);
-
-	if (end_point < 0) {
-		end_point_c = preview_len;
-	}
+	float start_point_c = MIN(start_point, preview_len);
+	float end_point_c = end_point;
 
 	ERR_FAIL_COND_MSG(end_point_c <= start_point_c, "End point must be after the start point");
 
