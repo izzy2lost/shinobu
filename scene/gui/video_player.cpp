@@ -154,10 +154,6 @@ void VideoPlayer::_notification(int p_notification) {
 			double delta = last_audio_time == 0 ? 0 : audio_time - last_audio_time;
 			last_audio_time = audio_time;
 
-			if (delta == 0) {
-				return;
-			}
-
 			if (paused) {
 				delta = 0;
 			}
