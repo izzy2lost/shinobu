@@ -136,6 +136,9 @@ void VideoStreamPlaybackGDNative::update(float p_delta) {
 	}
 	time += p_delta;
 	ERR_FAIL_COND(interface == nullptr);
+	if (time < 0.0) {
+		p_delta = 0.0;
+	}
 	interface->update(data_struct, p_delta);
 
 	// Don't mix if there's no audio (num_channels == 0).
@@ -264,7 +267,7 @@ void VideoStreamPlaybackGDNative::stop() {
 
 void VideoStreamPlaybackGDNative::seek(float p_time) {
 	ERR_FAIL_COND(interface == nullptr);
-	interface->seek(data_struct, p_time);
+	interface->seek(data_struct, MAX(p_time, 0.0));
 	if (p_time < time) {
 		seek_backward = true;
 	}
@@ -290,7 +293,7 @@ float VideoStreamPlaybackGDNative::get_length() const {
 
 float VideoStreamPlaybackGDNative::get_playback_position() const {
 	ERR_FAIL_COND_V(interface == nullptr, 0);
-	return interface->get_playback_position(data_struct);
+	return time;
 }
 
 bool VideoStreamPlaybackGDNative::has_loop() const {
