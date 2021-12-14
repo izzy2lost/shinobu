@@ -11,10 +11,7 @@ sources = [
 
 env_thirdparty = env.Clone()
 
-thirdparty_sources = [
-    "thirdparty/romaji-cpp/utf8.cpp",
-    "thirdparty/romaji-cpp/romaji.cpp",
-]
+thirdparty_sources = []
 
 env_thirdparty.disable_warnings()
 env_thirdparty.add_source_files(env.modules_sources, thirdparty_sources)
