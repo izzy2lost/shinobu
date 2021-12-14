@@ -66,6 +66,10 @@ public:
 
 	void make_current();
 
+	bool is_offscreen_available() const;
+	void make_offscreen_current();
+	void release_offscreen_current();
+
 	HDC get_hdc();
 	HGLRC get_hglrc();
 
@@ -85,6 +89,7 @@ public:
 private:
 	EGLDisplay mEglDisplay;
 	EGLContext mEglContext;
+	EGLContext mEglContext_offscreen;
 	EGLSurface mEglSurface;
 
 	EGLint width;

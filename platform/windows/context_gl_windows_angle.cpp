@@ -62,6 +62,18 @@ void ContextGL_Windows::make_current() {
 	eglMakeCurrent(mEglDisplay, mEglSurface, mEglSurface, mEglContext);
 }
 
+bool ContextGL_Windows::is_offscreen_available() const {
+	return mEglContext_offscreen != EGL_NO_CONTEXT;
+}
+
+void ContextGL_Windows::make_offscreen_current() {
+	ERR_FAIL_COND(eglMakeCurrent(mEglDisplay, mEglSurface, mEglSurface, mEglContext_offscreen) != EGL_TRUE);
+}
+
+void ContextGL_Windows::release_offscreen_current() {
+	ERR_FAIL_COND(eglMakeCurrent(mEglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE);
+}
+
 HDC ContextGL_Windows::get_hdc() {
 	return hDC;
 }
@@ -141,6 +153,9 @@ void ContextGL_Windows::cleanup() {
 	if (mEglDisplay != EGL_NO_DISPLAY && mEglContext != EGL_NO_CONTEXT) {
 		eglDestroyContext(mEglDisplay, mEglContext);
 		mEglContext = EGL_NO_CONTEXT;
+		if (mEglContext_offscreen != EGL_NO_CONTEXT) {
+			eglDestroyContext(mEglDisplay, mEglContext_offscreen);
+		}
 	}
 
 	if (mEglDisplay != EGL_NO_DISPLAY) {
@@ -317,6 +332,7 @@ ContextGL_Windows::ContextGL_Windows(HWND hwnd, bool p_opengl_3_context) {
 	opengl_3_context = p_opengl_3_context;
 	hWnd = hwnd;
 	use_vsync = false;
+	mEglContext_offscreen = EGL_NO_CONTEXT;
 	vsync_via_compositor = false;
 }
 
