@@ -225,6 +225,7 @@ Error ContextGL_Windows::initialize() {
 	minorVersion = 5;
 	EGLDisplay display = EGL_NO_DISPLAY;
 	EGLContext context = EGL_NO_CONTEXT;
+	EGLContext context_offscreen = EGL_NO_CONTEXT;
 	EGLSurface surface = EGL_NO_SURFACE;
 	EGLConfig config = nullptr;
 	EGLint contextAttribs[3];
@@ -308,6 +309,11 @@ Error ContextGL_Windows::initialize() {
 		context = eglCreateContext(display, config, EGL_NO_CONTEXT, contextAttribs);
 		if (context == EGL_NO_CONTEXT) {
 			throw "Failed to create EGL context";
+		}
+
+		context_offscreen = eglCreateContext(display, config, EGL_NO_CONTEXT, contextAttribs);
+		if (contecontext_offscreenxt == EGL_NO_CONTEXT) {
+			throw "Failed to create EGL Offscreen context";
 		}
 
 		if (eglMakeCurrent(display, surface, surface, context) == EGL_FALSE) {
