@@ -319,7 +319,7 @@ Error ContextGL_Windows::initialize() {
 		}
 
 		context_offscreen = eglCreateContext(display, config, EGL_NO_CONTEXT, contextAttribs);
-		if (contecontext_offscreenxt == EGL_NO_CONTEXT) {
+		if (context_offscreen == EGL_NO_CONTEXT) {
 			throw "Failed to create EGL Offscreen context";
 		}
 
