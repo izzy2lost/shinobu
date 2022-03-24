@@ -4462,6 +4462,7 @@ void OS_X11::update_real_mouse_position() {
 }
 
 OS_X11::OS_X11() {
+/*
 #ifdef PULSEAUDIO_ENABLED
 	AudioDriverManager::add_driver(&driver_pulseaudio);
 #endif
@@ -4469,7 +4470,7 @@ OS_X11::OS_X11() {
 #ifdef ALSA_ENABLED
 	AudioDriverManager::add_driver(&driver_alsa);
 #endif
-
+*/
 	xi.opcode = 0;
 	xi.last_relative_time = 0;
 	layered_window = false;
