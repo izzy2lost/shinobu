@@ -128,13 +128,13 @@ public:
         playback->schedule_stop_time(global_time_msec);
     }
 
-    uint64_t get_playback_position_msec() {
+    int64_t get_playback_position_msec() {
         return playback->get_playback_position_msec();
     }
     uint64_t get_length_msec() {
         return playback->get_length_msec();
     }
-    uint64_t seek(uint64_t to_time_msec) {
+    int64_t seek(uint64_t to_time_msec) {
         return playback->seek(to_time_msec);
     }
     void set_volume(float linear_volume) {
