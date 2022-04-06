@@ -176,14 +176,14 @@ public:
         return result;
     }
 
-    SH_RESULT seek(uint64_t to_time_msec) {
+    SH_RESULT seek(int64_t to_time_msec) {
         // Sound MUST be stopped before seeking or we crash
         if (ma_sound_is_playing(sound) == MA_TRUE) {
             ma_sound_stop(sound);
         }
         uint32_t sample_rate;
         ma_sound_get_data_format(sound, NULL, NULL, &sample_rate, NULL, 0);
-        return ma_sound_seek_to_pcm_frame(sound, to_time_msec * (float)(sample_rate / 1000.0f));
+        return ma_sound_seek_to_pcm_frame(sound, std::max(float(0.0f), to_time_msec * (float)(sample_rate / 1000.0f)));
     }
 
     bool is_playing() {
@@ -215,16 +215,16 @@ public:
         ma_sound_set_stop_time_in_milliseconds(sound, global_time_msec);
     }
 
-    uint64_t get_playback_position_msec() {
-
-        
-        ma_uint64 pos_frames;
+    int64_t get_playback_position_msec() {
+        ma_uint64 pos_frames = 0;
         result = ma_sound_get_cursor_in_pcm_frames(sound, &pos_frames);
-        uint64_t out_pos = 0;
+        int64_t out_pos = 0;
         uint32_t sample_rate;
-        ma_sound_get_data_format(sound, NULL, NULL, &sample_rate, NULL, 0);
         if (result == SH_SUCCESS) {
-           out_pos = pos_frames / (float)(sample_rate/ 1000.0f);
+            result = ma_sound_get_data_format(sound, NULL, NULL, &sample_rate, NULL, 0);
+            if (result == SH_SUCCESS) {
+                out_pos = pos_frames / (float)(sample_rate/ 1000.0f);
+            }
         }
         
         // This allows the return of negative playback time
