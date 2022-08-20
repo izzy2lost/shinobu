@@ -4,27 +4,24 @@
 
 #include "core/class_db.h"
 #include "core/engine.h"
-#include "shinobu_godot.h"
+#include "shinobu.h"
+#include "shinobu_effects.h"
+#include "shinobu_sound_player.h"
 
-static ShinobuGodot *shinobu_ptr = NULL;
+static Shinobu *shinobu_ptr = NULL;
 
 void register_shinobu_types() {
-	ClassDB::register_class<ShinobuGodotAudioFile>();
-	ClassDB::register_virtual_class<ShinobuGodotSoundPlayback>();
-	ClassDB::register_virtual_class<ShinobuGodotEffect>();
-	ClassDB::register_virtual_class<ShinobuGodotEffectSpectrumAnalyzer>();
-	ClassDB::register_virtual_class<ShinobuGodotEffectPitchShift>();
-	ClassDB::register_virtual_class<ShinobuGodotEffectChannelRemap>();
-	shinobu_ptr = memnew(ShinobuGodot);
-#ifdef TOOLS_ENABLED
-	// Shinobu has to be initialized manually from GDSCript, but we can't do it
-	// if we are in the editor
-	if (Engine::get_singleton()->is_editor_hint()) {
-		shinobu_ptr->initialize();
-	}
-#endif
-	ClassDB::register_class<ShinobuGodot>();
-	Engine::get_singleton()->add_singleton(Engine::Singleton("ShinobuGodot", ShinobuGodot::get_singleton()));
+	ClassDB::register_virtual_class<ShinobuSoundPlayer>();
+	ClassDB::register_virtual_class<ShinobuSoundSource>();
+	ClassDB::register_virtual_class<ShinobuSoundSourceMemory>();
+	ClassDB::register_virtual_class<ShinobuGroup>();
+	ClassDB::register_virtual_class<ShinobuEffect>();
+	ClassDB::register_virtual_class<ShinobuChannelRemapEffect>();
+	ClassDB::register_virtual_class<ShinobuPitchShiftEffect>();
+	ClassDB::register_virtual_class<ShinobuSpectrumAnalyzerEffect>();
+	ClassDB::register_class<Shinobu>();
+	shinobu_ptr = memnew(Shinobu);
+	Engine::get_singleton()->add_singleton(Engine::Singleton("Shinobu", Shinobu::get_singleton()));
 }
 
 void unregister_shinobu_types() {
