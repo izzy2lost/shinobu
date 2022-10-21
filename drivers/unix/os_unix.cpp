@@ -95,6 +95,37 @@ static void handle_interrupt(int sig) {
 	ScriptDebugger::get_singleton()->set_lines_left(1);
 }
 
+Vector<OS_Unix::SigchldCallbackItem *> OS_Unix::sigchld_handler_callbacks;
+
+void OS_Unix::handle_sigchld(int sig, siginfo_t *info, void *ucontext) {
+	OS_Unix *os = OS_Unix::get_singleton();
+	os->mutex.lock();
+	for (int i = 0; i < os->sigchld_handler_callbacks.size(); i++) {
+		os->sigchld_handler_callbacks[i]->callback(info->si_pid, os->sigchld_handler_callbacks[i]->userdata);
+	}
+	os->mutex.unlock();
+}
+
+void OS_Unix::add_sigchld_callback(SigchldHandlerCallback p_callback, void *userdata) {
+	SigchldCallbackItem *callback = memnew(SigchldCallbackItem);
+	callback->callback = p_callback;
+	callback->userdata = userdata;
+	mutex.lock();
+	sigchld_handler_callbacks.push_back(callback);
+	mutex.unlock();
+}
+
+void OS_Unix::remove_sigchld_callback(SigchldHandlerCallback p_callback, void *userdata) {
+	mutex.lock();
+	for (int i = sigchld_handler_callbacks.size() - 1; i >= 1; i--) {
+		SigchldCallbackItem *ci = sigchld_handler_callbacks[i];
+		if (ci->callback == p_callback && ci->userdata == userdata) {
+			sigchld_handler_callbacks.erase(ci);
+		}
+	}
+	mutex.unlock();
+}
+
 void OS_Unix::initialize_debugging() {
 	if (ScriptDebugger::get_singleton() != nullptr) {
 		struct sigaction action;
@@ -106,6 +137,10 @@ void OS_Unix::initialize_debugging() {
 
 int OS_Unix::unix_initialize_audio(int p_audio_driver) {
 	return 0;
+}
+
+OS_Unix *OS_Unix::get_singleton() {
+	return static_cast<OS_Unix *>(OS::get_singleton());
 }
 
 void OS_Unix::initialize_core() {
@@ -124,6 +159,12 @@ void OS_Unix::initialize_core() {
 	NetSocketPosix::make_default();
 	IP_Unix::make_default();
 #endif
+
+	struct sigaction sa;
+	sa.sa_sigaction = handle_sigchld;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = SA_RESTART | SA_NOCLDSTOP | SA_SIGINFO;
+	sigaction(SIGCHLD, &sa, nullptr);
 
 	_setup_clock();
 }
