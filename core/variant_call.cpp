@@ -622,6 +622,23 @@ struct _VariantCall {
 		r_ret = s;
 	}
 
+	static void _call_PoolByteArray_get_string_from_utf8_checked(Variant &r_ret, Variant &p_self, const Variant **p_args) {
+		PoolByteArray *ba = reinterpret_cast<PoolByteArray *>(p_self._data._mem);
+		String s;
+		bool conversion_ok = true;
+		if (ba->size() > 0) {
+			PoolByteArray::Read r = ba->read();
+			conversion_ok = !s.parse_utf8((const char *)r.ptr(), ba->size());
+		}
+
+		Array a;
+
+		a.append(s);
+		a.append(conversion_ok);
+
+		r_ret = a;
+	}
+
 	static void _call_PoolByteArray_compress(Variant &r_ret, Variant &p_self, const Variant **p_args) {
 		PoolByteArray *ba = reinterpret_cast<PoolByteArray *>(p_self._data._mem);
 		PoolByteArray compressed;
@@ -2003,6 +2020,7 @@ void register_variant_methods() {
 
 	ADDFUNC0R(POOL_BYTE_ARRAY, STRING, PoolByteArray, get_string_from_ascii, varray());
 	ADDFUNC0R(POOL_BYTE_ARRAY, STRING, PoolByteArray, get_string_from_utf8, varray());
+	ADDFUNC0R(POOL_BYTE_ARRAY, ARRAY, PoolByteArray, get_string_from_utf8_checked, varray());
 	ADDFUNC0R(POOL_BYTE_ARRAY, STRING, PoolByteArray, hex_encode, varray());
 	ADDFUNC1R(POOL_BYTE_ARRAY, POOL_BYTE_ARRAY, PoolByteArray, compress, INT, "compression_mode", varray(0));
 	ADDFUNC2R(POOL_BYTE_ARRAY, POOL_BYTE_ARRAY, PoolByteArray, decompress, INT, "buffer_size", INT, "compression_mode", varray(0));

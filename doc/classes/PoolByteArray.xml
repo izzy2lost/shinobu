@@ -112,6 +112,12 @@
 				Returns a copy of the array's contents as [String]. Slower than [method get_string_from_ascii] but supports UTF-8 encoded data. Use this function if you are unsure about the source of the data. For user input this function should always be preferred.
 			</description>
 		</method>
+		<method name="get_string_from_utf8_checked">
+			<return type="String" />
+			<description>
+				Same as [method get_string_from_utf8] but returns an array, with its first element being the resulting [String] and the second being the result of the conversion, being [code]true[/code] if it completed succesfully.
+			</description>
+		</method>
 		<method name="has">
 			<return type="bool" />
 			<argument index="0" name="value" type="int" />
