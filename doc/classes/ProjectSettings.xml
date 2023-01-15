@@ -1827,6 +1827,10 @@
 		<member name="rendering/quality/voxel_cone_tracing/high_quality" type="bool" setter="" getter="" default="false">
 			Use high-quality voxel cone tracing. This results in better-looking reflections, but is much more expensive on the GPU.
 		</member>
+		<member name="rendering/threads/nvidia_disable_threaded_optimization" type="bool" setter="" getter="" default="true">
+			If [code]true[/code] disables the threaded optimization feature from the NVIDIA drivers, which are known to cause stuttering on most OpenGL applications.
+			[b]Note:[/b] This setting only works on Windows, as threaded optimization is disabled by default on other platforms.
+		</member>
 		<member name="rendering/threads/thread_model" type="int" setter="" getter="" default="1">
 			Thread model for rendering. Rendering on a thread can vastly improve performance, but synchronizing to the main thread can cause a bit more jitter.
 		</member>

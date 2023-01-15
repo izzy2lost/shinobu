@@ -1113,6 +1113,7 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 
 	// Assigning here, to be sure that it appears in docs
 	GLOBAL_DEF("rendering/2d/options/use_nvidia_rect_flicker_workaround", false);
+	GLOBAL_DEF_RST("rendering/threads/nvidia_disable_threaded_optimization", true);
 
 	if (use_custom_res) {
 		if (!force_res) {
