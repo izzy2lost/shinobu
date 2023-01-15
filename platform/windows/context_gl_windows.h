@@ -56,6 +56,7 @@ class ContextGL_Windows {
 	PFNWGLGETSWAPINTERVALEXTPROC wglGetSwapIntervalEXT;
 
 	static bool should_vsync_via_compositor();
+	void _nvapi_disable_threaded_optimization();
 
 public:
 	void release_current();
