@@ -228,6 +228,8 @@ Error Shinobu::initialize(ma_backend forced_backend) {
 
 	MA_ERR_RET(result, "Audio engine init failed!");
 
+	initialized = true;
+
 	return OK;
 }
 
@@ -316,8 +318,10 @@ uint64_t Shinobu::get_actual_buffer_size() const {
 }
 
 Shinobu::~Shinobu() {
-	ma_engine_uninit(engine.get());
-	ma_resource_manager_uninit(resource_manager.get());
-	ma_device_uninit(device.get());
-	ma_context_uninit(context.get());
+	if (initialized) {
+		ma_engine_uninit(engine.get());
+		ma_resource_manager_uninit(resource_manager.get());
+		ma_device_uninit(device.get());
+		ma_context_uninit(context.get());
+	}
 }

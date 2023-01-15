@@ -37,6 +37,7 @@ private:
 	static void ma_data_callback(ma_device *pDevice, void *pOutput, const void *pInput, ma_uint32 frameCount);
 
 	float master_volume = 1.0f;
+	bool initialized = false;
 
 protected:
 	static void _bind_methods();
