@@ -10,6 +10,7 @@ void ShinobuSoundPlayer::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "pitch_scale"), "set_pitch_scale", "get_pitch_scale");
 	ClassDB::bind_method(D_METHOD("schedule_start_time", "global_time_msec"), &ShinobuSoundPlayer::schedule_start_time);
 	ClassDB::bind_method(D_METHOD("schedule_stop_time", "global_time_msec"), &ShinobuSoundPlayer::schedule_stop_time);
+	ClassDB::bind_method(D_METHOD("get_playback_position_nsec"), &ShinobuSoundPlayer::get_playback_position_nsec);
 	ClassDB::bind_method(D_METHOD("get_playback_position_msec"), &ShinobuSoundPlayer::get_playback_position_msec);
 	ClassDB::bind_method(D_METHOD("is_at_stream_end"), &ShinobuSoundPlayer::is_at_stream_end);
 	ClassDB::bind_method(D_METHOD("is_playing"), &ShinobuSoundPlayer::is_playing);
@@ -53,7 +54,7 @@ void ShinobuSoundPlayer::schedule_stop_time(uint64_t m_global_time_msec) {
 	ma_sound_set_stop_time_in_milliseconds(sound.get(), m_global_time_msec);
 }
 
-int64_t ShinobuSoundPlayer::get_playback_position_msec() const {
+int64_t ShinobuSoundPlayer::get_playback_position_nsec() const {
 	Ref<ShinobuClock> clock = Shinobu::get_singleton()->get_clock();
 	ma_engine *engine = Shinobu::get_singleton()->get_engine();
 
@@ -64,22 +65,29 @@ int64_t ShinobuSoundPlayer::get_playback_position_msec() const {
 	if (result == MA_SUCCESS) {
 		result = ma_sound_get_data_format(sound.get(), NULL, NULL, &sample_rate, NULL, 0);
 		if (result == MA_SUCCESS) {
-			out_pos = pos_frames / (float)(sample_rate / 1000.0f);
+			out_pos = (pos_frames * 1e+9) / ma_engine_get_sample_rate(engine);
 		}
 	}
 
 	// This allows the return of negative playback time
-	uint64_t dsp_time = ma_engine_get_time(engine) / (float)(ma_engine_get_sample_rate(engine) / 1000.0f);
+	// seconds to nanoseconds = x * 1_000_000_000
+	// milliseconds to nanoseconds = x * 1_000_000
+	uint64_t dsp_time_nsec = (ma_engine_get_time(engine) * 1e+9) / ma_engine_get_sample_rate(engine);
+	uint64_t start_time_nsec = start_time_msec * 1e+6;
 
-	if (!is_playing() && start_time_msec > dsp_time) {
-		return dsp_time - start_time_msec + out_pos;
+	if (!is_playing() && start_time_nsec > dsp_time_nsec) {
+		return dsp_time_nsec - start_time_nsec + out_pos;
 	}
 
 	if (is_playing()) {
-		out_pos += clock->get_current_offset_msec();
+		out_pos += clock->get_current_offset_nsec();
 	}
 
 	return out_pos;
+}
+
+int64_t ShinobuSoundPlayer::get_playback_position_msec() const {
+	return get_playback_position_nsec() / 1e+6;
 }
 
 bool ShinobuSoundPlayer::is_at_stream_end() const {

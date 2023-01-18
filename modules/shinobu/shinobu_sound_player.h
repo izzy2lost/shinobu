@@ -34,6 +34,7 @@ public:
 	void schedule_start_time(uint64_t m_global_time_msec);
 	void schedule_stop_time(uint64_t m_global_time_msec);
 
+	int64_t get_playback_position_nsec() const;
 	int64_t get_playback_position_msec() const;
 	bool is_at_stream_end() const;
 	bool is_playing() const;
