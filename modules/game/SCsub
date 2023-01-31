@@ -1,0 +1,14 @@
+#!/usr/bin/env python
+
+Import("env")
+Import("env_modules")
+
+env_game = env_modules.Clone()
+
+module_obj = []
+if env.debug_features:
+    # Need imgui
+    env_game.Prepend(CPPPATH=["#modules/imgui/thirdparty/imgui"])
+env_game.add_source_files(module_obj, "*.cpp")
+
+env.modules_sources += module_obj
