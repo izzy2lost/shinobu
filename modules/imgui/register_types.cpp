@@ -1,0 +1,48 @@
+/**************************************************************************/
+/*  register_types.cpp                                                    */
+/**************************************************************************/
+/*                         This file is part of:                          */
+/*                               SWANSONG                                 */
+/*                          https://eirteam.moe                           */
+/**************************************************************************/
+/* Copyright (c) 2023-present Álex Román Núñez                            */
+/*                                                                        */
+/* All rights reserved                                                    */
+/**************************************************************************/
+
+#include "register_types.h"
+
+#include "core/config/project_settings.h"
+#include "godot_imgui.h"
+#include "scene/main/scene_tree.h"
+#include "scene/main/window.h"
+
+GodotImGui *gd_imgui_singleton = nullptr;
+
+void imgui_module_post_init() {
+	if (!RenderingDevice::get_singleton()) {
+		print_verbose("GodotImGui: RenderingDevice not found, running in OpenGL?");
+		return;
+	}
+	if (Engine::get_singleton()->is_editor_hint()) {
+		print_verbose("GodotImGui: Running in the editor, disabling imgui.");
+		return;
+	}
+	gd_imgui_singleton = memnew(GodotImGui);
+	SceneTree *st = SceneTree::get_singleton();
+	if (st) {
+		st->get_root()->add_child(gd_imgui_singleton);
+	}
+}
+
+void initialize_imgui_module(ModuleInitializationLevel p_level) {
+	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
+		GDREGISTER_ABSTRACT_CLASS(GodotImGui);
+		Engine::get_singleton()->add_singleton(Engine::Singleton("GodotImGui", GodotImGui::get_singleton()));
+	}
+}
+
+void uninitialize_imgui_module(ModuleInitializationLevel p_level) {
+	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
+	}
+}
