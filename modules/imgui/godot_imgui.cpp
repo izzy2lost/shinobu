@@ -12,6 +12,7 @@
 
 #include "godot_imgui.h"
 
+#include "imnodes.h"
 #include "main/performance.h"
 #include "scene/gui/label.h"
 #include "servers/rendering/rendering_device_binds.h"
@@ -34,6 +35,7 @@ GodotImGui::GodotImGui() {
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
+	ImNodes::CreateContext();
 
 	ImGuiIO &io = ImGui::GetIO();
 	(void)io;
@@ -72,6 +74,7 @@ void GodotImGui::_begin_frame() {
 	ImGui::GetIO().DisplaySize = ImVec2(display_size.x, display_size.y);
 	ImGui::GetIO().DeltaTime = (float)get_process_delta_time();
 	ImGui::NewFrame();
+	ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList());
 	if (show_overlay) {
 		_show_overlay();
 	}
@@ -606,6 +609,8 @@ GodotImGui::~GodotImGui() {
 	if (vertex_buffer.is_valid()) {
 		rd->free(vertex_buffer);
 	}
+	ImNodes::DestroyContext();
+	ImGui::DestroyContext();
 }
 
 void GodotImGui::_notification(int p_what) {

@@ -9,7 +9,15 @@ module_obj = []
 thirdparty_obj = []
 thirdparty_dir = "#modules/imgui/thirdparty/imgui/"
 
-thirdparty_sources = ["imgui_demo.cpp", "imgui_draw.cpp", "imgui_tables.cpp", "imgui_widgets.cpp", "imgui.cpp"]
+thirdparty_sources = [
+    "imgui_demo.cpp",
+    "imgui_draw.cpp",
+    "imgui_tables.cpp",
+    "imgui_widgets.cpp",
+    "imgui.cpp",
+    "imnodes.cpp",
+    "ImGuizmo.cpp",
+]
 
 thirdparty_sources = [thirdparty_dir + file for file in thirdparty_sources]
 
@@ -23,3 +31,6 @@ env.modules_sources += thirdparty_obj
 env_imgui.add_source_files(module_obj, thirdparty_sources)
 
 env.modules_sources += module_obj
+
+# Needed to force rebuilding the module files when the thirdparty library is updated.
+env.Depends(module_obj, thirdparty_obj)

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EPASAddNode" inherits="EPASNode" version="4.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="add_amount" type="float" setter="set_add_amount" getter="get_add_amount" default="0.0">
+			The percentage of the second input animation that should be added to the first input.
+		</member>
+	</members>
+</class>

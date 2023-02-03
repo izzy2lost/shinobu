@@ -1,0 +1,19 @@
+#ifndef EPAS_BLEND_NODE_H
+#define EPAS_BLEND_NODE_H
+#include "epas_node.h"
+
+class EPASBlendNode : public EPASNode {
+private:
+	float blend_amount = 0.0f;
+
+protected:
+	static void _bind_methods();
+
+public:
+	virtual int get_input_count() const override;
+	virtual void process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) override;
+	void set_blend_amount(float p_blend_amount);
+	float get_blend_amount() const;
+	EPASBlendNode();
+};
+#endif // EPAS_BLEND_NODE_H

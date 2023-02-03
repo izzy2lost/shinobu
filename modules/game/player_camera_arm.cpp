@@ -4,6 +4,9 @@
 void HBPlayerCameraArm::unhandled_input(const Ref<InputEvent> &p_event) {
 	const InputEventMouseMotion *ev_mouse_mot = Object::cast_to<InputEventMouseMotion>(*p_event);
 	if (ev_mouse_mot) {
+		if (Input::get_singleton()->get_mouse_mode() != Input::MOUSE_MODE_CAPTURED) {
+			return;
+		}
 		Vector2 relative = ev_mouse_mot->get_relative();
 		relative = relative / get_viewport()->get_visible_rect().size.x;
 		real_t sensitivity = GLOBAL_GET("game/mouse_sensitivity");

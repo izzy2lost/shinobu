@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EPASNode" inherits="RefCounted" version="4.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		EPAS node base class, used by the EPASController to process animation.
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="connect_to_input">
+			<return type="void" />
+			<param index="0" name="input" type="int" />
+			<param index="1" name="node" type="EPASNode" />
+			<description>
+				Sets an input to a node.
+			</description>
+		</method>
+		<method name="get_input_count" qualifiers="const">
+			<return type="int" />
+			<description>
+				Returns how many inputs are available for this node.
+			</description>
+		</method>
+		<method name="process">
+			<return type="void" />
+			<param index="0" name="base_pose" type="EPASPose" />
+			<param index="1" name="target_pose" type="EPASPose" />
+			<param index="2" name="delta" type="float" />
+			<description>
+				Called when processing this node, should modify [code]target_pose[/code].
+			</description>
+		</method>
+		<method name="process_input_pose">
+			<return type="void" />
+			<param index="0" name="input" type="int" />
+			<param index="1" name="base_pose" type="EPASPose" />
+			<param index="2" name="target_pose" type="EPASPose" />
+			<param index="3" name="delta" type="float" />
+			<description>
+				Called by the node to process its [code]input[/code]s.
+			</description>
+		</method>
+	</methods>
+</class>

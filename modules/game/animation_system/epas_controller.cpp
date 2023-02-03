@@ -1,0 +1,246 @@
+#include "epas_controller.h"
+
+#include "modules/imgui/godot_imgui.h"
+#include "modules/imgui/godot_imgui_macros.h"
+#include "modules/imgui/thirdparty/imgui/imnodes.h"
+
+void EPASController::set_playback_process_mode(EPASController::PlaybackProcessMode p_playback_process_mode) {
+	playback_process_mode = p_playback_process_mode;
+	_update_process_mode();
+}
+
+void EPASController::_update_process_mode() {
+	if (Engine::get_singleton()->is_editor_hint()) {
+		return;
+	}
+	set_process_internal(playback_process_mode == EPASController::PlaybackProcessMode::IDLE);
+	set_physics_process_internal(playback_process_mode == EPASController::PlaybackProcessMode::PHYSICS_PROCESS);
+#ifdef DEBUG_ENABLED
+	// Debug mode always need process internal for ImGui to update
+	set_process_internal(true);
+#endif
+}
+
+void EPASController::_notification(int p_what) {
+	switch (p_what) {
+		case NOTIFICATION_INTERNAL_PHYSICS_PROCESS: {
+			advance(get_physics_process_delta_time());
+		} break;
+		case NOTIFICATION_ENTER_TREE: {
+			_update_process_mode();
+		} break;
+		case NOTIFICATION_INTERNAL_PROCESS: {
+#ifdef DEBUG_ENABLED
+			GodotImGui *gim = GodotImGui::get_singleton();
+			if (gim && gim->is_debug_enabled(this)) {
+				if (gim->begin_debug_window(this)) {
+					ImGui::Text("Node count %d", nodes.size());
+					ImNodes::BeginNodeEditor();
+					debug_draw_accumulator = 0;
+					debug_draw_link_accumulator = 0;
+					debug_draw_attrib_accumulator = 0;
+					_debug_draw_node(root, nullptr);
+					ImNodes::EndNodeEditor();
+				}
+				ImGui::End();
+			}
+			if (playback_process_mode != PlaybackProcessMode::IDLE) {
+				return;
+			}
+			advance(get_process_delta_time());
+#endif
+		} break;
+	}
+}
+
+#ifdef DEBUG_ENABLED
+void EPASController::_debug_draw_node(Ref<EPASNode> p_node, int *p_output_attrib_id) {
+	int64_t object_id = p_node->get_instance_id();
+	ImNodes::BeginNode((int32_t)object_id);
+	// Root node doesn't have an output
+	ImNodes::BeginNodeTitleBar();
+	String t = p_node->get_meta("epas_name", String());
+	ImGui::TextUnformatted(t.utf8().ptr());
+	ImNodes::EndNodeTitleBar();
+
+	Ref<EPASRootNode> r = p_node;
+	if (!r.is_valid()) {
+		int output_link_id = debug_draw_attrib_accumulator;
+		*p_output_attrib_id = output_link_id;
+
+		ImNodes::BeginOutputAttribute(debug_draw_attrib_accumulator++);
+		ImNodes::EndOutputAttribute();
+	}
+
+	int input_attrib_start = debug_draw_attrib_accumulator;
+
+	for (int i = 0; i < p_node->get_input_count(); i++) {
+		ImNodes::BeginInputAttribute(debug_draw_attrib_accumulator++);
+		ImGui::Text("Input %d", i);
+		ImNodes::EndInputAttribute();
+	}
+
+	p_node->_debug_node_draw();
+
+	ImNodes::EndNode();
+
+	for (int i = 0; i < p_node->get_input_count(); i++) {
+		int attrib_out;
+		Ref<EPASNode> n = p_node->get_input(i);
+		if (n.is_null()) {
+			continue;
+		}
+		_debug_draw_node(n, &attrib_out);
+		ImNodes::Link(debug_draw_link_accumulator++, attrib_out, input_attrib_start + i);
+	}
+}
+#endif
+
+Ref<EPASPose> EPASController::get_base_pose() {
+	if (!base_pose_cache.is_valid() || base_pose_dirty) {
+		Skeleton3D *skel = get_skeleton();
+
+		if (!skel) {
+			// Skeleton is gone, which means our pose is invalid
+			base_pose_cache = Ref<EPASPose>();
+			return base_pose_cache;
+		}
+
+		base_pose_cache = Ref<EPASPose>(memnew(EPASPose));
+
+		for (int i = 0; i < skel->get_bone_count(); i++) {
+			EPASPose::BoneData *bd = base_pose_cache->create_bone(skel->get_bone_name(i));
+			Transform3D rest = skel->get_bone_rest(i);
+			bd->has_position = true;
+			bd->position = rest.origin;
+			bd->has_rotation = true;
+			bd->rotation = rest.get_basis().get_rotation_quaternion();
+			bd->has_scale = true;
+			bd->scale = rest.get_basis().get_scale();
+		}
+		base_pose_dirty = false;
+	}
+	return base_pose_cache;
+}
+
+void EPASController::advance(float p_amount) {
+	Ref<EPASPose> base_pose = get_base_pose();
+	if (!base_pose.is_valid()) {
+		// Base pose is empty, which means there must not be a skeleton available
+		return;
+	}
+	Ref<EPASPose> output_pose = memnew(EPASPose);
+	root->process_node(base_pose, output_pose, p_amount);
+
+	Skeleton3D *skel = get_skeleton();
+	// By this point skeleton should exist, if it doesn't something must have gone wrong
+	ERR_FAIL_COND_MSG(!skel, "EPASController: skeleton is missing, major malfunction.");
+
+	for (int i = 0; i < skel->get_bone_count(); i++) {
+		String bone_name = skel->get_bone_name(i);
+		EPASPose::BoneData *base_data = base_pose->get_bone_data(bone_name);
+		EPASPose::BoneData *output_data = output_pose->get_bone_data(bone_name);
+
+		if (!output_data) {
+			skel->set_bone_pose_position(i, base_data->position);
+			skel->set_bone_pose_rotation(i, base_data->rotation);
+			skel->set_bone_pose_scale(i, base_data->scale);
+		} else {
+			skel->set_bone_pose_position(i, output_data->get_position(base_data));
+			skel->set_bone_pose_rotation(i, output_data->get_rotation(base_data));
+			skel->set_bone_pose_scale(i, output_data->get_scale(base_data));
+		}
+	}
+}
+
+void EPASController::connect_node_to_root(Ref<EPASNode> p_from, StringName p_unique_name) {
+	connect_node(p_from, root, p_unique_name, 0);
+}
+
+void EPASController::connect_node(Ref<EPASNode> p_from, Ref<EPASNode> p_to, StringName p_unique_name, int p_input) {
+	ERR_FAIL_COND_MSG(!nodes.has(p_to), "Trying to connect to a node that is not part of this controller");
+	ERR_FAIL_COND_MSG(nodes.has(p_from), "Trying to connect a node that is already part of this controller");
+	ERR_FAIL_COND_MSG(node_name_map.has(p_unique_name), "Trying to use a node unique name that is already used in this controller");
+	p_to->connect_to_input(p_input, p_from);
+	nodes.push_back(p_from);
+	node_name_map.insert(p_unique_name, p_from);
+#ifdef DEBUG_ENABLED
+	p_from->set_meta("epas_name", p_unique_name);
+#endif
+}
+
+void EPASController::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("set_playback_process_mode", "playback_process_mode"), &EPASController::set_playback_process_mode);
+	ClassDB::bind_method(D_METHOD("get_playback_process_mode"), &EPASController::get_playback_process_mode);
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "playback_process_mode", PROPERTY_HINT_ENUM, "Idle,Physics,Manual"), "set_playback_process_mode", "get_playback_process_mode");
+
+	ClassDB::bind_method(D_METHOD("set_skeleton_path", "skeleton_path"), &EPASController::set_skeleton_path);
+	ClassDB::bind_method(D_METHOD("get_skeleton_path"), &EPASController::get_skeleton_path);
+	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "skeleton_path", PROPERTY_HINT_NODE_TYPE, "Skeleton3D"), "set_skeleton_path", "get_skeleton_path");
+
+	ClassDB::bind_method(D_METHOD("advance", "amount"), &EPASController::advance);
+	ClassDB::bind_method(D_METHOD("connect_node_to_root", "from", "unique_name"), &EPASController::connect_node_to_root);
+	ClassDB::bind_method(D_METHOD("connect_node", "from", "to", "unique_name", "input"), &EPASController::connect_node);
+
+	BIND_ENUM_CONSTANT(IDLE);
+	BIND_ENUM_CONSTANT(PHYSICS_PROCESS);
+	BIND_ENUM_CONSTANT(MANUAL);
+}
+
+void EPASController::_update_skeleton_node_cache() {
+	skeleton_node_cache = ObjectID();
+
+	if (has_node(skeleton_path)) {
+		Node *node = get_node(skeleton_path);
+		ERR_FAIL_COND_MSG(!node, "Cannot update actor graphics cache: Node cannot be found!");
+
+		// Ensure its a Node3D
+		Skeleton3D *nd = Object::cast_to<Skeleton3D>(node);
+		ERR_FAIL_COND_MSG(!nd, "Cannot update EPAS skeleton node cache: NodePath does not point to a Skeleton3D node!");
+
+		skeleton_path = NodePath();
+
+		skeleton_node_cache = nd->get_instance_id();
+	}
+}
+
+void EPASController::set_skeleton_path(const NodePath &p_skeleton_path) {
+	skeleton_path = p_skeleton_path;
+	base_pose_dirty = true;
+	_update_skeleton_node_cache();
+}
+
+NodePath EPASController::get_skeleton_path() const {
+	return skeleton_path;
+}
+
+EPASController::PlaybackProcessMode EPASController::get_playback_process_mode() const {
+	return playback_process_mode;
+}
+
+Skeleton3D *EPASController::get_skeleton() {
+	if (skeleton_node_cache.is_valid()) {
+		return Object::cast_to<Skeleton3D>(ObjectDB::get_instance(skeleton_node_cache));
+	} else {
+		_update_skeleton_node_cache();
+		if (skeleton_node_cache.is_valid()) {
+			return Object::cast_to<Skeleton3D>(ObjectDB::get_instance(skeleton_node_cache));
+		}
+	}
+
+	return nullptr;
+}
+
+EPASController::EPASController() {
+	root = Ref<EPASRootNode>(memnew(EPASRootNode));
+	nodes.push_back(root);
+#ifdef DEBUG_ENABLED
+	set_process_internal(true);
+	root->set_meta("epas_name", "Output");
+#endif
+	REGISTER_DEBUG(this);
+}
+
+EPASController::~EPASController() {
+	UNREGISTER_DEBUG(this);
+}

@@ -27,10 +27,10 @@ void HBActor::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_input"), &HBActor::get_input);
 	ClassDB::bind_method(D_METHOD("set_graphics_node", "path"), &HBActor::set_graphics_node);
 	ClassDB::bind_method(D_METHOD("get_graphics_node"), &HBActor::get_graphics_node);
-	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "graphics_node"), "set_graphics_node", "get_graphics_node");
+	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "graphics_node", PROPERTY_HINT_NODE_PATH_VALID_TYPES, "Node3D"), "set_graphics_node", "get_graphics_node");
 	ClassDB::bind_method(D_METHOD("set_tilt_node", "path"), &HBActor::set_tilt_node);
 	ClassDB::bind_method(D_METHOD("get_tilt_node"), &HBActor::get_tilt_node);
-	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "tilt_node"), "set_tilt_node", "get_tilt_node");
+	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "tilt_node", PROPERTY_HINT_NODE_PATH_VALID_TYPES, "Node3D"), "set_tilt_node", "get_tilt_node");
 }
 
 void HBActor::_rotate_towards_velocity(float p_delta) {
@@ -114,7 +114,7 @@ void HBActor::_update_graphics_node_cache() {
 
 		// Ensure its a Node3D
 		Node3D *nd = Object::cast_to<Node3D>(node);
-		ERR_FAIL_COND_MSG(!nd, "Cannot update actor graphics cache: Node3D Nodepath does not point to a Node3D node!");
+		ERR_FAIL_COND_MSG(!nd, "Cannot update actor graphics cache: NodePath does not point to a Node3D node!");
 
 		graphics_node_cache = nd->get_instance_id();
 	}

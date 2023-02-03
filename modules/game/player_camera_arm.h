@@ -16,7 +16,7 @@ private:
 	Vector2 mouse_target;
 
 protected:
-	void unhandled_input(const Ref<InputEvent> &p_event) override;
+	virtual void unhandled_input(const Ref<InputEvent> &p_event) override;
 	void _notification(int p_what);
 	HBPlayerCameraArm();
 };

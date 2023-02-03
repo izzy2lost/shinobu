@@ -13,6 +13,7 @@
 #ifndef GODOT_IMGUI_H
 #define GODOT_IMGUI_H
 #ifdef DEBUG_ENABLED
+#include "ImGuizmo.h"
 #include "imgui.h"
 #include "scene/gui/subviewport_container.h"
 #include "scene/main/viewport.h"

@@ -8,6 +8,17 @@
 #include "player_camera_arm.h"
 #include "scene/main/scene_tree.h"
 #include "scene/main/window.h"
+#ifdef DEBUG_ENABLED
+#include "animation_system/epas_add_node.h"
+#include "animation_system/epas_blend_node.h"
+#include "animation_system/epas_controller.h"
+#include "animation_system/epas_editor_camera.h"
+#include "animation_system/epas_editor_grid.h"
+#include "animation_system/epas_node.h"
+#include "animation_system/epas_pose.h"
+#include "animation_system/epas_pose_editor.h"
+#include "animation_system/epas_pose_node.h"
+#endif
 
 void initialize_game_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
@@ -17,6 +28,17 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(HBPlayerActor);
 		GDREGISTER_CLASS(HBPlayerCameraArm);
 		GDREGISTER_CLASS(HBGameMainLoop);
+#ifdef DEBUG_ENABLED
+		GDREGISTER_CLASS(EPASPose);
+		GDREGISTER_ABSTRACT_CLASS(EPASNode);
+		GDREGISTER_CLASS(EPASBlendNode);
+		GDREGISTER_CLASS(EPASAddNode);
+		GDREGISTER_CLASS(EPASPoseNode);
+		GDREGISTER_CLASS(EPASController);
+		GDREGISTER_CLASS(EPASPoseEditor);
+		GDREGISTER_CLASS(EPASEditorGrid);
+		GDREGISTER_CLASS(EPASEditorCamera);
+#endif
 	}
 }
 

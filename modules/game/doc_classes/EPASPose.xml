@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EPASPose" inherits="Resource" version="4.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		EPAS system pose data
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="create_bone">
+			<return type="void" />
+			<param index="0" name="bone_name" type="String" />
+			<description>
+				Creates a bone that doesn't already exist.
+			</description>
+		</method>
+		<method name="from_animation" qualifiers="static">
+			<return type="EPASPose" />
+			<param index="0" name="animation" type="Animation" />
+			<description>
+				Turns a godot animation into an EPAS pose data object
+			</description>
+		</method>
+		<method name="set_bone_position">
+			<return type="void" />
+			<param index="0" name="bone_name" type="String" />
+			<param index="1" name="position" type="Vector3" />
+			<description>
+				Sets the position of a bone.
+				[b]Note:[/b] The bone must exist. Create it with [method create_bone] if needed.
+			</description>
+		</method>
+		<method name="set_bone_rotation">
+			<return type="void" />
+			<param index="0" name="bone_name" type="String" />
+			<param index="1" name="rotation" type="Quaternion" />
+			<description>
+				Sets the rotation of a bone.
+				[b]Note:[/b] The bone must exist. Create it with [method create_bone] if needed.
+			</description>
+		</method>
+		<method name="set_bone_scale">
+			<return type="void" />
+			<param index="0" name="bone_name" type="String" />
+			<param index="1" name="scale" type="Vector3" />
+			<description>
+				Sets the scale of a bone.
+				[b]Note:[/b] The bone must exist. Create it with [method create_bone] if needed.
+			</description>
+		</method>
+	</methods>
+</class>
