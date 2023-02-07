@@ -21,6 +21,7 @@ public:
 #ifdef DEBUG_ENABLED
 	virtual void _debug_node_draw() const {};
 #endif
+	virtual ~EPASNode(){};
 };
 
 #endif // EPAS_NODE_H

@@ -21,4 +21,6 @@ def get_doc_classes():
         "EPASAddNode",
         "EPASPoseNode",
         "EPASController",
+        "EPASWheelLocomotion",
+        "HBGameMainLoop",
     ]

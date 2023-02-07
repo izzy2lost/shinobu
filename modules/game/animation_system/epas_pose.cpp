@@ -65,18 +65,19 @@ bool EPASPose::_set(const StringName &p_name, const Variant &p_value) {
 			String key = data.get_key_at_index(i);
 			if (!key.is_empty()) {
 				BoneData *bone_data = memnew(BoneData(key));
-				bone_data->has_position = data.has("position");
-				bone_data->has_rotation = data.has("rotation");
-				bone_data->has_scale = data.has("scale");
+				Dictionary data_dict = data.get(key, Dictionary());
+				bone_data->has_position = data_dict.has("position");
+				bone_data->has_rotation = data_dict.has("rotation");
+				bone_data->has_scale = data_dict.has("scale");
 				bone_data->bone_name = key;
 				if (bone_data->has_position) {
-					bone_data->position = data["position"];
-				}
-				if (bone_data->has_scale) {
-					bone_data->scale = data["scale"];
+					bone_data->position = data_dict["position"];
 				}
 				if (bone_data->has_rotation) {
-					bone_data->position = data["scale"];
+					bone_data->rotation = data_dict["rotation"];
+				}
+				if (bone_data->has_scale) {
+					bone_data->scale = data_dict["scale"];
 				}
 				bone_datas.insert(bone_data->bone_name, bone_data);
 			}
@@ -129,7 +130,7 @@ EPASPose::BoneData *EPASPose::get_bone_data(const String &p_bone_name) const {
 	return pp != nullptr ? *pp : nullptr;
 }
 
-const HashMap<String, EPASPose::BoneData *> EPASPose::get_bone_map() {
+const HashMap<String, EPASPose::BoneData *> EPASPose::get_bone_map() const {
 	return bone_datas;
 }
 
@@ -153,6 +154,13 @@ void EPASPose::set_bone_position(const String &p_bone_name, const Vector3 &p_pos
 	bd->position = p_position;
 }
 
+Vector3 EPASPose::get_bone_position(const String &p_bone_name) const {
+	EPASPose::BoneData *bd = get_bone_data(p_bone_name);
+	ERR_FAIL_COND_V_MSG(!bd, Vector3(), vformat("Bone %s does not exist", p_bone_name));
+	ERR_FAIL_COND_V_MSG(!bd->has_position, Vector3(), vformat("Bone %s doesn't have a position in this pose", p_bone_name));
+	return bd->position;
+}
+
 void EPASPose::set_bone_rotation(const String &p_bone_name, const Quaternion &p_rotation) {
 	EPASPose::BoneData *bd = get_bone_data(p_bone_name);
 	ERR_FAIL_COND_MSG(!bd, vformat("Bone %s does not exist", p_bone_name));
@@ -160,11 +168,177 @@ void EPASPose::set_bone_rotation(const String &p_bone_name, const Quaternion &p_
 	bd->rotation = p_rotation;
 }
 
+Quaternion EPASPose::get_bone_rotation(const String &p_bone_name) const {
+	EPASPose::BoneData *bd = get_bone_data(p_bone_name);
+	ERR_FAIL_COND_V_MSG(!bd, Quaternion(), vformat("Bone %s does not exist", p_bone_name));
+	ERR_FAIL_COND_V_MSG(!bd->has_rotation, Quaternion(), vformat("Bone %s doesn't have a rotation in this pose", p_bone_name));
+	return bd->rotation;
+}
+
 void EPASPose::set_bone_scale(const String &p_bone_name, const Vector3 &p_scale) {
 	EPASPose::BoneData *bd = get_bone_data(p_bone_name);
 	ERR_FAIL_COND_MSG(!bd, vformat("Bone %s does not exist", p_bone_name));
 	bd->has_scale = true;
 	bd->scale = p_scale;
+}
+
+Vector3 EPASPose::get_bone_scale(const String &p_bone_name) const {
+	EPASPose::BoneData *bd = get_bone_data(p_bone_name);
+	ERR_FAIL_COND_V_MSG(!bd, Vector3(), vformat("Bone %s does not exist", p_bone_name));
+	ERR_FAIL_COND_V_MSG(!bd->has_scale, Vector3(), vformat("Bone %s doesn't have a scale in this pose", p_bone_name));
+	return bd->scale;
+}
+
+void EPASPose::flip_along_z() {
+	HashSet<String> processed_bones;
+	processed_bones.reserve(get_bone_count());
+	for (KeyValue<String, BoneData *> &kv : bone_datas) {
+		if (processed_bones.has(kv.key)) {
+			continue;
+		}
+		processed_bones.insert(kv.key);
+		if (kv.value->has_position) {
+			kv.value->position = kv.value->position * Vector3(1.0, 1.0, -1.0);
+		}
+		if (kv.value->has_rotation) {
+			Basis bas = Basis(kv.value->rotation);
+			bas.set_euler(bas.get_euler() * Vector3(1.0, -1.0, -1.0));
+			kv.value->rotation = bas.get_rotation_quaternion();
+		}
+
+		// L/R bones are flipped and swapped, ordinary bones are just flipped
+		String other_bone;
+		if (kv.key.ends_with(".R")) {
+			other_bone = kv.key.replace(".R", ".L");
+		} else if (kv.key.ends_with(".L")) {
+			other_bone = kv.key.replace(".L", ".R");
+		}
+
+		if (!other_bone.is_empty()) {
+			BoneData *other_bone_data = get_bone_data(other_bone);
+			if (!other_bone_data) {
+				other_bone_data = create_bone(other_bone);
+			}
+			ERR_FAIL_COND(!other_bone_data);
+			processed_bones.insert(other_bone);
+			if (other_bone_data->has_position) {
+				other_bone_data->position = other_bone_data->position * Vector3(1.0, 1.0, -1.0);
+			}
+			if (other_bone_data->has_rotation) {
+				Basis bas = Basis(other_bone_data->rotation);
+				bas.set_euler(bas.get_euler() * Vector3(1.0, -1.0, -1.0));
+				other_bone_data->rotation = bas.get_rotation_quaternion();
+			}
+			SWAP(other_bone_data->has_position, kv.value->has_position);
+			SWAP(other_bone_data->has_rotation, kv.value->has_rotation);
+			SWAP(other_bone_data->position, kv.value->position);
+			SWAP(other_bone_data->rotation, kv.value->rotation);
+		}
+	}
+}
+
+void EPASPose::add(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output, float p_blend) const {
+	for (const KeyValue<String, EPASPose::BoneData *> &kv : p_second_pose->get_bone_map()) {
+		// this is the output bonedata
+		EPASPose::BoneData *output_pose_d = p_output->get_bone_data(kv.key);
+		const EPASPose::BoneData *first_bone_d = get_bone_data(kv.key);
+
+		const EPASPose::BoneData *second_bone_d = p_second_pose->get_bone_data(kv.key);
+		const EPASPose::BoneData *base_bone_d = kv.value;
+
+		if (!base_bone_d) {
+			// Bone doesn't exist in skeleton, skip.
+			continue;
+		}
+
+		if (!output_pose_d) {
+			output_pose_d = p_output->create_bone(kv.key);
+		}
+
+		// If neither of the poses has the bone we do nothing, the controller will apply the base values here
+		if (!second_bone_d && !first_bone_d) {
+			continue;
+		}
+
+		// If a bone is missing we just use the base pose
+		if (!first_bone_d)
+			first_bone_d = base_bone_d;
+		if (!second_bone_d)
+			second_bone_d = base_bone_d;
+
+		// Interpolate all values with fallback to base pose
+		if (second_bone_d->has_position || first_bone_d->has_rotation) {
+			Vector3 first_pos = first_bone_d->get_position(base_bone_d);
+			output_pose_d->has_position = true;
+			output_pose_d->position = first_pos.lerp(first_pos + second_bone_d->get_position(base_bone_d), p_blend);
+		}
+
+		if (second_bone_d->has_rotation || first_bone_d->has_rotation) {
+			Quaternion first_rotation = first_bone_d->get_rotation(base_bone_d);
+			output_pose_d->has_rotation = true;
+			output_pose_d->rotation = first_rotation.slerp(second_bone_d->get_rotation(base_bone_d) * first_rotation, p_blend);
+		}
+
+		if (second_bone_d->has_scale || first_bone_d->has_scale) {
+			Vector3 first_scale = first_bone_d->get_scale(base_bone_d);
+			output_pose_d->has_scale = true;
+			output_pose_d->scale = first_scale.lerp(first_scale + second_bone_d->get_scale(base_bone_d), p_blend);
+		}
+	}
+}
+
+void EPASPose::blend(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output, float p_blend) const {
+	for (const KeyValue<String, EPASPose::BoneData *> &kv : p_base_pose->get_bone_map()) {
+		// this is the output bonedata
+		EPASPose::BoneData *output_pose_d = p_output->get_bone_data(kv.key);
+		const EPASPose::BoneData *first_bone_d = get_bone_data(kv.key);
+
+		const EPASPose::BoneData *second_bone_d = p_second_pose->get_bone_data(kv.key);
+		const EPASPose::BoneData *base_bone_d = kv.value;
+
+		if (!base_bone_d) {
+			// Bone doesn't exist in skeleton, skip.
+			continue;
+		}
+
+		if (!output_pose_d) {
+			output_pose_d = p_output->create_bone(kv.key);
+		}
+
+		// If neither of the poses has the bone we do nothing, the controller will apply the base values here
+		if (!second_bone_d && !first_bone_d) {
+			continue;
+		}
+
+		// If a bone is missing we just use the base pose
+		if (!first_bone_d)
+			first_bone_d = base_bone_d;
+		if (!second_bone_d)
+			second_bone_d = base_bone_d;
+
+		// Interpolate all values with fallback to base pose
+		if (second_bone_d->has_position || first_bone_d->has_rotation) {
+			Vector3 first_pos = first_bone_d->get_position(base_bone_d);
+			output_pose_d->has_position = true;
+			output_pose_d->position = first_pos.lerp(second_bone_d->get_position(base_bone_d), p_blend);
+		}
+
+		if (second_bone_d->has_rotation || first_bone_d->has_rotation) {
+			Quaternion first_rotation = first_bone_d->get_rotation(base_bone_d);
+			output_pose_d->has_rotation = true;
+			output_pose_d->rotation = first_rotation.slerp(second_bone_d->get_rotation(base_bone_d), p_blend);
+		}
+
+		if (second_bone_d->has_scale || first_bone_d->has_scale) {
+			Vector3 first_scale = first_bone_d->get_scale(base_bone_d);
+			output_pose_d->has_scale = true;
+			output_pose_d->scale = first_scale.lerp(second_bone_d->get_scale(base_bone_d), p_blend);
+		}
+	}
+}
+
+bool EPASPose::has_bone(const String &p_bone_name) const {
+	return bone_datas.has(p_bone_name);
 }
 
 EPASPose::~EPASPose() {

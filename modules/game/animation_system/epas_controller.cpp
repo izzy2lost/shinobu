@@ -44,11 +44,11 @@ void EPASController::_notification(int p_what) {
 				}
 				ImGui::End();
 			}
+#endif
 			if (playback_process_mode != PlaybackProcessMode::IDLE) {
 				return;
 			}
 			advance(get_process_delta_time());
-#endif
 		} break;
 	}
 }
@@ -176,7 +176,7 @@ void EPASController::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_skeleton_path", "skeleton_path"), &EPASController::set_skeleton_path);
 	ClassDB::bind_method(D_METHOD("get_skeleton_path"), &EPASController::get_skeleton_path);
-	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "skeleton_path", PROPERTY_HINT_NODE_TYPE, "Skeleton3D"), "set_skeleton_path", "get_skeleton_path");
+	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "skeleton_path", PROPERTY_HINT_NODE_PATH_VALID_TYPES, "Skeleton3D"), "set_skeleton_path", "get_skeleton_path");
 
 	ClassDB::bind_method(D_METHOD("advance", "amount"), &EPASController::advance);
 	ClassDB::bind_method(D_METHOD("connect_node_to_root", "from", "unique_name"), &EPASController::connect_node_to_root);
@@ -197,8 +197,6 @@ void EPASController::_update_skeleton_node_cache() {
 		// Ensure its a Node3D
 		Skeleton3D *nd = Object::cast_to<Skeleton3D>(node);
 		ERR_FAIL_COND_MSG(!nd, "Cannot update EPAS skeleton node cache: NodePath does not point to a Skeleton3D node!");
-
-		skeleton_path = NodePath();
 
 		skeleton_node_cache = nd->get_instance_id();
 	}

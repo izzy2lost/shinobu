@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EPASBlendNode" inherits="EPASNode" version="4.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		Node that blends between two inputs
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="blend_amount" type="float" setter="set_blend_amount" getter="get_blend_amount" default="0.0">
+			0-1 value that represents how much it should blend from input 0 and input 1
+		</member>
+	</members>
+</class>

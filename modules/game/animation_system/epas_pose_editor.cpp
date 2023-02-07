@@ -116,6 +116,15 @@ void EPASPoseEditor::_draw_bone_positions() {
 	}
 }
 
+void EPASPoseEditor::_world_to_bone_trf(int p_bone_idx, const float *p_world_trf, Transform3D &p_out) {
+	mat_to_trf(p_world_trf, p_out);
+	p_out = editing_skeleton->get_global_transform().affine_inverse() * p_out;
+	int parent = editing_skeleton->get_bone_parent(editing_bone);
+	if (parent != -1) {
+		p_out = editing_skeleton->get_bone_global_pose(parent).affine_inverse() * p_out;
+	}
+}
+
 void EPASPoseEditor::_draw_ui() {
 	ImGuiIO io = ImGui::GetIO();
 	if (ImGui::BeginMainMenuBar()) {
@@ -123,8 +132,17 @@ void EPASPoseEditor::_draw_ui() {
 			if (ImGui::MenuItem("Open", "CTRL+O")) {
 				file_open_dialog->popup_centered_ratio(0.75);
 			}
+			if (ImGui::MenuItem("Save", "CTRL+S")) {
+				save_file_dialog->popup_centered_ratio(0.75);
+			}
 			if (ImGui::MenuItem("Load model", "CTRL+L")) {
 				model_load_dialog->popup_centered_ratio(0.75);
+			}
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("Tools")) {
+			if (ImGui::MenuItem("Flip pose")) {
+				current_pose->flip_along_z();
 			}
 			ImGui::EndMenu();
 		}
@@ -141,11 +159,42 @@ void EPASPoseEditor::_draw_ui() {
 			ImGui::RadioButton("Global", (int *)&guizmo_mode, (int)ImGuizmo::WORLD);
 			ImGui::SameLine();
 			ImGui::RadioButton("Local", (int *)&guizmo_mode, (int)ImGuizmo::LOCAL);
+			ImGui::SameLine();
+			ImGui::Separator();
+			ImGui::SameLine();
+			ImGui::RadioButton("Translate", (int *)&guizmo_operation, (int)ImGuizmo::TRANSLATE);
+			ImGui::SameLine();
+			ImGui::RadioButton("Rotate", (int *)&guizmo_operation, (int)ImGuizmo::ROTATE);
+			ImGui::SameLine();
+			ImGui::RadioButton("Scale", (int *)&guizmo_operation, (int)ImGuizmo::SCALE);
 		}
 		ImGui::End();
 	}
+
+	if (ImGui::Begin("PoseDbg(tm)")) {
+		if (current_pose.is_valid()) {
+			for (const KeyValue<String, EPASPose::BoneData *> &ps : current_pose->get_bone_map()) {
+				ImGui::TextUnformatted(ps.value->bone_name.utf8().get_data());
+				if (ps.value->has_position) {
+					ImGui::AlignTextToFramePadding();
+					ImGui::Button("P");
+				}
+				if (ps.value->has_rotation) {
+					ImGui::AlignTextToFramePadding();
+					ImGui::Button("R");
+				}
+				if (ps.value->has_scale) {
+					ImGui::AlignTextToFramePadding();
+					ImGui::Button("S");
+				}
+			}
+		}
+	}
+	ImGui::End();
+
 	Ref<World3D> world = editor_3d_root->get_world_3d();
 
+	bool manipulated = false;
 	if (world.is_valid()) {
 		Camera3D *cam = get_viewport()->get_camera_3d();
 		if (!cam) {
@@ -162,15 +211,10 @@ void EPASPoseEditor::_draw_ui() {
 
 		ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
 		if (editing_bone != -1) {
-			bool manipulated = ImGuizmo::Manipulate(view_matrix.ptr(), projection_matrix.ptr(), guizmo_operation, guizmo_mode, editing_bone_trf_matrix.ptrw());
+			manipulated = ImGuizmo::Manipulate(view_matrix.ptr(), projection_matrix.ptr(), guizmo_operation, guizmo_mode, editing_bone_trf_matrix.ptrw());
 			if (manipulated) {
 				Transform3D bone_trf;
-				mat_to_trf(editing_bone_trf_matrix.ptr(), bone_trf);
-				bone_trf = editing_skeleton->get_global_transform().affine_inverse() * bone_trf;
-				int parent = editing_skeleton->get_bone_parent(editing_bone);
-				if (parent != -1) {
-					bone_trf = editing_skeleton->get_bone_global_pose(parent).affine_inverse() * bone_trf;
-				}
+				_world_to_bone_trf(editing_bone, editing_bone_trf_matrix.ptr(), bone_trf);
 				String bone_name = editing_skeleton->get_bone_name(editing_bone);
 				if (!current_pose->get_bone_data(bone_name)) {
 					current_pose->create_bone(bone_name);
@@ -178,20 +222,52 @@ void EPASPoseEditor::_draw_ui() {
 				switch (guizmo_operation) {
 					case ImGuizmo::TRANSLATE: {
 						current_pose->set_bone_position(bone_name, bone_trf.origin);
-						//undo_redo->create_action("Translate bone");
 					} break;
 					case ImGuizmo::ROTATE: {
 						current_pose->set_bone_rotation(bone_name, bone_trf.basis.get_rotation_quaternion());
-						//undo_redo->create_action("Rotate bone");
 					} break;
 					case ImGuizmo::SCALE: {
 						current_pose->set_bone_scale(bone_name, bone_trf.basis.get_scale());
-						//undo_redo->create_action("Scale bone");
 					} break;
 					default: {
 					};
 				}
 			}
+
+			if (!ImGuizmo::IsUsing() && was_using_gizmo) {
+				String bone_name = editing_skeleton->get_bone_name(editing_bone);
+				Transform3D new_bone_trf;
+				Transform3D old_bone_trf;
+				_world_to_bone_trf(editing_bone, editing_bone_trf_matrix.ptr(), new_bone_trf);
+				_world_to_bone_trf(editing_bone, selected_bone_trf_matrix.ptr(), old_bone_trf);
+				if (!current_pose->get_bone_data(bone_name)) {
+					current_pose->create_bone(bone_name);
+				}
+				switch (guizmo_operation) {
+					case ImGuizmo::TRANSLATE: {
+						undo_redo->create_action("Translate bone");
+						undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_position).bind(bone_name, current_pose->get_bone_position(bone_name)));
+						undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_position).bind(bone_name, old_bone_trf.origin));
+					} break;
+					case ImGuizmo::ROTATE: {
+						undo_redo->create_action("Rotate bone");
+						undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_rotation).bind(bone_name, current_pose->get_bone_rotation(bone_name)));
+						undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_rotation).bind(bone_name, old_bone_trf.basis.get_rotation_quaternion()));
+
+					} break;
+					case ImGuizmo::SCALE: {
+						undo_redo->create_action("Scale bone");
+						undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_scale).bind(bone_name, current_pose->get_bone_scale(bone_name)));
+						undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_scale).bind(bone_name, old_bone_trf.basis.get_scale()));
+					} break;
+					default: {
+					};
+				}
+				undo_redo->add_do_method(callable_mp(this, &EPASPoseEditor::_update_editing_skeleton_trf));
+				undo_redo->add_undo_method(callable_mp(this, &EPASPoseEditor::_update_editing_skeleton_trf));
+				undo_redo->commit_action();
+			}
+			was_using_gizmo = ImGuizmo::IsUsing();
 		}
 	}
 }
@@ -199,11 +275,13 @@ void EPASPoseEditor::_draw_ui() {
 void EPASPoseEditor::open_file(const String &p_path) {
 	Ref<EPASPose> pose = ResourceLoader::load(p_path);
 	if (pose.is_valid()) {
-		set_pose(current_pose);
+		set_pose(pose);
+		undo_redo->clear_history();
 	}
 }
 
 void EPASPoseEditor::load_model(const String &path) {
+	undo_redo->clear_history();
 	if (editing_model) {
 		editing_model->queue_free();
 		editing_model = nullptr;
@@ -234,7 +312,27 @@ void EPASPoseEditor::load_model(const String &path) {
 	editing_model = node_3d;
 }
 
+void EPASPoseEditor::_update_editing_skeleton_trf() {
+	if (editing_bone != -1) {
+		Transform3D bone_trf = editing_skeleton->get_bone_global_pose(editing_bone);
+		bone_trf = editing_skeleton->get_global_transform() * bone_trf;
+		trf_to_mat(bone_trf, editing_bone_trf_matrix.ptrw());
+		selected_bone_trf_matrix = editing_bone_trf_matrix.duplicate();
+		queue_redraw();
+	}
+}
+
 void EPASPoseEditor::unhandled_input(const Ref<InputEvent> &p_event) {
+	const Ref<InputEventKey> &kev = p_event;
+	if (kev.is_valid()) {
+		if (kev->is_pressed() && !kev->is_echo() && kev->get_modifiers_mask().has_flag(KeyModifierMask::CTRL)) {
+			if (kev->get_keycode() == Key::Z) {
+				undo_redo->undo();
+			} else if (kev->get_keycode() == Key::Y) {
+				undo_redo->redo();
+			}
+		}
+	}
 	const Ref<InputEventMouseMotion> &mev = p_event;
 	if (mev.is_valid()) {
 		if (mev->get_relative().length() > 0) {
@@ -243,14 +341,15 @@ void EPASPoseEditor::unhandled_input(const Ref<InputEvent> &p_event) {
 	}
 	const Ref<InputEventMouseButton> &bev = p_event;
 	if (bev.is_valid()) {
-		if (bev->is_pressed() && bev->get_button_index() == MouseButton::LEFT) {
-			editing_bone = -1;
-			if (Input::get_singleton()->is_key_pressed(Key::CTRL)) {
-				editing_bone = currently_hovered_bone;
-				if (editing_bone != -1) {
-					Transform3D bone_trf = editing_skeleton->get_bone_global_pose(editing_bone);
-					bone_trf = editing_skeleton->get_global_transform() * bone_trf;
-					trf_to_mat(bone_trf, editing_bone_trf_matrix.ptrw());
+		if (bev->get_button_index() == MouseButton::LEFT) {
+			if (!bev->is_pressed()) {
+				editing_bone = -1;
+				if (Input::get_singleton()->is_key_pressed(Key::CTRL)) {
+					editing_bone = currently_hovered_bone;
+					if (editing_bone != -1) {
+						_update_editing_skeleton_trf();
+						accept_event();
+					}
 				}
 			}
 		}
@@ -260,6 +359,12 @@ void EPASPoseEditor::unhandled_input(const Ref<InputEvent> &p_event) {
 void EPASPoseEditor::set_pose(const Ref<EPASPose> &p_pose) {
 	current_pose = p_pose;
 	epas_pose_node->set_pose(current_pose);
+}
+
+void EPASPoseEditor::save_to_path(const String &p_path) {
+	ERR_FAIL_COND(current_pose.is_null());
+	int err_code = ResourceSaver::save(current_pose, p_path, ResourceSaver::FLAG_CHANGE_PATH);
+	ERR_FAIL_COND_MSG(err_code != OK, vformat("Error saving pose, %s", error_names[err_code]));
 }
 
 EPASPoseEditor::EPASPoseEditor() {
@@ -272,6 +377,7 @@ EPASPoseEditor::EPASPoseEditor() {
 			filters.push_back("*.epos ; EPAS Pose");
 			file_open_dialog->set_filters(filters);
 			add_child(file_open_dialog);
+			file_open_dialog->set_file_mode(FileDialog::FileMode::FILE_MODE_OPEN_FILE);
 			file_open_dialog->connect("file_selected", callable_mp(this, &EPASPoseEditor::open_file));
 		}
 		{
@@ -283,6 +389,15 @@ EPASPoseEditor::EPASPoseEditor() {
 			add_child(model_load_dialog);
 			model_load_dialog->set_file_mode(FileDialog::FileMode::FILE_MODE_OPEN_FILE);
 			model_load_dialog->connect("file_selected", callable_mp(this, &EPASPoseEditor::load_model));
+		}
+		{
+			save_file_dialog = memnew(FileDialog);
+			PackedStringArray filters;
+			filters.push_back("*.epos ; EPAS Pose");
+			save_file_dialog->set_filters(filters);
+			add_child(save_file_dialog);
+			save_file_dialog->set_file_mode(FileDialog::FileMode::FILE_MODE_SAVE_FILE);
+			save_file_dialog->connect("file_selected", callable_mp(this, &EPASPoseEditor::save_to_path));
 		}
 
 		set_process_internal(true);

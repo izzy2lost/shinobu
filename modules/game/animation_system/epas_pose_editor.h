@@ -18,14 +18,17 @@ class EPASPoseEditor : public Control {
 private:
 	PackedFloat32Array view_matrix;
 	PackedFloat32Array projection_matrix;
+	PackedFloat32Array selected_bone_trf_matrix;
 	PackedFloat32Array editing_bone_trf_matrix;
 	PackedFloat32Array identity_matrix;
+	bool was_using_gizmo = false;
 
 	ImGuizmo::OPERATION guizmo_operation = ImGuizmo::ROTATE;
 	ImGuizmo::MODE guizmo_mode = ImGuizmo::LOCAL;
 
 	FileDialog *file_open_dialog;
 	FileDialog *model_load_dialog;
+	FileDialog *save_file_dialog;
 
 	EPASEditorCamera *camera;
 	Node3D *editor_3d_root;
@@ -47,6 +50,8 @@ private:
 
 	void _draw_ui();
 	void _draw_bone_positions();
+	void _update_editing_skeleton_trf();
+	void _world_to_bone_trf(int p_bone_idx, const float *p_world_trf, Transform3D &p_out);
 
 protected:
 	void _notification(int p_what);
@@ -57,6 +62,7 @@ public:
 	void open_file(const String &p_path);
 	void load_model(const String &p_path);
 	void set_pose(const Ref<EPASPose> &p_pose);
+	void save_to_path(const String &p_path);
 
 	EPASPoseEditor();
 	virtual ~EPASPoseEditor();

@@ -15,44 +15,11 @@ void EPASAddNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p
 		process_input_pose(0, p_base_pose, p_target_pose, p_delta);
 		return;
 	} else {
-		// Ideas for second pose
-		// keep our own epaspose object that we fill up once and then we just modify
 		process_input_pose(0, p_base_pose, p_target_pose, p_delta);
 		Ref<EPASPose> second_pose = memnew(EPASPose);
 		process_input_pose(1, p_base_pose, second_pose, p_delta);
 
-		for (const KeyValue<String, EPASPose::BoneData *> &kv : second_pose->get_bone_map()) {
-			// this is the output bonedata
-			EPASPose::BoneData *first_pose_d = p_target_pose->get_bone_data(kv.value->bone_name);
-			EPASPose::BoneData *second_bone_d = kv.value;
-			EPASPose::BoneData *base_pose_d = p_base_pose->get_bone_data(kv.key);
-
-			if (!base_pose_d) {
-				// Bone doesn't exist in skeleton, skip.
-				continue;
-			}
-
-			if (!first_pose_d) {
-				first_pose_d = p_target_pose->create_bone(kv.key);
-				*first_pose_d = *base_pose_d;
-			}
-
-			if (second_bone_d->has_position) {
-				Vector3 first_pos = first_pose_d->get_position(base_pose_d);
-				first_pose_d->has_position = true;
-				first_pose_d->position = first_pos.lerp(first_pos + second_bone_d->position, add_amount);
-			}
-			if (second_bone_d->has_rotation) {
-				Quaternion first_rotation = first_pose_d->get_rotation(base_pose_d);
-				first_pose_d->has_rotation = true;
-				first_pose_d->rotation = first_rotation.slerp(second_bone_d->rotation * first_rotation, add_amount);
-			}
-			if (second_bone_d->has_scale) {
-				Vector3 first_scale = first_pose_d->get_scale(base_pose_d);
-				first_pose_d->has_scale = true;
-				first_pose_d->scale = first_scale.lerp(first_scale + second_bone_d->scale, add_amount);
-			}
-		}
+		p_target_pose->add(second_pose, p_base_pose, p_target_pose, add_amount);
 	}
 }
 

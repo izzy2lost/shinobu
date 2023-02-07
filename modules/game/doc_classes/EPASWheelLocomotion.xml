@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EPASWheelLocomotion" inherits="EPASNode" version="4.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		Surveyor wheel based locomotion system
+	</brief_description>
+	<description>
+		The EPAS Wheel locomotion system works by having a virtual wheel of a certain radius that moves along with the character, as if it was dragging on the ground.
+	To support blending between different movement types (for example, walking and running) each type must be defined as a locomotion set.
+	Each locomotion set must have poses, these poses are laid out with equal distance between them.
+	The recommended pose arrangement for character locomotion is: Contact Left, Passing Left, Contact Right, Passing Right, Contact Left.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="add_locomotion_set">
+			<return type="void" />
+			<param index="0" name="x" type="float" />
+			<description>
+			</description>
+		</method>
+		<method name="add_pose_to_locomotion_set">
+			<return type="void" />
+			<param index="0" name="idx" type="int" />
+			<param index="1" name="pose" type="EPASPose" />
+			<description>
+			</description>
+		</method>
+		<method name="get_current_step_length" qualifiers="const">
+			<return type="float" />
+			<description>
+			</description>
+		</method>
+		<method name="get_locomotion_set_count" qualifiers="const">
+			<return type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_wheel_angle" qualifiers="const">
+			<return type="float" />
+			<description>
+			</description>
+		</method>
+		<method name="set_linear_velocity">
+			<return type="void" />
+			<param index="0" name="velocity" type="Vector3" />
+			<description>
+			</description>
+		</method>
+		<method name="set_locomotion_set_step_length">
+			<return type="void" />
+			<param index="0" name="idx" type="int" />
+			<param index="1" name="step_length" type="float" />
+			<description>
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="x_blend" type="float" setter="set_x_blend" getter="get_x_blend" default="0.0">
+		</member>
+	</members>
+</class>

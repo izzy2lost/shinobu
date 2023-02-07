@@ -1,0 +1,143 @@
+#include "epas_wheel_locomotion.h"
+
+void EPASWheelLocomotion::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) {
+	if (locomotion_sets.size() > 0) {
+		// Janky-ass bsearch to find where we are at right now.
+		LocomotionSet set;
+		set.x_pos = x_blend;
+		int first_greater = locomotion_sets.bsearch_custom<LocomotionSetComparator>(&set, false);
+
+		float travelled_this_frame = linear_velocity.length() * p_delta;
+
+		if (locomotion_sets.size() == 1 || first_greater == 0 || first_greater > locomotion_sets.size()) {
+			// Scenario 1, single set, no interpolation
+
+			// Bring index into range
+			int i = CLAMP(first_greater, 0, locomotion_sets.size() - 1);
+			const LocomotionSet *first_set = locomotion_sets[i];
+
+			current_step_length = first_set->step_length;
+
+			float circumference = current_step_length * 4.0f;
+			ERR_FAIL_COND_MSG(circumference == 0.0, "Circumference should never be zero, ask EIREXE.");
+			wheel_angle += (travelled_this_frame / circumference) * Math_TAU;
+			// 0-1 the cycle of the animation we are in (Contact_L-Contact_L)
+			float cycle_time = Math::fmod(wheel_angle, (float)Math_PI) / Math_PI;
+
+			first_set->interpolate(cycle_time, p_base_pose, p_target_pose);
+		} else {
+			// Scenario 2, interpolate between two sets
+			// Ensure we are in range
+			if (first_greater == locomotion_sets.size()) {
+				first_greater -= 1;
+			}
+			int first_idx = first_greater - 1;
+			ERR_FAIL_COND_MSG(first_greater == 0, "Something catastrophic happened when blending locomotion sets. You might be missing a 0.0 blend time pose.");
+			int second_idx = first_greater;
+			const LocomotionSet *first_set = locomotion_sets[first_idx];
+			const LocomotionSet *second_set = locomotion_sets[second_idx];
+			float x = Math::inverse_lerp(first_set->x_pos, second_set->x_pos, x_blend);
+			// Calculate the step size, based both step sizes and distance travelled
+			current_step_length = Math::lerp(first_set->step_length, second_set->step_length, x);
+
+			// Apply it to the wheel angle
+			float circumference = current_step_length * 4.0f;
+			wheel_angle += (travelled_this_frame / circumference) * Math_TAU;
+
+			// 0-1 the cycle of the animation we are in (Contact_L-Contact_L)
+			float cycle_time = Math::fmod(wheel_angle, (float)Math_PI) / Math_PI;
+
+			first_set->interpolate(cycle_time, p_base_pose, p_target_pose);
+
+			Ref<EPASPose> second_pose;
+			second_pose.instantiate();
+			// We sample both locomotion sets
+			first_set->interpolate(cycle_time, p_base_pose, p_target_pose);
+			second_set->interpolate(cycle_time, p_base_pose, second_pose);
+
+			// Then we blend them together based on x_blend
+			p_target_pose->blend(second_pose, p_base_pose, p_target_pose, x);
+		}
+	}
+}
+
+void EPASWheelLocomotion::_sort_sets() {
+	locomotion_sets.sort_custom<LocomotionSetComparator>();
+}
+
+int EPASWheelLocomotion::get_locomotion_set_count() const {
+	return locomotion_sets.size();
+}
+
+void EPASWheelLocomotion::add_locomotion_set(float p_x) {
+	ERR_FAIL_COND(p_x > 1.0);
+	ERR_FAIL_COND(p_x < 0.0);
+	LocomotionSet *set = memnew(LocomotionSet);
+	set->x_pos = p_x;
+	locomotion_sets.push_back(set);
+	_sort_sets();
+}
+
+void EPASWheelLocomotion::set_locomotion_set_step_length(int p_idx, float p_step) {
+	ERR_FAIL_INDEX_MSG(p_idx, locomotion_sets.size(), "Locomotion set out of range");
+	ERR_FAIL_COND_MSG(p_step <= 0.0, "Step length cannot be under 0.0");
+	locomotion_sets[p_idx]->step_length = p_step;
+}
+
+void EPASWheelLocomotion::add_pose_to_locomotion_set(int p_idx, Ref<EPASPose> p_pose) {
+	ERR_FAIL_INDEX_MSG(p_idx, locomotion_sets.size(), "Locomotion set out of range");
+	locomotion_sets[p_idx]->poses.push_back(p_pose);
+}
+
+float EPASWheelLocomotion::get_wheel_angle() const {
+	return wheel_angle;
+}
+
+void EPASWheelLocomotion::set_linear_velocity(const Vector3 &p_linear_velocity) {
+	linear_velocity = p_linear_velocity;
+}
+
+int EPASWheelLocomotion::get_input_count() const {
+	return 0;
+}
+
+void EPASWheelLocomotion::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("set_linear_velocity", "velocity"), &EPASWheelLocomotion::set_linear_velocity);
+	ClassDB::bind_method(D_METHOD("get_wheel_angle"), &EPASWheelLocomotion::get_wheel_angle);
+	ClassDB::bind_method(D_METHOD("get_current_step_length"), &EPASWheelLocomotion::get_current_step_length);
+	ClassDB::bind_method(D_METHOD("set_x_blend", "x"), &EPASWheelLocomotion::set_x_blend);
+	ClassDB::bind_method(D_METHOD("get_x_blend"), &EPASWheelLocomotion::get_x_blend);
+	ClassDB::bind_method(D_METHOD("add_locomotion_set", "x"), &EPASWheelLocomotion::add_locomotion_set);
+	ClassDB::bind_method(D_METHOD("get_locomotion_set_count"), &EPASWheelLocomotion::get_locomotion_set_count);
+	ClassDB::bind_method(D_METHOD("add_pose_to_locomotion_set", "idx", "pose"), &EPASWheelLocomotion::add_pose_to_locomotion_set);
+	ClassDB::bind_method(D_METHOD("set_locomotion_set_step_length", "idx", "step_length"), &EPASWheelLocomotion::set_locomotion_set_step_length);
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "x_blend", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_x_blend", "get_x_blend");
+}
+
+float EPASWheelLocomotion::get_current_step_length() const {
+	return current_step_length;
+}
+
+void EPASWheelLocomotion::set_x_blend(float p_x_blend) {
+	ERR_FAIL_COND(p_x_blend < 0.0);
+	ERR_FAIL_COND(p_x_blend > 1.0);
+	x_blend = p_x_blend;
+}
+
+float EPASWheelLocomotion::get_x_blend() const {
+	return x_blend;
+}
+
+EPASWheelLocomotion::~EPASWheelLocomotion() {
+	for (int i = 0; i < locomotion_sets.size(); i++) {
+		memdelete(locomotion_sets[i]);
+	}
+	locomotion_sets.clear();
+}
+
+#ifdef DEBUG_ENABLED
+#include "modules/imgui/godot_imgui.h"
+void EPASWheelLocomotion::_debug_node_draw() const {
+	ImGui::Text("%.2f", Math::fmod(Math::rad_to_deg(get_wheel_angle()), 360.0f));
+}
+#endif

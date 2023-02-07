@@ -18,38 +18,7 @@ void EPASBlendNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose>
 		Ref<EPASPose> second_pose = memnew(EPASPose);
 		process_input_pose(1, p_base_pose, second_pose, p_delta);
 
-		for (const KeyValue<String, EPASPose::BoneData *> &kv : second_pose->get_bone_map()) {
-			// this is the output bonedata
-			EPASPose::BoneData *first_pose_d = p_target_pose->get_bone_data(kv.value->bone_name);
-			EPASPose::BoneData *second_bone_d = kv.value;
-			EPASPose::BoneData *base_pose_d = p_base_pose->get_bone_data(kv.key);
-
-			if (!base_pose_d) {
-				// Bone doesn't exist in skeleton, skip.
-				continue;
-			}
-
-			if (!first_pose_d) {
-				first_pose_d = p_target_pose->create_bone(kv.key);
-				*first_pose_d = *base_pose_d;
-			}
-
-			if (second_bone_d->has_position) {
-				Vector3 first_pos = first_pose_d->get_position(base_pose_d);
-				first_pose_d->has_position = true;
-				first_pose_d->position = first_pos.lerp(second_bone_d->position, blend_amount);
-			}
-			if (second_bone_d->has_rotation) {
-				Quaternion first_rotation = first_pose_d->get_rotation(base_pose_d);
-				first_pose_d->has_rotation = true;
-				first_pose_d->rotation = first_rotation.slerp(second_bone_d->rotation, blend_amount);
-			}
-			if (second_bone_d->has_scale) {
-				Vector3 first_scale = first_pose_d->get_scale(base_pose_d);
-				first_pose_d->has_scale = true;
-				first_pose_d->scale = first_scale.lerp(second_bone_d->scale, blend_amount);
-			}
-		}
+		p_target_pose->blend(second_pose, p_base_pose, p_target_pose, blend_amount);
 	}
 }
 
@@ -64,6 +33,15 @@ void EPASBlendNode::set_blend_amount(float p_blend_amount) {
 float EPASBlendNode::get_blend_amount() const {
 	return blend_amount;
 }
+
+#ifdef DEBUG_ENABLED
+#include "modules/imgui/godot_imgui.h"
+void EPASBlendNode::_debug_node_draw() const {
+	ImGui::PushItemWidth(100.0f);
+	ImGui::SliderFloat("Amount", const_cast<float *>(&blend_amount), 0.0f, 1.0f);
+	ImGui::PopItemWidth();
+};
+#endif
 
 EPASBlendNode::EPASBlendNode() :
 		EPASNode(get_input_count()) {

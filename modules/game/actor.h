@@ -16,7 +16,7 @@ private:
 	MovementMode movement_mode = MovementMode::MOVE_GROUNDED;
 
 	Vector3 gravity = Vector3(0.0f, -20.81f, 0.0f);
-	float move_velocity = 7.0f;
+	float move_velocity = 2.8f;
 	float velocity_spring_halflife = 0.175f;
 	Vector3 velocity_spring_acceleration;
 

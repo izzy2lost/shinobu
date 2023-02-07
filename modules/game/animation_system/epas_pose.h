@@ -4,11 +4,12 @@
 
 #include "core/math/vector3.h"
 #include "core/string/ustring.h"
+#include "scene/3d/skeleton_3d.h"
 #include "scene/resources/animation.h"
 
 class EPASPose : public Resource {
 	GDCLASS(EPASPose, Resource);
-
+	RES_BASE_EXTENSION("epos");
 	void clear();
 
 protected:
@@ -30,26 +31,43 @@ public:
 		BoneData(const String &p_bone_name) {
 			bone_name = p_bone_name;
 		}
-		Vector3 get_position(BoneData *p_fallback) {
+		Vector3 get_position(const BoneData *p_fallback) const {
 			if (has_position) {
 				return position;
 			}
 			ERR_FAIL_COND_V(p_fallback == nullptr, Vector3());
 			return p_fallback->position;
 		}
-		Vector3 get_scale(BoneData *p_fallback) {
+		Vector3 get_scale(const BoneData *p_fallback) const {
 			if (has_scale) {
 				return scale;
 			}
 			ERR_FAIL_COND_V(p_fallback == nullptr, Vector3(1.0f, 1.0f, 1.0f));
 			return p_fallback->scale;
 		}
-		Quaternion get_rotation(BoneData *p_fallback) {
+		Quaternion get_rotation(const BoneData *p_fallback) const {
 			if (has_rotation) {
 				return rotation;
 			}
 			ERR_FAIL_COND_V(p_fallback == nullptr, Quaternion());
 			return p_fallback->rotation;
+		}
+		void interpolate_with(const BoneData *p_second, BoneData *p_output, const BoneData *p_base, float p_blend) const {
+			if (p_second->has_position) {
+				Vector3 first_pos = get_position(p_base);
+				p_output->has_position = true;
+				p_output->position = first_pos.lerp(p_second->position, p_blend);
+			}
+			if (p_second->has_rotation) {
+				Quaternion first_rotation = get_rotation(p_base);
+				p_output->has_rotation = true;
+				p_output->rotation = first_rotation.slerp(p_second->rotation, p_blend);
+			}
+			if (p_second->has_scale) {
+				Vector3 first_scale = get_scale(p_base);
+				p_output->has_scale = true;
+				p_output->scale = first_scale.lerp(p_second->scale, p_blend);
+			}
 		}
 	};
 
@@ -61,17 +79,24 @@ public:
 	int get_bone_count() const;
 	BoneData *get_bone_data(const String &p_bone_name) const;
 	bool has_bone(const String &p_bone_name) const;
-	const HashMap<String, BoneData *> get_bone_map();
+	const HashMap<String, BoneData *> get_bone_map() const;
 	BoneData *create_bone(const String &p_bone_name);
 
 	// Special version of above without the pointer return type
 	// for GDScript binding
 	void create_bone_gd(const String &p_bone_name);
-	void set_bone_position(const String &p_bone_name, const Vector3 &p_position);
-	void set_bone_rotation(const String &p_bone_name, const Quaternion &p_rotation);
-	void set_bone_scale(const String &p_bone_name, const Vector3 &p_scale);
 
+	void flip_along_z();
+	void set_bone_position(const String &p_bone_name, const Vector3 &p_position);
+	Vector3 get_bone_position(const String &p_bone_name) const;
+	void set_bone_rotation(const String &p_bone_name, const Quaternion &p_rotation);
+	Quaternion get_bone_rotation(const String &p_bone_name) const;
+	void set_bone_scale(const String &p_bone_name, const Vector3 &p_scale);
+	Vector3 get_bone_scale(const String &p_bone_name) const;
 	void reserve(int p_size);
+
+	void add(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output, float p_blend) const;
+	void blend(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output, float p_blend) const;
 
 	virtual ~EPASPose();
 };
