@@ -644,6 +644,20 @@ void GodotImGui::_notification(int p_what) {
 							if (ImGui::Button("Toggle ImGui demo window")) {
 								show_demo_window = !show_demo_window;
 							}
+							ImGui::AlignTextToFramePadding();
+							ImGui::TextUnformatted("Timescale");
+							ImGui::SameLine();
+							if (ImGui::Button("1x")) {
+								Engine::get_singleton()->set_time_scale(1.0);
+							}
+							ImGui::SameLine();
+							if (ImGui::Button("0.5x")) {
+								Engine::get_singleton()->set_time_scale(0.5);
+							}
+							ImGui::SameLine();
+							if (ImGui::Button("0.25x")) {
+								Engine::get_singleton()->set_time_scale(0.25);
+							}
 						}
 
 						ImGui::EndTabBar();
