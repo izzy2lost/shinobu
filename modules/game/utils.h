@@ -2,6 +2,7 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include "core/error/error_macros.h"
 #include "core/math/projection.h"
 #include "core/math/quaternion.h"
 #include "core/math/transform_3d.h"
@@ -137,31 +138,42 @@ public:
 		return basis;
 	}
 	static void two_joint_ik(
-			Vector3 p_a, Vector3 p_b, Vector3 p_c, Vector3 p_target, float eps,
+			Vector3 pos_a, Vector3 pos_b, Vector3 pos_c, Vector3 p_target, float eps,
 			Quaternion p_a_global_rot, Quaternion p_b_global_rot,
 			Quaternion &p_a_local_rot, Quaternion &p_b_local_rot, bool p_use_magnet = false, Vector3 p_dir = Vector3()) {
-		float lab = p_b.distance_to(p_a);
-		float lcb = p_b.distance_to(p_c);
-		float lat = CLAMP(p_target.distance_to(p_a), eps, lab + lcb - eps);
+		// Generic two joint IK
+		float lab = pos_b.distance_to(pos_a);
+		float lcb = pos_b.distance_to(pos_c);
+		float lat = CLAMP(p_target.distance_to(pos_a), eps, lab + lcb - eps);
 
-		float ac_ab_0 = Math::acos(CLAMP((p_c - p_a).normalized().dot((p_b - p_a).normalized()), -1.0f, 1.0f));
-		float ba_bc_0 = Math::acos(CLAMP((p_a - p_b).normalized().dot((p_c - p_b).normalized()), -1.0f, 1.0f));
-		float ac_at_0 = Math::acos(CLAMP((p_c - p_a).normalized().dot((p_target - p_a).normalized()), -1.0f, 1.0f));
+		// Use cosine rule to calculate the current angles
+		float ac_ab_0 = Math::acos(CLAMP((pos_c - pos_a).normalized().dot((pos_b - pos_a).normalized()), -1.0f, 1.0f));
+		float ba_bc_0 = Math::acos(CLAMP((pos_a - pos_b).normalized().dot((pos_c - pos_b).normalized()), -1.0f, 1.0f));
+		float ac_at_0 = Math::acos(CLAMP((pos_c - pos_a).normalized().dot((p_target - pos_a).normalized()), -1.0f, 1.0f));
 
+		// Calculate the desired angles
 		float ac_ab_1 = Math::acos(CLAMP((lcb * lcb - lab * lab - lat * lat) / (-2.0f * lab * lat), -1.0f, 1.0f));
 		float ba_bc_1 = Math::acos(CLAMP((lat * lat - lab * lab - lcb * lcb) / (-2.0f * lab * lcb), -1.0f, 1.0f));
 
-		Vector3 d = p_b - p_a;
+		Vector3 d = pos_b - pos_a;
 		if (p_use_magnet) {
+			ERR_FAIL_COND(p_dir.is_normalized());
 			d = p_b_global_rot.xform(p_dir);
 		}
 		d.normalize();
 
-		Vector3 axis0 = (p_c - p_a).cross(d).normalized();
-		Vector3 axis1 = (p_c - p_a).cross(p_target - p_a).normalized();
+		// Calculate the axis of rotation for lengthening/shortening the chain
+		Vector3 axis0 = (pos_c - pos_a).cross(d).normalized();
+		// Calculate the axis of rotation for aligning the chain with the target
+		Vector3 axis1 = (pos_c - pos_a).cross(p_target - pos_a).normalized();
 
+		// Hip rotation
 		Quaternion r0 = Quaternion(p_a_global_rot.inverse().xform(axis0), ac_ab_1 - ac_ab_0);
+		// Knee rotation
 		Quaternion r1 = Quaternion(p_b_global_rot.inverse().xform(axis0), ba_bc_1 - ba_bc_0);
+		// Additional hip rotation to align
+		// Not sure why but it appears like axis1 is already local, so no need to transform it by
+		// the inverse of p_a_global_rot
 		Quaternion r2 = Quaternion(axis1, ac_at_0);
 
 		p_a_local_rot = (r2 * r0) * p_a_local_rot;
