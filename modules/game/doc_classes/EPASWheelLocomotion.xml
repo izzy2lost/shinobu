@@ -5,9 +5,13 @@
 	</brief_description>
 	<description>
 		The EPAS Wheel locomotion system works by having a virtual wheel of a certain radius that moves along with the character, as if it was dragging on the ground.
-	To support blending between different movement types (for example, walking and running) each type must be defined as a locomotion set.
-	Each locomotion set must have poses, these poses are laid out with equal distance between them.
-	The recommended pose arrangement for character locomotion is: Contact Left, Passing Left, Contact Right, Passing Right, Contact Left.
+		To support blending between different movement types (for example, walking and running) each type must be defined as a locomotion set.
+		Each locomotion set must have poses, these poses are laid out with equal distance between them.
+		The recommended pose arrangement for character locomotion is: Contact Left, Passing Left, Contact Right, Passing Right, Contact Left.
+
+		Step length = 1/4 the circumference of the surveyor wheel
+		Full cycle = step length * 2
+		Wheel radius = (4*step_length) / (2*PI)
 	</description>
 	<tutorials>
 	</tutorials>
@@ -18,32 +22,39 @@
 			<description>
 			</description>
 		</method>
-		<method name="add_pose_to_locomotion_set">
-			<return type="void" />
-			<param index="0" name="idx" type="int" />
-			<param index="1" name="pose" type="EPASPose" />
-			<description>
-			</description>
-		</method>
 		<method name="get_current_step_length" qualifiers="const">
 			<return type="float" />
 			<description>
+				Gets the current interpolated step length.
 			</description>
 		</method>
 		<method name="get_locomotion_set_count" qualifiers="const">
 			<return type="int" />
 			<description>
+				Gets how many locomotion sets are in this node.
 			</description>
 		</method>
 		<method name="get_wheel_angle" qualifiers="const">
 			<return type="float" />
 			<description>
+				Gets the current angle of the wheel in degrees.
+				[b]Note:[/b] This value doesn't wrap, might want to use [code]fmod[/code] or [code]fposmod[/code].
 			</description>
 		</method>
 		<method name="set_linear_velocity">
 			<return type="void" />
 			<param index="0" name="velocity" type="Vector3" />
 			<description>
+				Sets the current linear velocity for the wheel to use.
+			</description>
+		</method>
+		<method name="set_locomotion_set_animation">
+			<return type="void" />
+			<param index="0" name="idx" type="int" />
+			<param index="1" name="animation" type="EPASAnimation" />
+			<description>
+				Sets the animation of a locomotion set to the given animation.
+				[b]Note:[/b] This animation should start from 0 and be 1 second in length.
 			</description>
 		</method>
 		<method name="set_locomotion_set_step_length">
@@ -51,6 +62,7 @@
 			<param index="0" name="idx" type="int" />
 			<param index="1" name="step_length" type="float" />
 			<description>
+				Sets the step length of a locomotion set.
 			</description>
 		</method>
 	</methods>

@@ -1,21 +1,11 @@
 #ifndef EPAS_WHEEL_LOCOMOTION_H
 #define EPAS_WHEEL_LOCOMOTION_H
 
+#include "epas_animation.h"
 #include "epas_node.h"
 #include "epas_pose.h"
-#include "modules/game/utils.h"
 #include "scene/3d/mesh_instance_3d.h"
 #include "scene/resources/immediate_mesh.h"
-
-// Lifted straight from overgrwoth
-static void get_cubic_spline_weights(float interp, float *weights) {
-	float interp_squared = interp * interp;
-	float interp_cubed = interp_squared * interp;
-	weights[0] = 0.5f * (-interp_cubed + 2.0f * interp_squared - interp);
-	weights[1] = 0.5f * (3.0f * interp_cubed - 5.0f * interp_squared + 2.0f);
-	weights[2] = 0.5f * (-3.0f * interp_cubed + 4.0f * interp_squared + interp);
-	weights[3] = 0.5f * (interp_cubed - interp_squared);
-}
 
 class EPASWheelLocomotion : public EPASNode {
 	GDCLASS(EPASWheelLocomotion, EPASNode);
@@ -29,57 +19,14 @@ private:
 		// Full cycle = step length * 2
 		// Wheel radius = (4*step_length) / (2*PI)
 		float step_length = 1.0f;
-		Vector<Ref<EPASPose>> poses;
+		Ref<EPASAnimation> animation;
 
 		void interpolate(float p_amount, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output) const {
 			// p_amount can never *actually* be 1.0 since its fed by an fmodded value
 			// Remove this if we ever change that...
 			ERR_FAIL_COND(p_amount >= 1.0);
-
-			/*if (first_pose_i == poses.size()-1) {
-				// Case 1: Just copy the pose since we landed exactly on a keyframe
-				for (const KeyValue<String, EPASPose::BoneData*> &kv : poses[first_pose_i]->get_bone_map()) {
-					EPASPose::BoneData* out_bone_data = p_output->get_bone_data(kv.key);
-					if (!out_bone_data) {
-						out_bone_data = p_output->create_bone(kv.key);
-					}
-					out_bone_data->has_position = kv.value->has_position;
-					out_bone_data->position = kv.value->position;
-					out_bone_data->has_rotation = kv.value->has_rotation;
-					out_bone_data->rotation = kv.value->rotation;
-					out_bone_data->has_scale = kv.value->has_scale;
-					out_bone_data->scale = kv.value->scale;
-				}
-			} else {*/
-
-			// Case 2: Actually interpolate
-			int prev_frame_i = (poses.size() - 1) * p_amount;
-			int next_frame_i = prev_frame_i + 1;
-
-			float blend_start = (float)prev_frame_i / (poses.size() - 1);
-			float blend_end = (float)next_frame_i / (poses.size() - 1);
-			float blend = Math::inverse_lerp(blend_start, blend_end, p_amount);
-
-			// Do a cubic spline interpolation thingy
-			// gotta be honest with you i have no idea how this works
-			float weights[4];
-			get_cubic_spline_weights(blend, weights);
-			float total_weight = weights[0] + weights[1];
-			int frames[4];
-			frames[0] = Math::posmod(next_frame_i - 1, poses.size());
-			frames[1] = prev_frame_i;
-			frames[2] = next_frame_i;
-			frames[3] = Math::posmod(next_frame_i + 1, poses.size());
-			if (total_weight > 0.0f) {
-				poses[frames[0]]->blend(poses[frames[1]], p_base_pose, p_output, weights[1] / total_weight);
-			}
-			total_weight += weights[2];
-			if (total_weight > 0.0f) {
-				p_output->blend(poses[frames[2]], p_base_pose, p_output, weights[2] / total_weight);
-			}
-			total_weight += weights[3];
-			if (total_weight > 0.0f) {
-				p_output->blend(poses[frames[3]], p_base_pose, p_output, weights[3] / total_weight);
+			if (animation.is_valid()) {
+				animation->interpolate(p_amount, p_base_pose, p_output, EPASAnimation::InterpolationMethod::BICUBIC_SPLINE);
 			}
 		}
 	};
@@ -112,7 +59,7 @@ public:
 	void add_locomotion_set(float p_x);
 	int get_locomotion_set_count() const;
 	void set_locomotion_set_step_length(int p_idx, float p_step);
-	void add_pose_to_locomotion_set(int p_idx, Ref<EPASPose> p_pose);
+	void set_locomotion_set_animation(int p_idx, Ref<EPASAnimation> p_pose);
 
 	EPASWheelLocomotion() :
 			EPASNode(get_input_count()) {
@@ -135,7 +82,6 @@ protected:
 					float radius = (4.0 * locomotion->get_current_step_length() / (2.0 * Math_PI));
 					trf.scale(Vector3(radius, radius, radius));
 					trf.origin.y = radius;
-					print_line(radius);
 					mi->set_transform(trf);
 				}
 			} break;

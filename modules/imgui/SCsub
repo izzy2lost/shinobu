@@ -17,6 +17,8 @@ thirdparty_sources = [
     "imgui.cpp",
     "imnodes.cpp",
     "ImGuizmo.cpp",
+    "imgui_neo_internal.cpp",
+    "imgui_neo_sequencer.cpp",
 ]
 
 thirdparty_sources = [thirdparty_dir + file for file in thirdparty_sources]

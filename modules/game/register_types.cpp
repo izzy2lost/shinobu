@@ -3,7 +3,11 @@
 #include "core/config/project_settings.h"
 
 #include "actor.h"
+#include "core/object/class_db.h"
 #include "game_main_loop.h"
+#include "modules/game/animation_system/epas_animation.h"
+#include "modules/game/animation_system/epas_ik_node.h"
+#include "modules/game/utils.h"
 #include "player_actor.h"
 #include "player_camera_arm.h"
 #include "scene/main/scene_tree.h"
@@ -15,6 +19,8 @@
 #endif
 
 #include "animation_system/epas_add_node.h"
+#include "animation_system/epas_animation_editor.h"
+#include "animation_system/epas_animation_node.h"
 #include "animation_system/epas_blend_node.h"
 #include "animation_system/epas_controller.h"
 #include "animation_system/epas_node.h"
@@ -38,8 +44,14 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(EPASWheelLocomotion);
 		GDREGISTER_CLASS(EPASWheelVisualizer);
 		GDREGISTER_CLASS(EPASController);
+		GDREGISTER_CLASS(EPASAnimation);
+		GDREGISTER_CLASS(EPASKeyframe);
+		GDREGISTER_CLASS(EPASAnimationNode);
+		GDREGISTER_CLASS(EPASIKNode);
+		GDREGISTER_CLASS(HBUtils);
 #ifdef DEBUG_ENABLED
 		GDREGISTER_CLASS(EPASPoseEditor);
+		GDREGISTER_CLASS(EPASAnimationEditor);
 		GDREGISTER_CLASS(EPASEditorGrid);
 		GDREGISTER_CLASS(EPASEditorCamera);
 #endif

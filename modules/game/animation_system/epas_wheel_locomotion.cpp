@@ -1,4 +1,5 @@
 #include "epas_wheel_locomotion.h"
+#include "modules/game/animation_system/epas_animation.h"
 
 void EPASWheelLocomotion::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) {
 	if (locomotion_sets.size() > 0) {
@@ -84,9 +85,9 @@ void EPASWheelLocomotion::set_locomotion_set_step_length(int p_idx, float p_step
 	locomotion_sets[p_idx]->step_length = p_step;
 }
 
-void EPASWheelLocomotion::add_pose_to_locomotion_set(int p_idx, Ref<EPASPose> p_pose) {
+void EPASWheelLocomotion::set_locomotion_set_animation(int p_idx, Ref<EPASAnimation> p_animation) {
 	ERR_FAIL_INDEX_MSG(p_idx, locomotion_sets.size(), "Locomotion set out of range");
-	locomotion_sets[p_idx]->poses.push_back(p_pose);
+	locomotion_sets[p_idx]->animation = p_animation;
 }
 
 float EPASWheelLocomotion::get_wheel_angle() const {
@@ -109,7 +110,7 @@ void EPASWheelLocomotion::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_x_blend"), &EPASWheelLocomotion::get_x_blend);
 	ClassDB::bind_method(D_METHOD("add_locomotion_set", "x"), &EPASWheelLocomotion::add_locomotion_set);
 	ClassDB::bind_method(D_METHOD("get_locomotion_set_count"), &EPASWheelLocomotion::get_locomotion_set_count);
-	ClassDB::bind_method(D_METHOD("add_pose_to_locomotion_set", "idx", "pose"), &EPASWheelLocomotion::add_pose_to_locomotion_set);
+	ClassDB::bind_method(D_METHOD("set_locomotion_set_animation", "idx", "animation"), &EPASWheelLocomotion::set_locomotion_set_animation);
 	ClassDB::bind_method(D_METHOD("set_locomotion_set_step_length", "idx", "step_length"), &EPASWheelLocomotion::set_locomotion_set_step_length);
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "x_blend", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_x_blend", "get_x_blend");
 }

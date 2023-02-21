@@ -2,6 +2,7 @@
 #define EPAS_CONTROLLER_H
 
 #include "epas_node.h"
+#include "scene/3d/mesh_instance_3d.h"
 #include "scene/3d/skeleton_3d.h"
 #include "scene/main/node.h"
 
@@ -52,7 +53,12 @@ private:
 	int debug_draw_accumulator = 0;
 	int debug_draw_attrib_accumulator = 0;
 	int debug_draw_link_accumulator = 0;
+	bool debug_enable_skeleton_vis = false;
+	Vector<Vector3> skel_dbg_vertex_array;
 	void _debug_draw_node(Ref<EPASNode> p_node, int *p_output_attrib_id);
+	MeshInstance3D *debug_skeleton_vis = nullptr;
+	int _get_skeleton_line_count(Skeleton3D *p_skel);
+	void _debug_update_skeleton_vis();
 #endif
 
 protected:
@@ -70,6 +76,7 @@ public:
 
 	EPASController();
 	~EPASController();
+	friend class EPASNode;
 };
 
 VARIANT_ENUM_CAST(EPASController::PlaybackProcessMode);

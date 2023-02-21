@@ -1,8 +1,16 @@
 #include "epas_controller.h"
 
+#include "core/variant/array.h"
+#include "core/variant/variant.h"
+#include "imgui.h"
 #include "modules/imgui/godot_imgui.h"
 #include "modules/imgui/godot_imgui_macros.h"
 #include "modules/imgui/thirdparty/imgui/imnodes.h"
+#include "scene/3d/mesh_instance_3d.h"
+#include "scene/3d/skeleton_3d.h"
+#include "scene/resources/immediate_mesh.h"
+#include "scene/resources/material.h"
+#include "scene/resources/mesh.h"
 
 void EPASController::set_playback_process_mode(EPASController::PlaybackProcessMode p_playback_process_mode) {
 	playback_process_mode = p_playback_process_mode;
@@ -35,6 +43,7 @@ void EPASController::_notification(int p_what) {
 			if (gim && gim->is_debug_enabled(this)) {
 				if (gim->begin_debug_window(this)) {
 					ImGui::Text("Node count %d", nodes.size());
+					ImGui::Checkbox("Show skeleton", &debug_enable_skeleton_vis);
 					ImNodes::BeginNodeEditor();
 					debug_draw_accumulator = 0;
 					debug_draw_link_accumulator = 0;
@@ -94,6 +103,57 @@ void EPASController::_debug_draw_node(Ref<EPASNode> p_node, int *p_output_attrib
 		ImNodes::Link(debug_draw_link_accumulator++, attrib_out, input_attrib_start + i);
 	}
 }
+int EPASController::_get_skeleton_line_count(Skeleton3D *p_skel) {
+	int count = 0;
+	for (int i = 0; i < p_skel->get_bone_count(); i++) {
+		count += p_skel->get_bone_children(i).size() * 2;
+	}
+	return count;
+}
+void EPASController::_debug_update_skeleton_vis() {
+	Skeleton3D *skel = get_skeleton();
+	if (!skel) {
+		return;
+	}
+	if (!debug_skeleton_vis) {
+		debug_skeleton_vis = memnew(MeshInstance3D);
+		debug_skeleton_vis->set_mesh(memnew(ArrayMesh));
+		add_child(debug_skeleton_vis);
+		Ref<StandardMaterial3D> mat;
+		mat.instantiate();
+		mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+		mat->set_albedo(Color(1.0, 1.0, 0.0, 1.0));
+		mat->set_flag(BaseMaterial3D::FLAG_DISABLE_DEPTH_TEST, true);
+		debug_skeleton_vis->set_material_override(mat);
+	}
+	Ref<ArrayMesh> mesh = debug_skeleton_vis->get_mesh();
+	int mesh_bone_count = mesh->get_meta("mesh_bone_count", -1);
+	if (mesh_bone_count != skel->get_bone_count()) {
+		// Recreate basic arrays
+		Array a;
+		a.resize(Mesh::ARRAY_MAX);
+		int vertex_count = _get_skeleton_line_count(skel);
+		skel_dbg_vertex_array.resize_zeroed(vertex_count);
+		a[Mesh::ARRAY_VERTEX] = skel_dbg_vertex_array;
+		mesh->clear_surfaces();
+		mesh->add_surface_from_arrays(Mesh::PRIMITIVE_LINES, a);
+	}
+
+	int updated_lines = 0;
+
+	for (int i = 0; i < skel->get_bone_count(); i++) {
+		Vector<int> children = skel->get_bone_children(i);
+		for (int ii = 0; ii < children.size(); ii++) {
+			int child_bone_i = children[ii];
+			skel_dbg_vertex_array.set(updated_lines * 2, skel->get_bone_global_pose(i).origin);
+			skel_dbg_vertex_array.set(updated_lines * 2 + 1, skel->get_bone_global_pose(child_bone_i).origin);
+			updated_lines++;
+		}
+	}
+
+	mesh->surface_update_vertex_region(0, 0, skel_dbg_vertex_array.to_byte_array());
+	debug_skeleton_vis->set_global_transform(skel->get_global_transform());
+}
 #endif
 
 Ref<EPASPose> EPASController::get_base_pose() {
@@ -101,7 +161,7 @@ Ref<EPASPose> EPASController::get_base_pose() {
 		Skeleton3D *skel = get_skeleton();
 
 		if (!skel) {
-			// Skeleton is gone, which means our pose is invalid
+			// Skeleton is gone, which means our pose is going to get invalidated
 			base_pose_cache = Ref<EPASPose>();
 			return base_pose_cache;
 		}
@@ -151,6 +211,12 @@ void EPASController::advance(float p_amount) {
 			skel->set_bone_pose_scale(i, output_data->get_scale(base_data));
 		}
 	}
+
+#ifdef DEBUG_ENABLED
+	if (debug_enable_skeleton_vis) {
+		_debug_update_skeleton_vis();
+	}
+#endif
 }
 
 void EPASController::connect_node_to_root(Ref<EPASNode> p_from, StringName p_unique_name) {
@@ -164,6 +230,7 @@ void EPASController::connect_node(Ref<EPASNode> p_from, Ref<EPASNode> p_to, Stri
 	p_to->connect_to_input(p_input, p_from);
 	nodes.push_back(p_from);
 	node_name_map.insert(p_unique_name, p_from);
+	p_from->set_epas_controller(this);
 #ifdef DEBUG_ENABLED
 	p_from->set_meta("epas_name", p_unique_name);
 #endif

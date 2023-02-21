@@ -2,6 +2,8 @@
 #ifndef EPAS_POSE_H
 #define EPAS_POSE_H
 
+#include "core/math/quaternion.h"
+#include "core/math/transform_3d.h"
 #include "core/math/vector3.h"
 #include "core/string/ustring.h"
 #include "scene/3d/skeleton_3d.h"
@@ -52,6 +54,12 @@ public:
 			ERR_FAIL_COND_V(p_fallback == nullptr, Quaternion());
 			return p_fallback->rotation;
 		}
+		Transform3D get_transform(const BoneData *p_fallback) const {
+			Transform3D trf;
+			trf.origin = get_position(p_fallback);
+			trf.basis.set_quaternion_scale(get_rotation(p_fallback), get_scale(p_fallback));
+			return trf;
+		}
 		void interpolate_with(const BoneData *p_second, BoneData *p_output, const BoneData *p_base, float p_blend) const {
 			if (p_second->has_position) {
 				Vector3 first_pos = get_position(p_base);
@@ -87,13 +95,25 @@ public:
 	void create_bone_gd(const String &p_bone_name);
 
 	void flip_along_z();
+
 	void set_bone_position(const String &p_bone_name, const Vector3 &p_position);
-	Vector3 get_bone_position(const String &p_bone_name) const;
+	Vector3 get_bone_position(const String &p_bone_name, const Ref<EPASPose> &p_base_pos = Ref<EPASPose>()) const;
+	void set_bone_has_position(const String &p_bone_name, bool p_has_position);
+	bool get_bone_has_position(const String &p_bone_name) const;
+
 	void set_bone_rotation(const String &p_bone_name, const Quaternion &p_rotation);
-	Quaternion get_bone_rotation(const String &p_bone_name) const;
+	Quaternion get_bone_rotation(const String &p_bone_name, const Ref<EPASPose> &p_base_pose = Ref<EPASPose>()) const;
+	void set_bone_has_rotation(const String &p_bone_name, bool p_has_rotation);
+	bool get_bone_has_rotation(const String &p_bone_name) const;
+
 	void set_bone_scale(const String &p_bone_name, const Vector3 &p_scale);
-	Vector3 get_bone_scale(const String &p_bone_name) const;
+	Vector3 get_bone_scale(const String &p_bone_name, const Ref<EPASPose> &p_base_pose = Ref<EPASPose>()) const;
+	void set_bone_has_scale(const String &p_bone_name, bool p_has_scale);
+	bool get_bone_has_scale(const String &p_bone_name) const;
+
+	Transform3D get_bone_transform(const String &p_bone_name, const Ref<EPASPose> &p_base_pose = Ref<EPASPose>()) const;
 	void reserve(int p_size);
+	Transform3D calculate_bone_global_transform(const String &p_bone_name, const Skeleton3D *p_skel, const Ref<EPASPose> p_base_pose = Ref<EPASPose>()) const;
 
 	void add(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output, float p_blend) const;
 	void blend(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output, float p_blend) const;

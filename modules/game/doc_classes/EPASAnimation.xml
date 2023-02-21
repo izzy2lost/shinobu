@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EPASAnimation" inherits="Resource" version="4.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		EPAS animation container
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="add_keyframe">
+			<return type="void" />
+			<param index="0" name="keyframe" type="EPASKeyframe" />
+			<description>
+				Adds a keyframe to this animation.
+			</description>
+		</method>
+	</methods>
+	<constants>
+		<constant name="STEP" value="0" enum="InterpolationMethod">
+		</constant>
+		<constant name="LINEAR" value="1" enum="InterpolationMethod">
+		</constant>
+		<constant name="BICUBIC_SPLINE" value="2" enum="InterpolationMethod">
+		</constant>
+	</constants>
+</class>

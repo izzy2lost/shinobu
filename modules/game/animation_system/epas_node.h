@@ -3,13 +3,20 @@
 
 #include "epas_pose.h"
 
+class EPASController;
+
 class EPASNode : public RefCounted {
 	GDCLASS(EPASNode, RefCounted);
 
 	Vector<Ref<EPASNode>> children;
+	EPASController *epas_controller;
 
+private:
 protected:
+	void set_epas_controller(EPASController *p_epas_controller);
+	EPASController *get_epas_controller() const;
 	static void _bind_methods();
+	Skeleton3D *get_skeleton() const;
 
 public:
 	virtual int get_input_count() const;
@@ -22,6 +29,7 @@ public:
 	virtual void _debug_node_draw() const {};
 #endif
 	virtual ~EPASNode(){};
+	friend class EPASController;
 };
 
 #endif // EPAS_NODE_H

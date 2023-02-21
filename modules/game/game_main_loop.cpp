@@ -3,6 +3,7 @@
 #include "modules/imgui/register_types.h"
 
 #ifdef DEBUG_ENABLED
+#include "animation_system/epas_animation_editor.h"
 #include "animation_system/epas_pose_editor.h"
 #endif
 
@@ -31,6 +32,8 @@ void HBGameMainLoop::initialize() {
 			Node *tool = nullptr;
 			if (tool_name == "pose_editor") {
 				tool = memnew(EPASPoseEditor);
+			} else if (tool_name == "animation_editor") {
+				tool = memnew(EPASAnimationEditor);
 			}
 
 			if (tool) {

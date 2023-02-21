@@ -1,4 +1,8 @@
 #include "epas_pose.h"
+#include "core/error/error_macros.h"
+#include "core/math/quaternion.h"
+#include "core/math/transform_2d.h"
+#include "core/math/transform_3d.h"
 
 void EPASPose::_bind_methods() {
 	ClassDB::bind_static_method("EPASPose", D_METHOD("from_animation", "animation"), &EPASPose::from_animation);
@@ -138,6 +142,33 @@ void EPASPose::reserve(int p_size) {
 	bone_datas.reserve(p_size);
 }
 
+Transform3D EPASPose::calculate_bone_global_transform(const String &p_bone_name, const Skeleton3D *p_skel, const Ref<EPASPose> p_base_pose) const {
+	// Global in this context means relative to the skeleton
+	ERR_FAIL_COND_V(p_skel == nullptr, Transform3D());
+
+	int bone_idx = p_skel->find_bone(p_bone_name);
+
+	Vector<String> p_path;
+	p_path.push_back(p_bone_name);
+	int parent = bone_idx;
+	while (parent != -1) {
+		parent = p_skel->get_bone_parent(parent);
+		if (parent != -1) {
+			p_path.push_back(p_skel->get_bone_name(parent));
+		}
+	}
+
+	String root_name = p_path[p_path.size() - 1];
+	Transform3D trf = get_bone_transform(root_name, p_base_pose);
+
+	for (int i = p_path.size() - 2; i >= 0; i--) {
+		Transform3D local_trf = get_bone_transform(p_path[i], p_base_pose);
+		trf = trf * local_trf;
+	}
+
+	return trf;
+}
+
 EPASPose::BoneData *EPASPose::create_bone(const String &p_bone_name) {
 	ERR_FAIL_COND_V_MSG(bone_datas.has(p_bone_name), nullptr, vformat("Bone %s already exists", p_bone_name));
 	return bone_datas.insert(p_bone_name, memnew(BoneData(p_bone_name)))->value;
@@ -154,11 +185,28 @@ void EPASPose::set_bone_position(const String &p_bone_name, const Vector3 &p_pos
 	bd->position = p_position;
 }
 
-Vector3 EPASPose::get_bone_position(const String &p_bone_name) const {
+Vector3 EPASPose::get_bone_position(const String &p_bone_name, const Ref<EPASPose> &p_base_pose) const {
 	EPASPose::BoneData *bd = get_bone_data(p_bone_name);
+	if (p_base_pose.is_valid()) {
+		ERR_FAIL_COND_V_MSG(!p_base_pose->has_bone(p_bone_name), Vector3(), "Bone does not exist in base pose");
+		if (!bd) {
+			return p_base_pose->get_bone_position(p_bone_name);
+		}
+		return bd->get_position(p_base_pose->get_bone_data(p_bone_name));
+	}
 	ERR_FAIL_COND_V_MSG(!bd, Vector3(), vformat("Bone %s does not exist", p_bone_name));
 	ERR_FAIL_COND_V_MSG(!bd->has_position, Vector3(), vformat("Bone %s doesn't have a position in this pose", p_bone_name));
 	return bd->position;
+}
+
+void EPASPose::set_bone_has_position(const String &p_bone_name, bool p_has_position) {
+	ERR_FAIL_COND_MSG(has_bone(p_bone_name), vformat("Bone %s does not exist", p_bone_name));
+	get_bone_data(p_bone_name)->has_position = p_has_position;
+}
+
+bool EPASPose::get_bone_has_position(const String &p_bone_name) const {
+	ERR_FAIL_COND_V_MSG(has_bone(p_bone_name), false, vformat("Bone %s does not exist", p_bone_name));
+	return get_bone_data(p_bone_name)->has_position;
 }
 
 void EPASPose::set_bone_rotation(const String &p_bone_name, const Quaternion &p_rotation) {
@@ -168,11 +216,28 @@ void EPASPose::set_bone_rotation(const String &p_bone_name, const Quaternion &p_
 	bd->rotation = p_rotation;
 }
 
-Quaternion EPASPose::get_bone_rotation(const String &p_bone_name) const {
+Quaternion EPASPose::get_bone_rotation(const String &p_bone_name, const Ref<EPASPose> &p_base_pose) const {
 	EPASPose::BoneData *bd = get_bone_data(p_bone_name);
+	if (p_base_pose.is_valid()) {
+		ERR_FAIL_COND_V_MSG(!p_base_pose->has_bone(p_bone_name), Quaternion(), "Bone does not exist in base pose");
+		if (!bd) {
+			return p_base_pose->get_bone_rotation(p_bone_name);
+		}
+		return bd->get_rotation(p_base_pose->get_bone_data(p_bone_name));
+	}
 	ERR_FAIL_COND_V_MSG(!bd, Quaternion(), vformat("Bone %s does not exist", p_bone_name));
 	ERR_FAIL_COND_V_MSG(!bd->has_rotation, Quaternion(), vformat("Bone %s doesn't have a rotation in this pose", p_bone_name));
 	return bd->rotation;
+}
+
+void EPASPose::set_bone_has_rotation(const String &p_bone_name, bool p_has_rotation) {
+	ERR_FAIL_COND_MSG(has_bone(p_bone_name), vformat("Bone %s does not exist", p_bone_name));
+	get_bone_data(p_bone_name)->has_rotation = p_has_rotation;
+}
+
+bool EPASPose::get_bone_has_rotation(const String &p_bone_name) const {
+	ERR_FAIL_COND_V_MSG(has_bone(p_bone_name), false, vformat("Bone %s does not exist", p_bone_name));
+	return get_bone_data(p_bone_name)->has_rotation;
 }
 
 void EPASPose::set_bone_scale(const String &p_bone_name, const Vector3 &p_scale) {
@@ -182,11 +247,44 @@ void EPASPose::set_bone_scale(const String &p_bone_name, const Vector3 &p_scale)
 	bd->scale = p_scale;
 }
 
-Vector3 EPASPose::get_bone_scale(const String &p_bone_name) const {
+Vector3 EPASPose::get_bone_scale(const String &p_bone_name, const Ref<EPASPose> &p_base_pose) const {
 	EPASPose::BoneData *bd = get_bone_data(p_bone_name);
+	if (p_base_pose.is_valid()) {
+		ERR_FAIL_COND_V_MSG(!p_base_pose->has_bone(p_bone_name), Vector3(1.0f, 1.0f, 1.0f), "Bone does not exist in base pose");
+		if (!bd) {
+			return p_base_pose->get_bone_scale(p_bone_name);
+		}
+		return bd->get_scale(p_base_pose->get_bone_data(p_bone_name));
+	}
 	ERR_FAIL_COND_V_MSG(!bd, Vector3(), vformat("Bone %s does not exist", p_bone_name));
 	ERR_FAIL_COND_V_MSG(!bd->has_scale, Vector3(), vformat("Bone %s doesn't have a scale in this pose", p_bone_name));
 	return bd->scale;
+}
+
+void EPASPose::set_bone_has_scale(const String &p_bone_name, bool p_has_scale) {
+	ERR_FAIL_COND_MSG(has_bone(p_bone_name), vformat("Bone %s does not exist", p_bone_name));
+	get_bone_data(p_bone_name)->has_scale = p_has_scale;
+}
+
+bool EPASPose::get_bone_has_scale(const String &p_bone_name) const {
+	ERR_FAIL_COND_V_MSG(has_bone(p_bone_name), false, vformat("Bone %s does not exist", p_bone_name));
+	return get_bone_data(p_bone_name)->has_scale;
+}
+
+Transform3D EPASPose::get_bone_transform(const String &p_bone_name, const Ref<EPASPose> &p_base_pose) const {
+	EPASPose::BoneData *bd = get_bone_data(p_bone_name);
+	if (p_base_pose.is_valid()) {
+		ERR_FAIL_COND_V_MSG(!p_base_pose->has_bone(p_bone_name), Transform3D(), vformat("Bone %s does not exist in base pose", p_bone_name));
+		if (!bd) {
+			return p_base_pose->get_bone_transform(p_bone_name);
+		}
+		return bd->get_transform(p_base_pose->get_bone_data(p_bone_name));
+	}
+	ERR_FAIL_COND_V_MSG(!bd, Transform3D(), vformat("Bone %s does not exist", p_bone_name));
+	ERR_FAIL_COND_V_MSG(!bd->has_position, Transform3D(), vformat("Bone %s doesn't have a rotation in this pose", p_bone_name));
+	ERR_FAIL_COND_V_MSG(!bd->has_rotation, Transform3D(), vformat("Bone %s doesn't have a rotation in this pose", p_bone_name));
+	ERR_FAIL_COND_V_MSG(!bd->has_scale, Transform3D(), vformat("Bone %s doesn't have a rotation in this pose", p_bone_name));
+	return bd->get_transform(nullptr);
 }
 
 void EPASPose::flip_along_z() {

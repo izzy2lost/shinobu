@@ -15,6 +15,8 @@ def get_doc_path():
 def get_doc_classes():
     return [
         "HBActor",
+        "HBPlayerActor",
+        "HBPlayerCameraArm",
         "EPASPose",
         "EPASNode",
         "EPASBlendNode",
@@ -22,5 +24,9 @@ def get_doc_classes():
         "EPASPoseNode",
         "EPASController",
         "EPASWheelLocomotion",
+        "EPASKeyframe",
+        "EPASAnimation",
+        "HBUtils",
+        "EPASIKNode",
         "HBGameMainLoop",
     ]

@@ -71,6 +71,8 @@ void EPASEditorCamera::unhandled_input(const Ref<InputEvent> &p_event) {
 }
 
 EPASEditorCamera::EPASEditorCamera() {
-	set_process_internal(true);
-	set_process_unhandled_input(true);
+	if (!Engine::get_singleton()->is_editor_hint()) {
+		set_process_internal(true);
+		set_process_unhandled_input(true);
+	}
 }

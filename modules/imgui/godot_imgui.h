@@ -12,14 +12,18 @@
 
 #ifndef GODOT_IMGUI_H
 #define GODOT_IMGUI_H
+#include <cstdint>
 #ifdef DEBUG_ENABLED
 #include "ImGuizmo.h"
 #include "imgui.h"
+#include "imgui_neo_sequencer.h"
 #include "scene/gui/subviewport_container.h"
 #include "scene/main/viewport.h"
 
 class GodotImGui : public SubViewportContainer {
 	GDCLASS(GodotImGui, SubViewportContainer);
+
+private:
 	static GodotImGui *singleton;
 	SubViewport *viewport = nullptr;
 	struct ObjectDebugInfo {
@@ -69,6 +73,8 @@ public:
 	bool is_debugging_enabled(const ObjectID &p_object_id) const;
 	bool begin_debug_window(const Object *p_object);
 	bool is_debug_enabled(const Object *p_object) const;
+
+	void set_enable_overlay(bool p_enable);
 
 	GodotImGui();
 	~GodotImGui();

@@ -2,8 +2,22 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include "core/math/projection.h"
+#include "core/math/quaternion.h"
+#include "core/math/transform_3d.h"
 #include "core/math/vector3.h"
-class HBUtils {
+#include "core/object/class_db.h"
+#include "core/object/ref_counted.h"
+#include "core/variant/array.h"
+class HBUtils : public RefCounted {
+	GDCLASS(HBUtils, RefCounted);
+
+protected:
+	static void _bind_methods() {
+		ClassDB::bind_static_method("HBUtils", D_METHOD("rotate_to_align", "start_direction", "end_direction"), &HBUtils::rotate_to_align);
+		ClassDB::bind_static_method("HBUtils", D_METHOD("two_joint_ik", "a", "b", "c", "target", "epsilon", "a_global_rot", "b_global_rot", "a_local_rot", "b_local_rot", "use_magnet", "magnet_dir"), &HBUtils::two_joint_ik_gdscript);
+	};
+
 public:
 	static float fast_negexp(float x) {
 		return 1.0f / (1.0f + x + 0.48f * x * x + 0.235f * x * x * x);
@@ -13,13 +27,13 @@ public:
 		return (4.0f * 0.69314718056f) / (halflife + eps);
 	}
 
-	// Velocity spring, used for character.
 	static void velocity_spring(
 			float *v,
 			float *a,
 			float v_goal,
 			float halflife,
 			float dt) {
+		// Velocity spring, used for character.
 		float y = halflife_to_damping(halflife) / 2.0f;
 		float j0 = *v - v_goal;
 		float j1 = *a + j0 * y;
@@ -70,6 +84,109 @@ public:
 
 		x = x_goal * quat_from_scaled_angle_axis(eydt * (j0 + j1 * dt));
 		v = eydt * (v - j1 * y * dt);
+	}
+	static void trf_to_mat(const Transform3D &p_mat, float *p_out) {
+		p_out[0] = p_mat.basis.rows[0][0];
+		p_out[1] = p_mat.basis.rows[1][0];
+		p_out[2] = p_mat.basis.rows[2][0];
+		p_out[3] = 0;
+
+		p_out[4] = p_mat.basis.rows[0][1];
+		p_out[5] = p_mat.basis.rows[1][1];
+		p_out[6] = p_mat.basis.rows[2][1];
+		p_out[7] = 0;
+
+		p_out[8] = p_mat.basis.rows[0][2];
+		p_out[9] = p_mat.basis.rows[1][2];
+		p_out[10] = p_mat.basis.rows[2][2];
+		p_out[11] = 0;
+
+		p_out[12] = p_mat.origin.x;
+		p_out[13] = p_mat.origin.y;
+		p_out[14] = p_mat.origin.z;
+		p_out[15] = 1;
+	}
+
+	static void mat_to_trf(const float *p_in, Transform3D &p_out) {
+		p_out.basis.rows[0][0] = p_in[0];
+		p_out.basis.rows[1][0] = p_in[1];
+		p_out.basis.rows[2][0] = p_in[2];
+
+		p_out.basis.rows[0][1] = p_in[4];
+		p_out.basis.rows[1][1] = p_in[5];
+		p_out.basis.rows[2][1] = p_in[6];
+
+		p_out.basis.rows[0][2] = p_in[8];
+		p_out.basis.rows[1][2] = p_in[9];
+		p_out.basis.rows[2][2] = p_in[10];
+
+		p_out.origin.x = p_in[12];
+		p_out.origin.y = p_in[13];
+		p_out.origin.z = p_in[14];
+	}
+
+	static void proj_to_mat(const Projection &p_mat, float *p_out) {
+		for (int i = 0; i < 16; i++) {
+			real_t *p = (real_t *)p_mat.columns;
+			p_out[i] = p[i];
+		}
+	}
+	static Basis rotate_to_align(Vector3 p_start_direction, Vector3 p_end_direction) {
+		Basis basis;
+		basis.rotate_to_align(p_start_direction, p_end_direction);
+		return basis;
+	}
+	static void two_joint_ik(
+			Vector3 p_a, Vector3 p_b, Vector3 p_c, Vector3 p_target, float eps,
+			Quaternion p_a_global_rot, Quaternion p_b_global_rot,
+			Quaternion &p_a_local_rot, Quaternion &p_b_local_rot, bool p_use_magnet = false, Vector3 p_dir = Vector3()) {
+		float lab = p_b.distance_to(p_a);
+		float lcb = p_b.distance_to(p_c);
+		float lat = CLAMP(p_target.distance_to(p_a), eps, lab + lcb - eps);
+
+		float ac_ab_0 = Math::acos(CLAMP((p_c - p_a).normalized().dot((p_b - p_a).normalized()), -1.0f, 1.0f));
+		float ba_bc_0 = Math::acos(CLAMP((p_a - p_b).normalized().dot((p_c - p_b).normalized()), -1.0f, 1.0f));
+		float ac_at_0 = Math::acos(CLAMP((p_c - p_a).normalized().dot((p_target - p_a).normalized()), -1.0f, 1.0f));
+
+		float ac_ab_1 = Math::acos(CLAMP((lcb * lcb - lab * lab - lat * lat) / (-2.0f * lab * lat), -1.0f, 1.0f));
+		float ba_bc_1 = Math::acos(CLAMP((lat * lat - lab * lab - lcb * lcb) / (-2.0f * lab * lcb), -1.0f, 1.0f));
+
+		Vector3 d = p_b - p_a;
+		if (p_use_magnet) {
+			d = p_b_global_rot.xform(p_dir);
+		}
+		d.normalize();
+
+		Vector3 axis0 = (p_c - p_a).cross(d).normalized();
+		Vector3 axis1 = (p_c - p_a).cross(p_target - p_a).normalized();
+
+		Quaternion r0 = Quaternion(p_a_global_rot.inverse().xform(axis0), ac_ab_1 - ac_ab_0);
+		Quaternion r1 = Quaternion(p_b_global_rot.inverse().xform(axis0), ba_bc_1 - ba_bc_0);
+		Quaternion r2 = Quaternion(axis1, ac_at_0);
+
+		p_a_local_rot = (r2 * r0) * p_a_local_rot;
+		p_b_local_rot = r1 * p_b_local_rot;
+	}
+
+	static Array two_joint_ik_gdscript(
+			Vector3 p_a, Vector3 p_b, Vector3 p_c, Vector3 p_target, float eps,
+			Quaternion p_a_global_rot, Quaternion p_b_global_rot,
+			Quaternion p_a_local_rot, Quaternion p_b_local_rot, bool use_magnet, Vector3 magnet_position) {
+		two_joint_ik(p_a, p_b, p_c, p_target, eps, p_a_global_rot, p_b_global_rot, p_a_local_rot, p_b_local_rot, use_magnet, magnet_position);
+
+		Array a;
+		a.push_back(p_a_local_rot);
+		a.push_back(p_b_local_rot);
+		return a;
+	}
+	static void get_cubic_spline_weights(float interp, float *weights) {
+		// Lifted straight from overgrwoth
+		float interp_squared = interp * interp;
+		float interp_cubed = interp_squared * interp;
+		weights[0] = 0.5f * (-interp_cubed + 2.0f * interp_squared - interp);
+		weights[1] = 0.5f * (3.0f * interp_cubed - 5.0f * interp_squared + 2.0f);
+		weights[2] = 0.5f * (-3.0f * interp_cubed + 4.0f * interp_squared + interp);
+		weights[3] = 0.5f * (interp_cubed - interp_squared);
 	}
 };
 

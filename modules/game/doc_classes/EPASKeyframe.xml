@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EPASKeyframe" inherits="Resource" version="4.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		EPAS Keyframe container.
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="pose" type="EPASPose" setter="set_pose" getter="get_pose">
+			The pose of this keyframe.
+		</member>
+		<member name="time" type="float" setter="set_time" getter="get_time" default="0.0">
+			In seconds, the time in the animation at which this keyframe should play.
+		</member>
+	</members>
+	<signals>
+		<signal name="time_changed">
+			<description>
+			</description>
+		</signal>
+	</signals>
+</class>

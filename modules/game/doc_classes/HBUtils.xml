@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="HBUtils" inherits="RefCounted" version="4.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		Utility methods.
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="rotate_to_align" qualifiers="static">
+			<return type="Basis" />
+			<param index="0" name="start_direction" type="Vector3" />
+			<param index="1" name="end_direction" type="Vector3" />
+			<description>
+				Returns a rotation to rotate from [code]start_direction[/code] to [code]end_direction[/code].
+			</description>
+		</method>
+		<method name="two_joint_ik" qualifiers="static">
+			<return type="Array" />
+			<param index="0" name="a" type="Vector3" />
+			<param index="1" name="b" type="Vector3" />
+			<param index="2" name="c" type="Vector3" />
+			<param index="3" name="target" type="Vector3" />
+			<param index="4" name="epsilon" type="float" />
+			<param index="5" name="a_global_rot" type="Quaternion" />
+			<param index="6" name="b_global_rot" type="Quaternion" />
+			<param index="7" name="a_local_rot" type="Quaternion" />
+			<param index="8" name="b_local_rot" type="Quaternion" />
+			<param index="9" name="use_magnet" type="bool" />
+			<param index="10" name="magnet_dir" type="Vector3" />
+			<description>
+			</description>
+		</method>
+	</methods>
+</class>

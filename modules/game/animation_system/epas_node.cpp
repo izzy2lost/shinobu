@@ -1,10 +1,28 @@
 #include "epas_node.h"
+#include "core/error/error_macros.h"
+#include "epas_controller.h"
+#include "scene/3d/skeleton_3d.h"
+
+void EPASNode::set_epas_controller(EPASController *p_epas_controller) {
+	epas_controller = p_epas_controller;
+}
+
+EPASController *EPASNode::get_epas_controller() const {
+	ERR_FAIL_COND_V_MSG(!epas_controller, nullptr, "Bug?");
+	return epas_controller;
+}
 
 void EPASNode::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_input_count"), &EPASNode::get_input_count);
 	ClassDB::bind_method(D_METHOD("connect_to_input", "input", "node"), &EPASNode::connect_to_input);
 	ClassDB::bind_method(D_METHOD("process", "base_pose", "target_pose", "delta"), &EPASNode::process_node);
 	ClassDB::bind_method(D_METHOD("process_input_pose", "input", "base_pose", "target_pose", "delta"), &EPASNode::process_input_pose);
+}
+
+Skeleton3D *EPASNode::get_skeleton() const {
+	ERR_FAIL_COND_V(epas_controller == nullptr, nullptr);
+	Skeleton3D *skel = epas_controller->get_skeleton();
+	return skel;
 }
 
 int EPASNode::get_input_count() const {
