@@ -19,6 +19,7 @@
 #include "imgui_neo_sequencer.h"
 #include "scene/gui/subviewport_container.h"
 #include "scene/main/viewport.h"
+#include "thirdparty/fonts/imgui_fonts.h"
 
 class GodotImGui : public SubViewportContainer {
 	GDCLASS(GodotImGui, SubViewportContainer);
