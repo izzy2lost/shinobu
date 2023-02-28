@@ -140,44 +140,42 @@ public:
 	static void two_joint_ik(
 			Vector3 pos_a, Vector3 pos_b, Vector3 pos_c, Vector3 p_target, float eps,
 			Quaternion p_a_global_rot, Quaternion p_b_global_rot,
-			Quaternion &p_a_local_rot, Quaternion &p_b_local_rot, bool p_use_magnet = false, Vector3 p_dir = Vector3()) {
-		// Generic two joint IK
+			Quaternion &p_a_local_rot, Quaternion &p_b_local_rot,
+			bool p_use_magnet = false, Vector3 p_magnet_pos = Vector3()) {
+		// Linear algebra based two joint IK
+		// Notes about this function:
+		// You want to res
 		float lab = pos_b.distance_to(pos_a);
 		float lcb = pos_b.distance_to(pos_c);
 		float lat = CLAMP(p_target.distance_to(pos_a), eps, lab + lcb - eps);
 
 		// Use cosine rule to calculate the current angles
-		float ac_ab_0 = Math::acos(CLAMP((pos_c - pos_a).normalized().dot((pos_b - pos_a).normalized()), -1.0f, 1.0f));
-		float ba_bc_0 = Math::acos(CLAMP((pos_a - pos_b).normalized().dot((pos_c - pos_b).normalized()), -1.0f, 1.0f));
-		float ac_at_0 = Math::acos(CLAMP((pos_c - pos_a).normalized().dot((p_target - pos_a).normalized()), -1.0f, 1.0f));
+		float ac_ab_0 = Math::acos(CLAMP(pos_a.direction_to(pos_c).dot(pos_a.direction_to(pos_b)), -1.0f, 1.0f));
+		float ba_bc_0 = Math::acos(CLAMP(pos_c.direction_to(pos_b).dot(pos_a.direction_to(pos_b)), -1.0f, 1.0f));
+		float ac_at_0 = Math::acos(CLAMP(pos_a.direction_to(pos_c).dot(pos_a.direction_to(p_target)), -1.0f, 1.0f));
 
 		// Calculate the desired angles
 		float ac_ab_1 = Math::acos(CLAMP((lcb * lcb - lab * lab - lat * lat) / (-2.0f * lab * lat), -1.0f, 1.0f));
 		float ba_bc_1 = Math::acos(CLAMP((lat * lat - lab * lab - lcb * lcb) / (-2.0f * lab * lcb), -1.0f, 1.0f));
 
-		Vector3 d = pos_b - pos_a;
-		if (p_use_magnet) {
-			ERR_FAIL_COND(p_dir.is_normalized());
-			d = p_b_global_rot.xform(p_dir);
-		}
-		d.normalize();
-
 		// Calculate the axis of rotation for lengthening/shortening the chain
-		Vector3 axis0 = (pos_c - pos_a).cross(d).normalized();
+		Vector3 axis0 = pos_a.direction_to(pos_c).cross(pos_a.direction_to(pos_c)).normalized();
+		if (p_use_magnet) {
+			Vector3 dir = pos_a.direction_to(p_magnet_pos);
+			axis0 = pos_a.direction_to(pos_c).cross(dir).normalized();
+		}
 		// Calculate the axis of rotation for aligning the chain with the target
-		Vector3 axis1 = (pos_c - pos_a).cross(p_target - pos_a).normalized();
+		Vector3 axis1 = pos_a.direction_to(pos_c).cross(pos_a.direction_to(p_target)).normalized();
 
 		// Hip rotation
 		Quaternion r0 = Quaternion(p_a_global_rot.inverse().xform(axis0), ac_ab_1 - ac_ab_0);
 		// Knee rotation
 		Quaternion r1 = Quaternion(p_b_global_rot.inverse().xform(axis0), ba_bc_1 - ba_bc_0);
 		// Additional hip rotation to align
-		// Not sure why but it appears like axis1 is already local, so no need to transform it by
-		// the inverse of p_a_global_rot
-		Quaternion r2 = Quaternion(axis1, ac_at_0);
+		Quaternion r2 = Quaternion(p_a_global_rot.inverse().xform(axis1), ac_at_0);
 
-		p_a_local_rot = (r2 * r0) * p_a_local_rot;
-		p_b_local_rot = r1 * p_b_local_rot;
+		p_a_local_rot = p_a_local_rot * (r2 * r0);
+		p_b_local_rot = p_b_local_rot * r1;
 	}
 
 	static Array two_joint_ik_gdscript(

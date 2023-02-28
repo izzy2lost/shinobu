@@ -390,7 +390,6 @@ void EPASPose::blend(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_
 		// this is the output bonedata
 		EPASPose::BoneData *output_pose_d = p_output->get_bone_data(kv.key);
 		const EPASPose::BoneData *first_bone_d = get_bone_data(kv.key);
-
 		const EPASPose::BoneData *second_bone_d = p_second_pose->get_bone_data(kv.key);
 		const EPASPose::BoneData *base_bone_d = kv.value;
 

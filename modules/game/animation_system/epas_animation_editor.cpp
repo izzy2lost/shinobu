@@ -1,6 +1,5 @@
 #ifdef DEBUG_ENABLED
 #include "epas_animation_editor.h"
-#include "../utils.h"
 #include "core/error/error_macros.h"
 #include "core/io/resource_loader.h"
 #include "core/math/color.h"
@@ -12,11 +11,14 @@
 #include "modules/game/animation_system/epas_animation.h"
 #include "modules/game/animation_system/epas_animation_node.h"
 #include "modules/game/animation_system/epas_pose.h"
+#include "modules/game/resources/game_tools_theme.h"
+#include "modules/game/utils.h"
 #include "modules/imgui/godot_imgui.h"
 #include "scene/3d/camera_3d.h"
 #include "scene/3d/light_3d.h"
 #include "scene/3d/world_environment.h"
 #include "scene/resources/packed_scene.h"
+#include "scene/resources/primitive_meshes.h"
 #include "scene/resources/sky_material.h"
 
 Transform3D EPASAnimationEditor::get_edited_object_transform() {
@@ -34,7 +36,9 @@ void EPASAnimationEditor::_notification(int p_what) {
 			epas_animation_node->seek(current_frame / (float)FPS);
 		} break;
 		case NOTIFICATION_DRAW: {
+			selection_handle_dots->hide();
 			if (Input::get_singleton()->is_key_pressed(Key::CTRL)) {
+				selection_handle_dots->show();
 				_draw_bone_positions();
 			}
 		} break;
@@ -43,48 +47,97 @@ void EPASAnimationEditor::_notification(int p_what) {
 
 void EPASAnimationEditor::_draw_bone_positions() {
 	Camera3D *cam = get_viewport()->get_camera_3d();
+
 	if (cam && editing_skeleton && get_current_pose().is_valid()) {
 		if (editing_skeleton->get_bone_count() == 0) {
 			return;
 		}
-		HashMap<int, Vector2> bones_screen_position;
-		bones_screen_position.reserve(editing_skeleton->get_bone_count());
+		HashMap<int, Vector2> handles_screen_position;
+		handles_screen_position.reserve(selection_handles.size());
 		Vector2 mouse_pos = get_global_mouse_position();
-		int closest_bone = -1;
-		Vector2 closest_bone_scr_pos;
-		for (int i = 0; i < editing_skeleton->get_bone_count(); i++) {
-			Vector3 bone_pos = editing_skeleton->to_global(editing_skeleton->get_bone_global_pose(i).origin);
-			if (!cam->is_position_behind(bone_pos)) {
-				Vector2 bone_scr_pos = cam->unproject_position(bone_pos);
-				if (mouse_pos.distance_to(bone_scr_pos) < 25.0) {
-					if (closest_bone == -1 || mouse_pos.distance_to(bone_scr_pos) < mouse_pos.distance_to(closest_bone_scr_pos)) {
-						closest_bone = i;
-						closest_bone_scr_pos = bone_scr_pos;
+		int closest_handle = -1;
+		Vector2 closest_handle_scr_pos;
+		for (int i = 0; i < selection_handles.size(); i++) {
+			Vector3 handle_pos;
+			if (selection_handles[i]->hidden) {
+				continue;
+			}
+			int bone_idx = selection_handles[i]->bone_idx;
+			handle_pos = editing_skeleton->to_global(editing_skeleton->get_bone_global_pose(bone_idx).origin);
+
+			if (!cam->is_position_behind(handle_pos)) {
+				Vector2 handle_scr_pos = cam->unproject_position(handle_pos);
+				if (mouse_pos.distance_to(handle_scr_pos) < 25.0) {
+					if (closest_handle == -1 || mouse_pos.distance_to(handle_scr_pos) < mouse_pos.distance_to(closest_handle_scr_pos)) {
+						closest_handle = i;
+						closest_handle_scr_pos = handle_scr_pos;
 					}
 				}
 
-				bones_screen_position.insert(i, bone_scr_pos);
+				handles_screen_position.insert(i, handle_scr_pos);
 			}
 		}
 		Color color_unlit = Color::named("Dark Magenta");
 		Color color_lit = Color::named("Light Yellow");
+		Color color_right = Color::named("Red");
+		Color color_left = Color::named("Lime Green");
+		Color color_ik = Color::named("Blue");
 
-		for (const KeyValue<int, Vector2> &pair : bones_screen_position) {
-			if (pair.key == closest_bone) {
-				draw_circle(pair.value, 4.0, color_lit);
-				draw_string(label_font, pair.value + Vector2(10.0, 0.0), editing_skeleton->get_bone_name(pair.key));
-			} else {
-				draw_circle(pair.value, 4.0, color_unlit);
+		Ref<MultiMesh> mm = selection_handle_dots->get_multimesh();
+
+		mm->set_instance_count(handles_screen_position.size());
+
+		int i = 0;
+
+		for (const KeyValue<int, Vector2> &pair : handles_screen_position) {
+			String handle_name;
+			Color handle_color = color_unlit;
+			Ref<Selection> handle = selection_handles[pair.key];
+			switch (selection_handles[pair.key]->type) {
+				case Selection::FK_BONE: {
+					handle_name = editing_skeleton->get_bone_name(selection_handles[pair.key]->bone_idx);
+					// Color differentiation for L/R bones
+					if (handle_name.ends_with(".L")) {
+						handle_color = color_left;
+					} else if (handle_name.ends_with(".R")) {
+						handle_color = color_right;
+					}
+				} break;
+				case Selection::IK_HANDLE: {
+					if (handle->is_ik_magnet) {
+						handle_name = handle->ik_joint->get_ik_magnet_bone_name();
+					} else {
+						handle_name = handle->ik_joint->get_ik_tip_bone_name();
+					}
+					handle_color = color_ik;
+				} break;
 			}
+
+			if (pair.key == closest_handle) {
+				// Hovered handles get their own color
+				Vector2 label_pos = pair.value + Vector2(10.0, 0.0);
+				draw_string(label_font, label_pos + Vector2(2.0, 2.0), handle_name, HORIZONTAL_ALIGNMENT_LEFT, -1, Font::DEFAULT_FONT_SIZE, Color());
+				draw_string(label_font, label_pos, handle_name);
+				Transform2D trf;
+				trf.set_origin(pair.value);
+				mm->set_instance_transform_2d(i, trf);
+				mm->set_instance_color(i, color_lit);
+			} else {
+				Transform2D trf;
+				trf.set_origin(pair.value);
+				mm->set_instance_transform_2d(i, trf);
+				mm->set_instance_color(i, handle_color);
+			}
+			i++;
 		}
-		currently_hovered_bone = closest_bone;
+		currently_hovered_selection_handle = closest_handle;
 	}
 }
 
 void EPASAnimationEditor::_world_to_bone_trf(int p_bone_idx, const float *p_world_trf, Transform3D &p_out) {
 	HBUtils::mat_to_trf(p_world_trf, p_out);
 	p_out = editing_skeleton->get_global_transform().affine_inverse() * p_out;
-	int parent = editing_skeleton->get_bone_parent(editing_bone);
+	int parent = editing_skeleton->get_bone_parent(p_bone_idx);
 	if (parent != -1) {
 		p_out = editing_skeleton->get_bone_global_pose(parent).affine_inverse() * p_out;
 	}
@@ -97,14 +150,243 @@ void EPASAnimationEditor::_set_frame_time(int p_frame_idx, int32_t p_frame_time)
 	keyframe_cache[p_frame_idx]->apply_frame_time();
 }
 
-// Returns the current pose that the user is hovering, if any
-Ref<EPASPose> EPASAnimationEditor::get_current_pose() const {
-	for (int i = 0; i < keyframe_cache.size(); i++) {
-		if ((uint32_t)keyframe_cache[i]->frame_time == current_frame) {
-			return keyframe_cache[i]->keyframe->get_pose();
+void EPASAnimationEditor::_create_eirteam_humanoid_ik() {
+	if (!editing_skeleton) {
+		// TODO: Show error here
+		return;
+	}
+	Vector<String> ik_tips;
+	ik_tips.push_back("hand.L");
+	ik_tips.push_back("hand.R");
+	ik_tips.push_back("foot.L");
+	ik_tips.push_back("foot.R");
+
+	Vector<int> ik_tips_idx;
+
+	for (int i = 0; i < ik_tips.size(); i++) {
+		int tip_idx = editing_skeleton->find_bone(ik_tips[i]);
+		ERR_FAIL_COND_MSG(tip_idx == -1, vformat("Can't build IK constraints, bone %s does not exist!", ik_tips[i]));
+		ik_tips_idx.push_back(tip_idx);
+	}
+
+	for (int i = 0; i < selection_handles.size(); i++) {
+		if (ik_tips_idx.has(selection_handles[i]->bone_idx)) {
+			selection_handles.get(i)->hidden = true;
 		}
 	}
+
+	for (int i = 0; i < ik_tips.size(); i++) {
+		// Create the virtual bones
+		String ik_target_bone_name = "IK." + ik_tips[i];
+		int target_bone_idx = editing_skeleton->find_bone(ik_target_bone_name);
+
+		if (target_bone_idx == -1) {
+			editing_skeleton->add_bone(ik_target_bone_name);
+			target_bone_idx = editing_skeleton->get_bone_count() - 1;
+		}
+
+		String ik_magnet_bone_name = "IK.Magnet." + ik_tips[i];
+		int magnet_bone_idx = editing_skeleton->find_bone(ik_magnet_bone_name);
+
+		if (magnet_bone_idx == -1) {
+			editing_skeleton->add_bone(ik_magnet_bone_name);
+			magnet_bone_idx = editing_skeleton->get_bone_count() - 1;
+		}
+
+		int ik_a_bone_idx = ik_tips_idx[i];
+		int ik_b_bone_idx = editing_skeleton->get_bone_parent(ik_a_bone_idx);
+		int ik_c_bone_idx = editing_skeleton->get_bone_parent(ik_b_bone_idx);
+		{
+			// Set the rest position for the target bone
+			editing_skeleton->set_bone_rest(target_bone_idx, editing_skeleton->get_bone_global_rest(ik_a_bone_idx));
+			editing_skeleton->reset_bone_pose(target_bone_idx);
+
+			Transform3D a_trf = editing_skeleton->get_bone_global_rest(ik_a_bone_idx);
+			Transform3D b_trf = editing_skeleton->get_bone_global_rest(ik_b_bone_idx);
+			Transform3D c_trf = editing_skeleton->get_bone_global_rest(ik_c_bone_idx);
+
+			Vector3 a_to_b = b_trf.origin - a_trf.origin;
+			Vector3 a_to_c = c_trf.origin - a_trf.origin;
+
+			// Use dot product to find out the position of the projection of the middle bone on the hypothenuse (a to c)
+			Vector3 a_to_c_magnet_proj = a_to_c.normalized() * (a_to_b.dot(a_to_c) / a_to_c.length());
+
+			const float MAGNET_DISTANCE = 0.5f;
+			Vector3 magnet_pos = b_trf.origin + (a_trf.origin + a_to_c_magnet_proj).direction_to(b_trf.origin) * MAGNET_DISTANCE;
+
+			// Set rest position for the magnet bone
+			Transform3D magnet_trf;
+			magnet_trf.origin = magnet_pos;
+			editing_skeleton->set_bone_rest(magnet_bone_idx, magnet_trf);
+			editing_skeleton->reset_bone_pose(magnet_bone_idx);
+		}
+
+		// Create the constraint
+		Ref<EPASAnimationEditorIKJoint> ik_constraint;
+		ik_constraint.instantiate();
+		ik_constraint->set_ik_magnet_bone_name(ik_magnet_bone_name);
+		ik_constraint->set_ik_target_bone_name(ik_target_bone_name);
+		ik_constraint->set_ik_tip_bone_name(ik_tips[i]);
+		ik_constraint->set_use_magnet(true);
+
+		// Create selection handles
+		Ref<Selection> ik_target_handle;
+		ik_target_handle.instantiate();
+		Ref<Selection> ik_magnet_handle;
+		ik_magnet_handle.instantiate();
+
+		ik_target_handle->bone_idx = target_bone_idx;
+		ik_target_handle->ik_joint = ik_constraint;
+		ik_target_handle->type = Selection::SelectionType::IK_HANDLE;
+
+		ik_magnet_handle->bone_idx = magnet_bone_idx;
+		ik_magnet_handle->is_ik_magnet = true;
+		ik_magnet_handle->ik_joint = ik_constraint;
+		ik_magnet_handle->type = Selection::SelectionType::IK_HANDLE;
+
+		selection_handles.push_back(ik_target_handle);
+		selection_handles.push_back(ik_magnet_handle);
+		ik_constraints.push_back(ik_constraint);
+	}
+}
+
+void EPASAnimationEditor::_apply_handle_transform(int p_handle, const Transform3D &p_trf) {
+	// Apply the handle transform based on the user's input, after the user is done use
+	// _commit_handle_transform to save it to undo_redo
+	ERR_FAIL_INDEX_MSG(p_handle, selection_handles.size(), "Handle idx is out of range");
+	Ref<Selection> selection_handle = selection_handles[p_handle];
+	Ref<EPASPose> current_pose = get_current_pose();
+	ERR_FAIL_COND(!current_pose.is_valid());
+
+	Ref<EPASPose> old_pose = current_pose->duplicate();
+	int bone_idx = selection_handle->bone_idx;
+
+	// Apply bone transform
+	Transform3D bone_trf;
+	_world_to_bone_trf(bone_idx, current_handle_trf_matrix.ptr(), bone_trf);
+	String bone_name = editing_skeleton->get_bone_name(bone_idx);
+	if (!current_pose->get_bone_data(bone_name)) {
+		current_pose->create_bone(bone_name);
+	}
+	switch (guizmo_operation) {
+		case ImGuizmo::TRANSLATE: {
+			current_pose->set_bone_position(bone_name, bone_trf.origin);
+		} break;
+		case ImGuizmo::ROTATE: {
+			current_pose->set_bone_rotation(bone_name, bone_trf.basis.get_rotation_quaternion());
+		} break;
+		case ImGuizmo::SCALE: {
+			current_pose->set_bone_scale(bone_name, bone_trf.basis.get_scale());
+		} break;
+		default: {
+		};
+	}
+
+	_apply_constraints();
+}
+
+void EPASAnimationEditor::_apply_constraints() {
+	if (!editing_skeleton) {
+		return;
+	}
+	Ref<EPASPose> current_pose = get_current_pose();
+	if (!current_pose.is_valid()) {
+		return;
+	}
+	for (int i = 0; i < ik_constraints.size(); i++) {
+		Ref<EPASAnimationEditorIKJoint> ik_constraint = ik_constraints[i];
+
+		int target_bone_idx = editing_skeleton->find_bone(ik_constraint->get_ik_target_bone_name());
+		int magnet_bone_idx = editing_skeleton->find_bone(ik_constraint->get_ik_magnet_bone_name());
+
+		int c_bone_idx = editing_skeleton->find_bone(ik_constraint->get_ik_tip_bone_name());
+		int b_bone_idx = editing_skeleton->get_bone_parent(c_bone_idx);
+		int a_bone_idx = editing_skeleton->get_bone_parent(b_bone_idx);
+
+		editing_skeleton->reset_bone_pose(c_bone_idx);
+		editing_skeleton->reset_bone_pose(b_bone_idx);
+		editing_skeleton->reset_bone_pose(a_bone_idx);
+
+		ERR_FAIL_COND_MSG(c_bone_idx == -1 || b_bone_idx == -1 || a_bone_idx == -1, "Invalid IK constraint");
+
+		Transform3D a_bone_trf = editing_skeleton->get_bone_global_pose(a_bone_idx);
+		Transform3D b_bone_trf = editing_skeleton->get_bone_global_pose(b_bone_idx);
+		Transform3D c_bone_trf = editing_skeleton->get_bone_global_pose(c_bone_idx);
+		Transform3D target_bone_trf = editing_skeleton->get_bone_global_pose(target_bone_idx);
+
+		Quaternion a_local_rot = editing_skeleton->get_bone_pose_rotation(a_bone_idx);
+		Quaternion b_local_rot = editing_skeleton->get_bone_pose_rotation(b_bone_idx);
+
+		HBUtils::two_joint_ik(
+				a_bone_trf.origin,
+				b_bone_trf.origin,
+				c_bone_trf.origin,
+				target_bone_trf.origin, 0.01f,
+				a_bone_trf.basis.get_rotation_quaternion(),
+				b_bone_trf.basis.get_rotation_quaternion(),
+				a_local_rot,
+				b_local_rot,
+				true,
+				// Magnet is a child of no one, so its ok to use the local origin here
+				editing_skeleton->get_bone_pose_position(magnet_bone_idx));
+
+		String a_bone_name = editing_skeleton->get_bone_name(a_bone_idx);
+		String b_bone_name = editing_skeleton->get_bone_name(b_bone_idx);
+		String c_bone_name = ik_constraint->get_ik_tip_bone_name();
+
+		const int bone_indices[] = { a_bone_idx, b_bone_idx };
+		const Quaternion *bone_rots[] = { &a_local_rot, &b_local_rot };
+
+		for (int j = 0; j < 2; j++) {
+			String bone_name = editing_skeleton->get_bone_name(bone_indices[j]);
+			if (!current_pose->has_bone(bone_name)) {
+				current_pose->create_bone(bone_name);
+			}
+			current_pose->set_bone_rotation(bone_name, *bone_rots[j]);
+		}
+
+		if (!current_pose->has_bone(c_bone_name)) {
+			current_pose->create_bone(c_bone_name);
+		}
+		// Align the tip of rotation
+		Transform3D b_global_trf = current_pose->calculate_bone_global_transform(b_bone_name, editing_skeleton, epas_controller->get_base_pose());
+		Quaternion c_rot = b_global_trf.basis.get_rotation_quaternion().inverse() * target_bone_trf.basis.get_rotation_quaternion();
+		current_pose->set_bone_rotation(c_bone_name, c_rot);
+	}
+}
+
+Ref<EPASPose> EPASAnimationEditor::get_current_pose() const {
+	// Returns the current pose that the user is hovering, if any
+	AnimationKeyframeCache *kf = get_keyframe(current_frame);
+	if (kf) {
+		return kf->keyframe->get_pose();
+	}
 	return Ref<EPASPose>();
+}
+
+EPASAnimationEditor::AnimationKeyframeCache *EPASAnimationEditor::get_keyframe(int p_frame_time) const {
+	for (int i = 0; i < keyframe_cache.size(); i++) {
+		if (keyframe_cache[i]->frame_time == p_frame_time) {
+			return keyframe_cache[i];
+		}
+	}
+	return nullptr;
+}
+
+void EPASAnimationEditor::_add_keyframe(Ref<EPASKeyframe> p_keyframe) {
+	AnimationKeyframeCache *kc = memnew(AnimationKeyframeCache(p_keyframe));
+	keyframe_cache.push_back(kc);
+	current_animation->add_keyframe(p_keyframe);
+}
+
+void EPASAnimationEditor::_remove_keyframe(Ref<EPASKeyframe> p_keyframe) {
+	for (int i = 0; i < keyframe_cache.size(); i++) {
+		if (keyframe_cache[i]->keyframe == p_keyframe) {
+			keyframe_cache.erase(keyframe_cache[i]);
+			break;
+		}
+	}
+	current_animation->erase_keyframe(p_keyframe);
 }
 
 void EPASAnimationEditor::_rebuild_keyframe_cache() {
@@ -145,8 +427,14 @@ void EPASAnimationEditor::_draw_ui() {
 			if (ImGui::MenuItem("Flip pose")) {
 				Ref<EPASPose> current_pose = get_current_pose();
 				if (current_pose.is_valid()) {
-					current_pose->flip_along_z();
+					undo_redo->create_action("Flip pose");
+					undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::flip_along_z));
+					undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::flip_along_z));
+					undo_redo->commit_action();
 				}
+			}
+			if (ImGui::MenuItem("Create EIRTeam humanoid IK rig")) {
+				_create_eirteam_humanoid_ik();
 			}
 			ImGui::EndMenu();
 		}
@@ -198,6 +486,7 @@ void EPASAnimationEditor::_draw_ui() {
 		ImGui::DockBuilderDockWindow("Timeline", dock_bottom);
 		ImGui::DockBuilderDockWindow("Settings", dock_up_r);
 		ImGui::DockBuilderDockWindow("PoseDBG", dock_up_r);
+		ImGui::DockBuilderDockWindow("ConstraintDBG", dock_up_r);
 		ImGui::DockBuilderFinish(dock_id);
 	}
 	ImGui::DockSpace(dock_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
@@ -205,10 +494,63 @@ void EPASAnimationEditor::_draw_ui() {
 	ImGui::End();
 
 	if (ImGui::Begin("Timeline")) {
+		Ref<EPASPose> current_pose = get_current_pose();
+		ImGui::BeginDisabled(current_pose.is_valid());
+		if (ImGui::Button("+")) {
+			// Add keyframe
+			if (current_pose.is_valid()) {
+				// Get the currently interpolated pose, if we don't have any just use an empty pose
+				Ref<EPASPose> output_pose = epas_controller->get_output_pose();
+				Ref<EPASPose> kf_pose = output_pose.is_valid() ? output_pose->duplicate() : memnew(EPASPose);
+
+				undo_redo->create_action("Add new keyframe");
+				Ref<EPASKeyframe> kf;
+				kf.instantiate();
+				kf->set_pose(kf_pose);
+				kf->set_time(current_frame / (float)FPS);
+				undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_add_keyframe).bind(kf));
+				undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_remove_keyframe).bind(kf));
+				undo_redo->commit_action();
+			}
+		}
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		ImGui::BeginDisabled(!current_pose.is_valid());
+		if (ImGui::Button("-")) {
+			// Remove keyframe
+			AnimationKeyframeCache *kf = get_keyframe(current_frame);
+			if (kf) {
+				undo_redo->create_action("Remove keyframe");
+				undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_remove_keyframe).bind(kf->keyframe));
+				undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_add_keyframe).bind(kf->keyframe));
+				undo_redo->commit_action();
+			}
+		}
+		ImGui::EndDisabled();
+		bool has_selection = kf_selection.size() != 0;
+		ImGui::SameLine();
+		ImGui::BeginDisabled(!has_selection);
+		if (ImGui::Button("D")) {
+			// duplicate frame at current position
+			if (!get_current_pose().is_valid()) {
+				// Todo: make this actually copy more than one keyframe...
+				AnimationKeyframeCache *kfc = get_keyframe(kf_selection[0]);
+				if (kfc) {
+					undo_redo->create_action("Duplicate keyframe");
+					Ref<EPASKeyframe> kf = kfc->keyframe->duplicate(true);
+					kf->set_time(current_frame / (float)FPS);
+					undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_remove_keyframe).bind(kf));
+					undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_add_keyframe).bind(kf));
+					undo_redo->commit_action();
+				}
+			}
+		}
+		ImGui::EndDisabled();
+
 		ImGuiNeoSequencerFlags sequencer_flags = ImGuiNeoSequencerFlags_EnableSelection;
 		sequencer_flags |= ImGuiNeoSequencerFlags_Selection_EnableDragging;
 		sequencer_flags |= ImGuiNeoSequencerFlags_Selection_EnableDeletion;
-		uint32_t old_current_frame = current_frame;
+		int32_t old_current_frame = current_frame;
 		if (ImGui::BeginNeoSequencer("Timeline", &current_frame, &start_frame, &end_frame, ImVec2(), sequencer_flags)) {
 			if (ImGui::BeginNeoTimelineEx("Keyframes", nullptr, ImGuiNeoTimelineFlags_AllowFrameChanging)) {
 				bool has_changed_frames = false;
@@ -231,12 +573,20 @@ void EPASAnimationEditor::_draw_ui() {
 					}
 				}
 				if (has_changed_frames) {
+					undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
+					undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
 					undo_redo->commit_action();
+				}
+
+				if (ImGui::NeoHasSelection()) {
+					kf_selection.resize(ImGui::GetNeoKeyframeSelectionSize());
+					ImGui::GetNeoKeyframeSelection(kf_selection.ptrw());
+				} else {
+					kf_selection.clear();
 				}
 
 				ImGui::EndNeoTimeLine();
 			}
-
 			ImGui::EndNeoSequencer();
 		}
 
@@ -273,6 +623,8 @@ void EPASAnimationEditor::_draw_ui() {
 							undo_redo->create_action("Remove position from keyframe");
 							undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_position).bind(ps.key, false));
 							undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_position).bind(ps.key, true));
+							undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
+							undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
 							undo_redo->commit_action();
 						}
 					}
@@ -284,6 +636,8 @@ void EPASAnimationEditor::_draw_ui() {
 							undo_redo->create_action("Remove rotation from keyframe");
 							undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_rotation).bind(ps.key, false));
 							undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_rotation).bind(ps.key, true));
+							undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
+							undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
 							undo_redo->commit_action();
 						}
 					}
@@ -299,6 +653,21 @@ void EPASAnimationEditor::_draw_ui() {
 						}
 					}
 					ImGui::PopID();
+				}
+			}
+		}
+	}
+	ImGui::End();
+	if (ImGui::Begin("ConstraintDBG")) {
+		for (int i = 0; i < ik_constraints.size(); i++) {
+			if (editing_skeleton) {
+				if (ImGui::CollapsingHeader(vformat("Constraint %d", i).utf8().get_data(), ImGuiTreeNodeFlags_DefaultOpen)) {
+					String tip_bone_name = ik_constraints[i]->get_ik_tip_bone_name();
+					ImGui::Text("Tip bone: %s (%d)", tip_bone_name.utf8().get_data(), editing_skeleton->find_bone(tip_bone_name));
+					String target_bone_name = ik_constraints[i]->get_ik_target_bone_name();
+					ImGui::Text("Target bone: %s (%d)", target_bone_name.utf8().get_data(), editing_skeleton->find_bone(target_bone_name));
+					String magnet_bone_name = ik_constraints[i]->get_ik_magnet_bone_name();
+					ImGui::Text("Magnet bone: %s (%d)", magnet_bone_name.utf8().get_data(), editing_skeleton->find_bone(magnet_bone_name));
 				}
 			}
 		}
@@ -323,66 +692,70 @@ void EPASAnimationEditor::_draw_ui() {
 		HBUtils::proj_to_mat(proj, projection_matrix.ptrw());
 
 		ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
-		if (editing_bone != -1) {
-			manipulated = ImGuizmo::Manipulate(view_matrix.ptr(), projection_matrix.ptr(), guizmo_operation, guizmo_mode, editing_bone_trf_matrix.ptrw());
+		if (editing_selection_handle != -1) {
+			const Ref<Selection> selection_handle = selection_handles[editing_selection_handle];
+			manipulated = ImGuizmo::Manipulate(view_matrix.ptr(), projection_matrix.ptr(), guizmo_operation, guizmo_mode, current_handle_trf_matrix.ptrw());
 			if (manipulated) {
-				Transform3D bone_trf;
-				_world_to_bone_trf(editing_bone, editing_bone_trf_matrix.ptr(), bone_trf);
-				String bone_name = editing_skeleton->get_bone_name(editing_bone);
-				if (!current_pose->get_bone_data(bone_name)) {
-					current_pose->create_bone(bone_name);
-				}
-				switch (guizmo_operation) {
-					case ImGuizmo::TRANSLATE: {
-						current_pose->set_bone_position(bone_name, bone_trf.origin);
-					} break;
-					case ImGuizmo::ROTATE: {
-						current_pose->set_bone_rotation(bone_name, bone_trf.basis.get_rotation_quaternion());
-					} break;
-					case ImGuizmo::SCALE: {
-						current_pose->set_bone_scale(bone_name, bone_trf.basis.get_scale());
-					} break;
-					default: {
-					};
-				}
+				// Apply handle transform, without committing it to undo_redo
+				Transform3D trf;
+				HBUtils::mat_to_trf(current_handle_trf_matrix.ptr(), trf);
+				_apply_handle_transform(editing_selection_handle, trf);
 			}
-
 			if (!ImGuizmo::IsUsing() && was_using_gizmo) {
-				String bone_name = editing_skeleton->get_bone_name(editing_bone);
-				Transform3D new_bone_trf;
-				Transform3D old_bone_trf;
-				_world_to_bone_trf(editing_bone, editing_bone_trf_matrix.ptr(), new_bone_trf);
-				_world_to_bone_trf(editing_bone, selected_bone_trf_matrix.ptr(), old_bone_trf);
-				if (!current_pose->get_bone_data(bone_name)) {
-					current_pose->create_bone(bone_name);
-				}
-				switch (guizmo_operation) {
-					case ImGuizmo::TRANSLATE: {
-						undo_redo->create_action("Translate bone");
-						undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_position).bind(bone_name, current_pose->get_bone_position(bone_name)));
-						undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_position).bind(bone_name, old_bone_trf.origin));
-					} break;
-					case ImGuizmo::ROTATE: {
-						undo_redo->create_action("Rotate bone");
-						undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_rotation).bind(bone_name, current_pose->get_bone_rotation(bone_name)));
-						undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_rotation).bind(bone_name, old_bone_trf.basis.get_rotation_quaternion()));
-
-					} break;
-					case ImGuizmo::SCALE: {
-						undo_redo->create_action("Scale bone");
-						undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_scale).bind(bone_name, current_pose->get_bone_scale(bone_name)));
-						undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_scale).bind(bone_name, old_bone_trf.basis.get_scale()));
-					} break;
-					default: {
-					};
-				}
-				undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_update_editing_skeleton_trf));
-				undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_update_editing_skeleton_trf));
-				undo_redo->commit_action();
+				_commit_guizmo_transform();
 			}
 			was_using_gizmo = ImGuizmo::IsUsing();
 		}
 	}
+}
+
+void EPASAnimationEditor::_commit_guizmo_transform() {
+	// Commit current imguizmo transform to undo_redo
+	if (editing_selection_handle == -1) {
+		return;
+	}
+	Ref<EPASPose> current_pose = get_current_pose();
+
+	if (!current_pose.is_valid()) {
+		return;
+	}
+
+	const Ref<Selection> selection_handle = selection_handles[editing_selection_handle];
+	// No need to get fancy since both fk_bone_idx and ik_bone_idx are ints
+	int editing_bone = selection_handle->bone_idx;
+	String bone_name = editing_skeleton->get_bone_name(editing_bone);
+	Transform3D new_bone_trf;
+	Transform3D old_bone_trf;
+	_world_to_bone_trf(editing_bone, current_handle_trf_matrix.ptr(), new_bone_trf);
+	_world_to_bone_trf(editing_bone, prev_handle_trf_matrix.ptr(), old_bone_trf);
+	if (!current_pose->get_bone_data(bone_name)) {
+		current_pose->create_bone(bone_name);
+	}
+	switch (guizmo_operation) {
+		case ImGuizmo::TRANSLATE: {
+			undo_redo->create_action("Translate bone");
+			undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_position).bind(bone_name, current_pose->get_bone_position(bone_name)));
+			undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_position).bind(bone_name, old_bone_trf.origin));
+		} break;
+		case ImGuizmo::ROTATE: {
+			undo_redo->create_action("Rotate bone");
+			undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_rotation).bind(bone_name, current_pose->get_bone_rotation(bone_name)));
+			undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_rotation).bind(bone_name, old_bone_trf.basis.get_rotation_quaternion()));
+
+		} break;
+		case ImGuizmo::SCALE: {
+			undo_redo->create_action("Scale bone");
+			undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_scale).bind(bone_name, current_pose->get_bone_scale(bone_name)));
+			undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_scale).bind(bone_name, old_bone_trf.basis.get_scale()));
+		} break;
+		default: {
+		};
+	}
+	undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_update_editing_handle_trf));
+	undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_update_editing_handle_trf));
+	undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
+	undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
+	undo_redo->commit_action();
 }
 
 void EPASAnimationEditor::open_file(const String &p_path) {
@@ -395,6 +768,9 @@ void EPASAnimationEditor::open_file(const String &p_path) {
 		}
 		set_animation(animation);
 		undo_redo->clear_history();
+		if (animation->get_meta("__editor_humanoid_ik", false)) {
+			_create_eirteam_humanoid_ik();
+		}
 	} else {
 		// TODO: Error handling here
 	}
@@ -430,14 +806,25 @@ void EPASAnimationEditor::load_model(const String &path) {
 	epas_controller->set_skeleton_path(skel->get_path());
 	editing_skeleton = skel;
 	current_model = node_3d;
+
+	// Add selection handles
+	selection_handles.clear();
+	for (int i = 0; i < skel->get_bone_count(); i++) {
+		Ref<Selection> selection_handle;
+		selection_handle.instantiate();
+		selection_handle->bone_idx = i;
+		selection_handles.push_back(selection_handle);
+	}
 }
 
-void EPASAnimationEditor::_update_editing_skeleton_trf() {
-	if (editing_bone != -1) {
-		Transform3D bone_trf = editing_skeleton->get_bone_global_pose(editing_bone);
-		bone_trf = editing_skeleton->get_global_transform() * bone_trf;
-		HBUtils::trf_to_mat(bone_trf, editing_bone_trf_matrix.ptrw());
-		selected_bone_trf_matrix = editing_bone_trf_matrix.duplicate();
+void EPASAnimationEditor::_update_editing_handle_trf() {
+	if (editing_selection_handle != -1) {
+		Transform3D handle_trf;
+		const Ref<Selection> handle = selection_handles[editing_selection_handle];
+		handle_trf = editing_skeleton->get_bone_global_pose(handle->bone_idx);
+		handle_trf = editing_skeleton->get_global_transform() * handle_trf;
+		HBUtils::trf_to_mat(handle_trf, current_handle_trf_matrix.ptrw());
+		prev_handle_trf_matrix = current_handle_trf_matrix.duplicate();
 		queue_redraw();
 	}
 }
@@ -463,11 +850,11 @@ void EPASAnimationEditor::unhandled_input(const Ref<InputEvent> &p_event) {
 	if (bev.is_valid()) {
 		if (bev->get_button_index() == MouseButton::LEFT) {
 			if (!bev->is_pressed()) {
-				editing_bone = -1;
+				editing_selection_handle = -1;
 				if (Input::get_singleton()->is_key_pressed(Key::CTRL)) {
-					editing_bone = currently_hovered_bone;
-					if (editing_bone != -1) {
-						_update_editing_skeleton_trf();
+					editing_selection_handle = currently_hovered_selection_handle;
+					if (editing_selection_handle != -1) {
+						_update_editing_handle_trf();
 						accept_event();
 					}
 				}
@@ -491,12 +878,36 @@ void EPASAnimationEditor::save_to_path(const String &p_path) {
 	if (current_model) {
 		current_animation->set_meta("__editor_model_path", current_model->get_scene_file_path());
 	}
+	if (ik_constraints.size() > 0) {
+		current_animation->set_meta("__editor_humanoid_ik", true);
+	}
 	int err_code = ResourceSaver::save(current_animation, p_path, ResourceSaver::FLAG_CHANGE_PATH);
 	ERR_FAIL_COND_MSG(err_code != OK, vformat("Error saving animation, %s", error_names[err_code]));
 }
 
 EPASAnimationEditor::EPASAnimationEditor() {
 	if (!Engine::get_singleton()->is_editor_hint()) {
+		// HACK-ish but works
+		set_z_index(-100);
+		set_theme(GameToolsTheme::generate_theme());
+		{
+			// Generate the multimesh used for the selection handle dots
+			selection_handle_dots = memnew(MultiMeshInstance2D);
+			selection_handle_dots->set_texture(get_theme_icon("Dot", "GameTools"));
+			const float DOT_RADIUS = 8.0f;
+			Ref<QuadMesh> quad;
+			quad.instantiate();
+			quad->set_size(Vector2(DOT_RADIUS * 2.0f, DOT_RADIUS * 2.0f));
+
+			Ref<MultiMesh> mm;
+			mm.instantiate();
+			mm->set_use_colors(true);
+			mm->set_mesh(quad);
+			selection_handle_dots->set_multimesh(mm);
+
+			selection_handle_dots->set_draw_behind_parent(true);
+			add_child(selection_handle_dots);
+		}
 		editor_3d_root = memnew(Node3D);
 
 		add_child(editor_3d_root);
@@ -535,7 +946,7 @@ EPASAnimationEditor::EPASAnimationEditor() {
 		// Setup 3d buffer and identity matrix
 		view_matrix.resize_zeroed(16);
 		projection_matrix.resize_zeroed(16);
-		editing_bone_trf_matrix.resize_zeroed(16);
+		current_handle_trf_matrix.resize_zeroed(16);
 		identity_matrix.resize_zeroed(16);
 		HBUtils::trf_to_mat(Transform3D(), identity_matrix.ptrw());
 

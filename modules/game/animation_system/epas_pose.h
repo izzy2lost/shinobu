@@ -12,7 +12,6 @@
 class EPASPose : public Resource {
 	GDCLASS(EPASPose, Resource);
 	RES_BASE_EXTENSION("epos");
-	void clear();
 
 protected:
 	bool _set(const StringName &p_name, const Variant &p_value);
@@ -117,6 +116,8 @@ public:
 
 	void add(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output, float p_blend) const;
 	void blend(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output, float p_blend) const;
+
+	void clear();
 
 	virtual ~EPASPose();
 };

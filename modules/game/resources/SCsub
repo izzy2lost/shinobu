@@ -1,0 +1,3 @@
+#!/usr/bin/env python
+
+SConscript("tool_icons/SCsub")

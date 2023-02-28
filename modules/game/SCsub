@@ -13,3 +13,5 @@ env_game.add_source_files(module_obj, "*.cpp")
 env_game.add_source_files(module_obj, "animation_system/*.cpp")
 
 env.modules_sources += module_obj
+
+SConscript("resources/SCsub")

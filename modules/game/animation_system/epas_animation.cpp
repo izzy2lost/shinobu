@@ -120,7 +120,14 @@ Ref<EPASKeyframe> EPASAnimation::get_keyframe(int p_idx) const {
 }
 
 void EPASAnimation::interpolate(float p_time, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, InterpolationMethod p_interp_method) const {
-	ERR_FAIL_COND_MSG(keyframes.size() <= 1, "Animation needs more than one keyframe to work");
+	if (keyframes.size() == 0) {
+		// do nothing
+		return;
+	} else if (keyframes.size() == 1) {
+		// A bit hacky but eehhhh
+		keyframes[0]->get_pose()->blend(keyframes[0]->get_pose(), p_base_pose, p_target_pose, 0.0f);
+		return;
+	}
 	int prev_frame_i = -1;
 	int next_frame_i = -1;
 

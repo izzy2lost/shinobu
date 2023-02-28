@@ -157,15 +157,13 @@ void EPASController::_debug_update_skeleton_vis() {
 #endif
 
 Ref<EPASPose> EPASController::get_base_pose() {
-	if (!base_pose_cache.is_valid() || base_pose_dirty) {
-		Skeleton3D *skel = get_skeleton();
-
-		if (!skel) {
-			// Skeleton is gone, which means our pose is going to get invalidated
-			base_pose_cache = Ref<EPASPose>();
-			return base_pose_cache;
-		}
-
+	Skeleton3D *skel = get_skeleton();
+	if (!skel) {
+		// Skeleton is gone, which means our pose is going to get invalidated
+		base_pose_cache = Ref<EPASPose>();
+		return base_pose_cache;
+	}
+	if (!base_pose_cache.is_valid() || base_pose_dirty || skel->get_version() != skeleton_version) {
 		base_pose_cache = Ref<EPASPose>(memnew(EPASPose));
 
 		for (int i = 0; i < skel->get_bone_count(); i++) {
@@ -178,6 +176,7 @@ Ref<EPASPose> EPASController::get_base_pose() {
 			bd->has_scale = true;
 			bd->scale = rest.get_basis().get_scale();
 		}
+		skeleton_version = skel->get_version();
 		base_pose_dirty = false;
 	}
 	return base_pose_cache;
@@ -189,7 +188,10 @@ void EPASController::advance(float p_amount) {
 		// Base pose is empty, which means there must not be a skeleton available
 		return;
 	}
-	Ref<EPASPose> output_pose = memnew(EPASPose);
+	if (!output_pose.is_valid()) {
+		output_pose.instantiate();
+	}
+	output_pose->clear();
 	root->process_node(base_pose, output_pose, p_amount);
 
 	Skeleton3D *skel = get_skeleton();
@@ -234,6 +236,10 @@ void EPASController::connect_node(Ref<EPASNode> p_from, Ref<EPASNode> p_to, Stri
 #ifdef DEBUG_ENABLED
 	p_from->set_meta("epas_name", p_unique_name);
 #endif
+}
+
+Ref<EPASPose> EPASController::get_output_pose() const {
+	return output_pose;
 }
 
 void EPASController::_bind_methods() {
