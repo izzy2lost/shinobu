@@ -87,11 +87,11 @@ static void embrace_the_darkness() {
 	style.Colors[ImGuiCol_ResizeGrip] = ImVec4(0.6509804129600525f, 0.1490196138620377f, 0.3450980484485626f, 1.0f);
 	style.Colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.4549019634723663f, 0.196078434586525f, 0.2980392277240753f, 1.0f);
 	style.Colors[ImGuiCol_ResizeGripActive] = ImVec4(0.4549019634723663f, 0.196078434586525f, 0.2980392277240753f, 1.0f);
-	style.Colors[ImGuiCol_Tab] = ImVec4(0.1764705926179886f, 0.3490196168422699f, 0.5764706134796143f, 1.0f);
-	style.Colors[ImGuiCol_TabHovered] = ImVec4(0.2588235437870026f, 0.5882353186607361f, 0.9764705896377563f, 1.0f);
-	style.Colors[ImGuiCol_TabActive] = ImVec4(0.196078434586525f, 0.407843142747879f, 0.6784313917160034f, 1.0f);
-	style.Colors[ImGuiCol_TabUnfocused] = ImVec4(0.06666667014360428f, 0.1019607856869698f, 0.1450980454683304f, 1.0f);
-	style.Colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.1333333402872086f, 0.2588235437870026f, 0.4235294163227081f, 1.0f);
+	style.Colors[ImGuiCol_Tab] = ImVec4(0.6509804129600525f, 0.1490196138620377f, 0.3450980484485626f, 1.0f);
+	style.Colors[ImGuiCol_TabHovered] = ImVec4(0.4549019634723663f, 0.196078434586525f, 0.2980392277240753f, 1.0f);
+	style.Colors[ImGuiCol_TabActive] = ImVec4(0.6509804129600525f, 0.1490196138620377f, 0.3450980484485626f, 1.0f);
+	style.Colors[ImGuiCol_TabUnfocused] = ImVec4(0.168627455830574f, 0.1843137294054031f, 0.2313725501298904f, 1.0f);
+	style.Colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.6509804129600525f, 0.1490196138620377f, 0.3450980484485626f, 1.0f);
 	style.Colors[ImGuiCol_PlotLines] = ImVec4(0.8588235378265381f, 0.929411768913269f, 0.886274516582489f, 1.0f);
 	style.Colors[ImGuiCol_PlotLinesHovered] = ImVec4(0.4549019634723663f, 0.196078434586525f, 0.2980392277240753f, 1.0f);
 	style.Colors[ImGuiCol_PlotHistogram] = ImVec4(0.3098039329051971f, 0.7764706015586853f, 0.196078434586525f, 1.0f);
@@ -154,11 +154,11 @@ GodotImGui::GodotImGui() {
 	ImFontConfig font_config;
 	font_config.MergeMode = true;
 	font_config.FontDataOwnedByAtlas = false; // We own this, this prevents ImGui from trying to free it on exit!!!
-	font_config.GlyphOffset.y = 3;
-	font_config.SizePixels = 13.0f;
+	font_config.GlyphOffset.y = 4;
+	font_config.SizePixels = 15.0f;
 	//font_config.GlyphMinAdvanceX = 13.0f;
 	static const ImWchar icon_ranges[] = { FONT_REMIX_ICON_MIN, FONT_REMIX_ICON_MAX, 0 };
-	io.Fonts->AddFontFromMemoryTTF((void *)_font_remix_icon, _font_remix_icon_size, 13.0f, &font_config, icon_ranges);
+	io.Fonts->AddFontFromMemoryTTF((void *)_font_remix_icon, _font_remix_icon_size, 15.0f, &font_config, icon_ranges);
 
 	unsigned char *pixels;
 	Vector<uint8_t> pixels_vec;
