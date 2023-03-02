@@ -6,6 +6,9 @@
 void EPASEditorCamera::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_INTERNAL_PROCESS: {
+			if (!rotating) {
+				return;
+			}
 			Transform3D global_trf = get_global_transform();
 			Vector3 loc_trf;
 			if (Input::get_singleton()->is_key_pressed(Key::W)) {
@@ -40,10 +43,11 @@ void EPASEditorCamera::_notification(int p_what) {
 
 			set_global_transform(global_trf);
 
-			if (Input::get_singleton()->is_mouse_button_pressed(MouseButton::RIGHT)) {
-				Input::get_singleton()->set_mouse_mode(Input::MOUSE_MODE_CAPTURED);
-			} else {
-				Input::get_singleton()->set_mouse_mode(Input::MOUSE_MODE_VISIBLE);
+			if (rotating && !Input::get_singleton()->is_mouse_button_pressed(MouseButton::RIGHT)) {
+				if (Input::get_singleton()->get_mouse_mode() == Input::MOUSE_MODE_CAPTURED) {
+					Input::get_singleton()->set_mouse_mode(Input::MOUSE_MODE_VISIBLE);
+					rotating = false;
+				}
 			}
 		} break;
 	}
@@ -67,6 +71,17 @@ void EPASEditorCamera::unhandled_input(const Ref<InputEvent> &p_event) {
 
 		rotation.x = CLAMP(rotation.x, Math::deg_to_rad(-65.0f), Math::deg_to_rad(65.0f));
 		set_rotation(rotation);
+	}
+	Ref<InputEventMouseButton> ev_mouse_but = p_event;
+	if (ev_mouse_but.is_valid()) {
+		if (ev_mouse_but->get_button_index() == MouseButton::RIGHT) {
+			rotating = ev_mouse_but->is_pressed();
+			if (rotating) {
+				Input::get_singleton()->set_mouse_mode(Input::MOUSE_MODE_CAPTURED);
+			} else {
+				Input::get_singleton()->set_mouse_mode(Input::MOUSE_MODE_VISIBLE);
+			}
+		}
 	}
 }
 

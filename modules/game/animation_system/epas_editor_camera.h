@@ -5,6 +5,7 @@
 
 class EPASEditorCamera : public Camera3D {
 	GDCLASS(EPASEditorCamera, Camera3D);
+	bool rotating = false;
 
 protected:
 	void _notification(int p_what);
