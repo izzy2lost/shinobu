@@ -33,7 +33,9 @@ void EPASAnimationEditor::_notification(int p_what) {
 		} break;
 		case NOTIFICATION_INTERNAL_PROCESS: {
 			_draw_ui();
-			epas_animation_node->seek(current_frame / (float)FPS);
+			if (!_is_playing()) {
+				epas_animation_node->seek(current_frame / (float)FPS);
+			}
 		} break;
 		case NOTIFICATION_DRAW: {
 			selection_handle_dots->hide();
@@ -107,7 +109,7 @@ void EPASAnimationEditor::_draw_bone_positions() {
 					if (handle->is_ik_magnet) {
 						handle_name = handle->ik_joint->get_ik_magnet_bone_name();
 					} else {
-						handle_name = handle->ik_joint->get_ik_tip_bone_name();
+						handle_name = handle->ik_joint->get_ik_target_bone_name();
 					}
 					handle_color = color_ik;
 				} break;
@@ -152,9 +154,10 @@ void EPASAnimationEditor::_set_frame_time(int p_frame_idx, int32_t p_frame_time)
 
 void EPASAnimationEditor::_create_eirteam_humanoid_ik() {
 	if (!editing_skeleton) {
-		// TODO: Show error here
+		_show_error("You need to load a model before creating an IK rig for it!");
 		return;
 	}
+	undo_redo->clear_history();
 	Vector<String> ik_tips;
 	ik_tips.push_back("hand.L");
 	ik_tips.push_back("hand.R");
@@ -441,25 +444,28 @@ void EPASAnimationEditor::_draw_ui() {
 		ImGui::EndMainMenuBar();
 		ImVec2 window_pos;
 		ImVec2 work_pos = ImGui::GetMainViewport()->WorkPos;
-		window_pos.x = work_pos.x + 10.0f;
-		window_pos.y = work_pos.y + 10.0f;
-		ImGui::SetNextWindowBgAlpha(0.35);
+		window_pos.x = work_pos.x + 5.0f;
+		window_pos.y = work_pos.y + 5.0f;
+		ImGui::SetNextWindowBgAlpha(0.0);
 		ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, ImVec2(0.0f, 0.0f));
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2());
 		ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize;
 		if (ImGui::Begin("ToolDock", nullptr, window_flags)) {
-			ImGui::RadioButton("Global", (int *)&guizmo_mode, (int)ImGuizmo::WORLD);
-			ImGui::SameLine();
-			ImGui::RadioButton("Local", (int *)&guizmo_mode, (int)ImGuizmo::LOCAL);
-			ImGui::SameLine();
-			ImGui::Separator();
-			ImGui::SameLine();
-			ImGui::RadioButton("Translate", (int *)&guizmo_operation, (int)ImGuizmo::TRANSLATE);
-			ImGui::SameLine();
-			ImGui::RadioButton("Rotate", (int *)&guizmo_operation, (int)ImGuizmo::ROTATE);
-			ImGui::SameLine();
-			ImGui::RadioButton("Scale", (int *)&guizmo_operation, (int)ImGuizmo::SCALE);
+			ImGui::SetNextItemWidth(70);
+			ImGui::Combo("", (int *)&guizmo_mode, "Local\0Global\0\0");
+			ImGui::BeginDisabled(guizmo_operation == ImGuizmo::OPERATION::TRANSLATE);
+			if (ImGui::Button(FONT_REMIX_ICON_DRAG_MOVE_2_LINE)) {
+				guizmo_operation = ImGuizmo::TRANSLATE;
+			}
+			ImGui::EndDisabled();
+			ImGui::BeginDisabled(guizmo_operation == ImGuizmo::OPERATION::ROTATE);
+			if (ImGui::Button(FONT_REMIX_ICON_CLOCKWISE_LINE)) {
+				guizmo_operation = ImGuizmo::ROTATE;
+			}
+			ImGui::EndDisabled();
 		}
 		ImGui::End();
+		ImGui::PopStyleVar();
 	}
 
 	/*
@@ -493,10 +499,14 @@ void EPASAnimationEditor::_draw_ui() {
 	ImGui::PopStyleVar();
 	ImGui::End();
 
-	if (ImGui::Begin("Timeline")) {
+	if (_is_playing()) {
+		current_frame = epas_animation_node->get_time() * FPS;
+	}
+
+	if (ImGui::Begin("Timeline", nullptr, ImGuiWindowFlags_NoTitleBar)) {
 		Ref<EPASPose> current_pose = get_current_pose();
-		ImGui::BeginDisabled(current_pose.is_valid());
-		if (ImGui::Button("+")) {
+		ImGui::BeginDisabled(current_pose.is_valid() || _is_playing());
+		if (ImGui::Button(FONT_REMIX_ICON_ADD)) {
 			// Add keyframe
 			if (current_pose.is_valid()) {
 				// Get the currently interpolated pose, if we don't have any just use an empty pose
@@ -515,8 +525,8 @@ void EPASAnimationEditor::_draw_ui() {
 		}
 		ImGui::EndDisabled();
 		ImGui::SameLine();
-		ImGui::BeginDisabled(!current_pose.is_valid());
-		if (ImGui::Button("-")) {
+		ImGui::BeginDisabled(!current_pose.is_valid() || _is_playing());
+		if (ImGui::Button(FONT_REMIX_ICON_SUBTRACT)) {
 			// Remove keyframe
 			AnimationKeyframeCache *kf = get_keyframe(current_frame);
 			if (kf) {
@@ -530,9 +540,9 @@ void EPASAnimationEditor::_draw_ui() {
 		bool has_selection = kf_selection.size() != 0;
 		ImGui::SameLine();
 		ImGui::BeginDisabled(!has_selection);
-		if (ImGui::Button("D")) {
+		if (ImGui::Button(FONT_REMIX_ICON_FILE_COPY_LINE)) {
 			// duplicate frame at current position
-			if (!get_current_pose().is_valid()) {
+			if (!get_current_pose().is_valid() || _is_playing()) {
 				// Todo: make this actually copy more than one keyframe...
 				AnimationKeyframeCache *kfc = get_keyframe(kf_selection[0]);
 				if (kfc) {
@@ -546,10 +556,23 @@ void EPASAnimationEditor::_draw_ui() {
 			}
 		}
 		ImGui::EndDisabled();
+		ImGui::SameLine();
+		ImGui::Spacing();
+		ImGui::SameLine();
+		if (_is_playing()) {
+			if (ImGui::Button(FONT_REMIX_ICON_PAUSE_LINE)) {
+				epas_animation_node->set_playback_mode(EPASAnimationNode::MANUAL);
+			}
+		} else if (ImGui::Button(FONT_REMIX_ICON_PLAY_LINE)) {
+			epas_animation_node->set_playback_mode(EPASAnimationNode::AUTOMATIC);
+		}
 
 		ImGuiNeoSequencerFlags sequencer_flags = ImGuiNeoSequencerFlags_EnableSelection;
 		sequencer_flags |= ImGuiNeoSequencerFlags_Selection_EnableDragging;
 		sequencer_flags |= ImGuiNeoSequencerFlags_Selection_EnableDeletion;
+		if (_is_playing()) {
+			sequencer_flags = 0;
+		}
 		int32_t old_current_frame = current_frame;
 		if (ImGui::BeginNeoSequencer("Timeline", &current_frame, &start_frame, &end_frame, ImVec2(), sequencer_flags)) {
 			if (ImGui::BeginNeoTimelineEx("Keyframes", nullptr, ImGuiNeoTimelineFlags_AllowFrameChanging)) {
@@ -601,10 +624,12 @@ void EPASAnimationEditor::_draw_ui() {
 		EPASAnimation::InterpolationMethod interp_method = epas_animation_node->get_interpolation_method();
 		EPASAnimation::InterpolationMethod original_interp_method = interp_method;
 		const char *items[] = { "Step", "Linear", "Bicubic" };
+		ImGui::SetNextItemWidth(80);
 		ImGui::Combo("Interpolation", reinterpret_cast<int *>(&interp_method), items, IM_ARRAYSIZE(items));
 		if (interp_method != original_interp_method) {
 			epas_animation_node->set_interpolation_method(interp_method);
 		}
+		ImGui::InputInt("Length", &end_frame);
 	};
 	ImGui::End();
 
@@ -707,6 +732,20 @@ void EPASAnimationEditor::_draw_ui() {
 			was_using_gizmo = ImGuizmo::IsUsing();
 		}
 	}
+
+	// Draw error modal
+	if (!current_error.is_empty() && !ImGui::IsPopupOpen("Error")) {
+		ImGui::OpenPopup("Error");
+	}
+	if (ImGui::BeginPopupModal("Error", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+		ImGui::TextUnformatted(current_error.utf8().ptr());
+		if (ImGui::Button("Ok", ImVec2(ImGui::GetContentRegionAvail().x, 0))) {
+			current_error.clear();
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::SetItemDefaultFocus();
+		ImGui::EndPopup();
+	}
 }
 
 void EPASAnimationEditor::_commit_guizmo_transform() {
@@ -758,21 +797,34 @@ void EPASAnimationEditor::_commit_guizmo_transform() {
 	undo_redo->commit_action();
 }
 
+bool EPASAnimationEditor::_is_playing() {
+	return epas_animation_node->get_playback_mode() == EPASAnimationNode::AUTOMATIC;
+}
+
+void EPASAnimationEditor::_show_error(const String &error) {
+	current_error = error;
+}
+
 void EPASAnimationEditor::open_file(const String &p_path) {
-	Ref<EPASAnimation> animation = ResourceLoader::load(p_path);
-	if (animation.is_valid()) {
-		undo_redo->clear_history();
-		if (animation->has_meta("__editor_model_path")) {
-			String model_path = animation->get_meta("__editor_model_path");
-			load_model(model_path);
-		}
-		set_animation(animation);
-		undo_redo->clear_history();
-		if (animation->get_meta("__editor_humanoid_ik", false)) {
-			_create_eirteam_humanoid_ik();
+	Error err;
+	Ref<EPASAnimation> animation = ResourceLoader::load(p_path, "EPASAnimation", ResourceFormatLoader::CACHE_MODE_REUSE, &err);
+	print_line("Err", err);
+	if (err == OK) {
+		if (animation.is_valid()) {
+			undo_redo->clear_history();
+			if (animation->has_meta("__editor_model_path")) {
+				String model_path = animation->get_meta("__editor_model_path");
+				load_model(model_path);
+			}
+			set_animation(animation);
+			if (animation->get_meta("__editor_humanoid_ik", false)) {
+				_create_eirteam_humanoid_ik();
+			}
+		} else {
+			_show_error("Selected file was not an EPAS animation file.");
 		}
 	} else {
-		// TODO: Error handling here
+		_show_error("Error loading animation: " + String(error_names[err]));
 	}
 }
 
@@ -785,11 +837,19 @@ void EPASAnimationEditor::load_model(const String &path) {
 	}
 
 	Ref<PackedScene> scene = ResourceLoader::load(path);
-	// TODO: Show error to user
-	ERR_FAIL_COND(scene.is_null());
+	if (scene.is_null()) {
+		_show_error("Loaded file was not a PackedScene!");
+	}
 
 	Node *node = scene->instantiate();
 	Node3D *node_3d = Object::cast_to<Node3D>(node);
+	if (!node_3d) {
+		if (node) {
+			node->queue_free();
+		}
+		_show_error("Model was not a 3D scene");
+		return;
+	}
 	TypedArray<Node> skel_candidate = node_3d ? node_3d->find_children("*", "Skeleton3D") : TypedArray<Node>();
 	Skeleton3D *skel = nullptr;
 	if (skel_candidate.size() > 0) {
@@ -799,6 +859,7 @@ void EPASAnimationEditor::load_model(const String &path) {
 		if (node) {
 			node->queue_free();
 		}
+		_show_error("Model did not contain any skeleton!");
 		return;
 	}
 
@@ -829,7 +890,7 @@ void EPASAnimationEditor::_update_editing_handle_trf() {
 	}
 }
 
-void EPASAnimationEditor::unhandled_input(const Ref<InputEvent> &p_event) {
+void EPASAnimationEditor::input(const Ref<InputEvent> &p_event) {
 	const Ref<InputEventKey> &kev = p_event;
 	if (kev.is_valid()) {
 		if (kev->is_pressed() && !kev->is_echo() && kev->get_modifiers_mask().has_flag(KeyModifierMask::CTRL)) {
@@ -979,7 +1040,7 @@ EPASAnimationEditor::EPASAnimationEditor() {
 			add_child(wenv);
 		}
 
-		set_process_unhandled_input(true);
+		set_process_input(true);
 
 		// Setup animation display
 

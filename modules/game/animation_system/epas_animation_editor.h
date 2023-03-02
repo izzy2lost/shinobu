@@ -135,13 +135,17 @@ private:
 	void _apply_handle_transform(int p_handle, const Transform3D &p_trf);
 	void _apply_constraints();
 	void _commit_guizmo_transform();
+	bool _is_playing();
+	void _show_error(const String &error);
 
 	Ref<EPASPose> get_current_pose() const;
 	AnimationKeyframeCache *get_keyframe(int p_frame_time) const;
 
+	String current_error;
+
 protected:
 	void _notification(int p_what);
-	virtual void unhandled_input(const Ref<InputEvent> &p_event) override;
+	virtual void input(const Ref<InputEvent> &p_event) override;
 
 public:
 	Transform3D get_edited_object_transform();
