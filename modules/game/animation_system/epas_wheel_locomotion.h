@@ -10,6 +10,12 @@
 class EPASWheelLocomotion : public EPASNode {
 	GDCLASS(EPASWheelLocomotion, EPASNode);
 
+public:
+	enum LocomotionSetType {
+		WHEEL,
+		CONSTANT_VELOCITY // used for idle pose that has a constant velocity
+	};
+
 private:
 	// A wheel set contains the information of a different movement animation
 	// for example, walk vs run
@@ -18,13 +24,14 @@ private:
 		// Step length = 1/4 the circumference of the surveyor wheel
 		// Full cycle = step length * 2
 		// Wheel radius = (4*step_length) / (2*PI)
-		float step_length = 1.0f;
 		Ref<EPASAnimation> animation;
+		LocomotionSetType set_type = LocomotionSetType::WHEEL;
+		float step_length = 1.0f;
 
 		void interpolate(float p_amount, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output) const {
 			// p_amount can never *actually* be 1.0 since its fed by an fmodded value
 			// Remove this if we ever change that...
-			ERR_FAIL_COND(p_amount >= 1.0);
+			ERR_FAIL_COND(set_type == LocomotionSetType::WHEEL && p_amount >= 1.0);
 			if (animation.is_valid()) {
 				animation->interpolate(p_amount, p_base_pose, p_output, EPASAnimation::InterpolationMethod::BICUBIC_SPLINE);
 			}
@@ -36,7 +43,12 @@ private:
 	};
 	float x_blend = 0.0f;
 	float wheel_angle = 0.0f;
+	float time = 0.0f;
 	Vector<LocomotionSet *> locomotion_sets;
+	// We need to keep sorted locomotion sets in a separate vector
+	// the reason is so that the sets can be accessed by their indexed order
+	// perhaps there's a better way to do this...
+	Vector<LocomotionSet *> sorted_locomotion_sets;
 	Vector3 linear_velocity;
 	void add_set(float p_step_length);
 	void _sort_sets();
@@ -60,12 +72,15 @@ public:
 	int get_locomotion_set_count() const;
 	void set_locomotion_set_step_length(int p_idx, float p_step);
 	void set_locomotion_set_animation(int p_idx, Ref<EPASAnimation> p_pose);
+	void set_locomotion_set_type(int p_idx, LocomotionSetType p_type);
 
 	EPASWheelLocomotion() :
 			EPASNode(get_input_count()) {
 	}
 	virtual ~EPASWheelLocomotion();
 };
+
+VARIANT_ENUM_CAST(EPASWheelLocomotion::LocomotionSetType);
 
 class EPASWheelVisualizer : public Node3D {
 	GDCLASS(EPASWheelVisualizer, Node3D);
@@ -77,9 +92,9 @@ protected:
 		switch (p_what) {
 			case NOTIFICATION_PROCESS: {
 				if (locomotion.is_valid()) {
+					float radius = (4.0 * locomotion->get_current_step_length() / (2.0 * Math_PI));
 					Transform3D trf;
 					trf.rotate_basis(Vector3(1.0, 0.0, 0.0), -locomotion->get_wheel_angle());
-					float radius = (4.0 * locomotion->get_current_step_length() / (2.0 * Math_PI));
 					trf.scale(Vector3(radius, radius, radius));
 					trf.origin.y = radius;
 					mi->set_transform(trf);

@@ -36,6 +36,7 @@ public:
 	void set_interpolation_method(EPASAnimation::InterpolationMethod p_interpolation_method);
 	EPASAnimation::InterpolationMethod get_interpolation_method() const;
 	void seek(float p_time);
+	float get_time();
 
 	EPASAnimationNode();
 };
