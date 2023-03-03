@@ -16,7 +16,6 @@ class HBUtils : public RefCounted {
 protected:
 	static void _bind_methods() {
 		ClassDB::bind_static_method("HBUtils", D_METHOD("rotate_to_align", "start_direction", "end_direction"), &HBUtils::rotate_to_align);
-		ClassDB::bind_static_method("HBUtils", D_METHOD("two_joint_ik", "a", "b", "c", "target", "epsilon", "a_global_rot", "b_global_rot", "a_local_rot", "b_local_rot", "use_magnet", "magnet_dir"), &HBUtils::two_joint_ik_gdscript);
 	};
 
 public:
@@ -56,6 +55,7 @@ public:
 	}
 
 	static void rotate_normal_towards(Vector3 &p_pos, const Vector3 &p_goal, real_t p_angle_delta) {
+		// rotates p_pos towards p_goal without overshooting by p_angle_delta (in radians)
 		real_t angle = p_pos.angle_to(p_goal);
 		real_t percentage = CLAMP(p_angle_delta / angle, -1.0f, 1.0f);
 		percentage = Math::abs(percentage);
@@ -86,6 +86,7 @@ public:
 		x = x_goal * quat_from_scaled_angle_axis(eydt * (j0 + j1 * dt));
 		v = eydt * (v - j1 * y * dt);
 	}
+
 	static void trf_to_mat(const Transform3D &p_mat, float *p_out) {
 		p_out[0] = p_mat.basis.rows[0][0];
 		p_out[1] = p_mat.basis.rows[1][0];
@@ -132,11 +133,13 @@ public:
 			p_out[i] = p[i];
 		}
 	}
+
 	static Basis rotate_to_align(Vector3 p_start_direction, Vector3 p_end_direction) {
 		Basis basis;
 		basis.rotate_to_align(p_start_direction, p_end_direction);
 		return basis;
 	}
+
 	static void two_joint_ik(
 			Vector3 pos_a, Vector3 pos_b, Vector3 pos_c, Vector3 p_target, float eps,
 			Quaternion p_a_global_rot, Quaternion p_b_global_rot,
@@ -178,17 +181,6 @@ public:
 		p_b_local_rot = p_b_local_rot * r1;
 	}
 
-	static Array two_joint_ik_gdscript(
-			Vector3 p_a, Vector3 p_b, Vector3 p_c, Vector3 p_target, float eps,
-			Quaternion p_a_global_rot, Quaternion p_b_global_rot,
-			Quaternion p_a_local_rot, Quaternion p_b_local_rot, bool use_magnet, Vector3 magnet_position) {
-		two_joint_ik(p_a, p_b, p_c, p_target, eps, p_a_global_rot, p_b_global_rot, p_a_local_rot, p_b_local_rot, use_magnet, magnet_position);
-
-		Array a;
-		a.push_back(p_a_local_rot);
-		a.push_back(p_b_local_rot);
-		return a;
-	}
 	static void get_cubic_spline_weights(float interp, float *weights) {
 		// Lifted straight from overgrwoth
 		float interp_squared = interp * interp;

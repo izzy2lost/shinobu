@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="EPASController" inherits="Node" version="4.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+<class name="EPASController" inherits="Node" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
 	<brief_description>
+		Node that controls the EPAS animation system on a given skeleton.
 	</brief_description>
 	<description>
 	</description>

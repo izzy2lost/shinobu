@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="EPASWheelLocomotion" inherits="EPASNode" version="4.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+<class name="EPASWheelLocomotion" inherits="EPASNode" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
 	<brief_description>
-		Surveyor wheel based locomotion system
+		Surveyor wheel based locomotion system.
 	</brief_description>
 	<description>
 		The EPAS Wheel locomotion system works by having a virtual wheel of a certain radius that moves along with the character, as if it was dragging on the ground.
@@ -12,6 +12,8 @@
 		Step length = 1/4 the circumference of the surveyor wheel
 		Full cycle = step length * 2
 		Wheel radius = (4*step_length) / (2*PI)
+
+		See the [url=https://www.youtube.com/watch?v=LNidsMesxSE]overwgrowth talk[/url] for more information.
 	</description>
 	<tutorials>
 	</tutorials>
@@ -65,9 +67,24 @@
 				Sets the step length of a locomotion set.
 			</description>
 		</method>
+		<method name="set_locomotion_set_type">
+			<return type="void" />
+			<param index="0" name="idx" type="int" />
+			<param index="1" name="type" type="int" enum="EPASWheelLocomotion.LocomotionSetType" />
+			<description>
+			</description>
+		</method>
 	</methods>
 	<members>
 		<member name="x_blend" type="float" setter="set_x_blend" getter="get_x_blend" default="0.0">
 		</member>
 	</members>
+	<constants>
+		<constant name="WHEEL" value="0" enum="LocomotionSetType">
+			Use normal surveyor wheel locomotion.
+		</constant>
+		<constant name="CONSTANT_VELOCITY" value="1" enum="LocomotionSetType">
+			Plays the animation constantly, behaves like [EPASAnimationNode].
+		</constant>
+	</constants>
 </class>

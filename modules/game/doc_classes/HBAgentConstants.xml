@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="HBAgentConstants" inherits="Resource" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		Constants that this agent uses.
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="gravity" type="Vector3" setter="set_gravity" getter="get_gravity" default="Vector3(0, -20.81, 0)">
+			The gravity vector applied to this agent.
+		</member>
+		<member name="max_move_velocity" type="float" setter="set_max_move_velocity" getter="get_max_move_velocity" default="2.8">
+			The maximum velocity the agent can move.
+		</member>
+		<member name="tilt_max_angle_degrees" type="float" setter="set_tilt_max_angle_degrees" getter="get_tilt_max_angle_degrees" default="25.0">
+			The maximum angle that the agent can tilt when accelerating.
+		</member>
+		<member name="velocity_spring_halflife" type="float" setter="set_velocity_spring_halflife" getter="get_velocity_spring_halflife" default="0.175">
+			The half-life of the velocity spring that controls this agent's movement, see [url=https://theorangeduck.com/page/spring-roll-call#controllers]this article[/url] for a more detailed look at character velocity springs.
+		</member>
+	</members>
+</class>

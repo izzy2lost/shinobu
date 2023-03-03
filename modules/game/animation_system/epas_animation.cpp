@@ -5,8 +5,6 @@
 #include "core/object/class_db.h"
 #include "core/object/object.h"
 
-#pragma region Keyframe
-
 void EPASKeyframe::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_pose", "pose"), &EPASKeyframe::set_pose);
 	ClassDB::bind_method(D_METHOD("get_pose"), &EPASKeyframe::get_pose);
@@ -35,10 +33,6 @@ void EPASKeyframe::set_time(float p_time) {
 	time = p_time;
 	emit_signal("time_changed");
 }
-
-#pragma endregion Keyframe
-
-#pragma region Animation
 
 Array EPASAnimation::_get_keyframes() const {
 	Array out;
@@ -150,8 +144,7 @@ void EPASAnimation::interpolate(float p_time, const Ref<EPASPose> &p_base_pose, 
 
 	switch (p_interp_method) {
 		case STEP: {
-			// TODO: implement this
-			keyframes[prev_frame_i]->get_pose()->blend(keyframes[next_frame_i]->get_pose(), p_base_pose, p_target_pose, blend_start);
+			keyframes[prev_frame_i]->get_pose()->blend(keyframes[next_frame_i]->get_pose(), p_base_pose, p_target_pose, 0.0f);
 		} break;
 		case LINEAR: {
 			keyframes[prev_frame_i]->get_pose()->blend(keyframes[next_frame_i]->get_pose(), p_base_pose, p_target_pose, blend);
@@ -195,5 +188,3 @@ void EPASAnimation::clear() {
 	}
 	keyframes.clear();
 }
-
-#pragma endregion Animation

@@ -1,7 +1,7 @@
-#include "player_actor.h"
+#include "player_agent.h"
 #include "scene/main/viewport.h"
 
-Vector3 HBPlayerActor::get_input() const {
+Vector3 HBPlayerAgent::get_input() const {
 	Vector2 input = Input::get_singleton()->get_vector("move_left", "move_right", "move_forward", "move_backward");
 	Vector3 input_3d_space = Vector3(input.x, 0, input.y);
 
@@ -15,8 +15,8 @@ Vector3 HBPlayerActor::get_input() const {
 	return input_3d_space;
 }
 
-HBPlayerActor::HBPlayerActor() :
-		HBActor() {
+HBPlayerAgent::HBPlayerAgent() :
+		HBAgent() {
 	if (!Engine::get_singleton()->is_editor_hint()) {
 		Input::get_singleton()->set_mouse_mode(Input::MouseMode::MOUSE_MODE_CAPTURED);
 	}

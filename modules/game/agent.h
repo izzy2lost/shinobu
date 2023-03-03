@@ -1,11 +1,12 @@
 
-#ifndef ACTOR_H
-#define ACTOR_H
+#ifndef AGENT_H
+#define AGENT_H
 
+#include "agent_constants.h"
 #include "scene/3d/physics_body_3d.h"
 
-class HBActor : public CharacterBody3D {
-	GDCLASS(HBActor, CharacterBody3D);
+class HBAgent : public CharacterBody3D {
+	GDCLASS(HBAgent, CharacterBody3D);
 
 public:
 	enum MovementMode {
@@ -28,6 +29,7 @@ private:
 	ObjectID tilt_node_cache;
 	Vector3 graphics_lookat_normal;
 	ObjectID graphics_node_cache;
+	Ref<HBAgentConstants> agent_constants;
 
 	void _update_graphics_node_cache();
 	void _update_tilt_node_cache();
@@ -42,6 +44,7 @@ protected:
 	static void _bind_methods();
 	void _notification(int p_what);
 	virtual Vector3 get_input() const { return Vector3(); };
+	Ref<HBAgentConstants> _get_agent_constants() const;
 
 public:
 	void set_graphics_node(NodePath p_path);
@@ -50,8 +53,12 @@ public:
 	NodePath get_tilt_node() const;
 	void set_movement_mode(MovementMode p_movement_mode);
 	MovementMode get_movement_mode() const;
-	HBActor();
-	virtual ~HBActor();
+
+	Ref<HBAgentConstants> get_agent_constants() const;
+	void set_agent_constants(const Ref<HBAgentConstants> &p_agent_constants);
+
+	HBAgent();
+	virtual ~HBAgent();
 };
 
-#endif // ACTOR_H
+#endif // AGENT_H
