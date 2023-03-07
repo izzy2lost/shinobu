@@ -16,23 +16,19 @@ void EPASPoseNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> 
 		return;
 	}
 	p_target_pose->reserve(pose->get_bone_count());
-	for (KeyValue<String, EPASPose::BoneData *> kv : pose->get_bone_map()) {
-		EPASPose::BoneData *target = p_target_pose->get_bone_data(kv.key);
-		EPASPose::BoneData *source = kv.value;
-		if (!target) {
-			target = p_target_pose->create_bone(kv.key);
+	for (int i = 0; i < pose->get_bone_count(); i++) {
+		StringName bone_name = pose->get_bone_name(i);
+		if (!p_target_pose->has_bone(bone_name)) {
+			p_target_pose->create_bone(bone_name);
 		}
-		if (source->has_position) {
-			target->has_position = true;
-			target->position = source->position;
+		if (pose->get_bone_has_position(bone_name)) {
+			p_target_pose->set_bone_position(bone_name, pose->get_bone_position(bone_name));
 		}
-		if (source->has_rotation) {
-			target->has_rotation = true;
-			target->rotation = source->rotation;
+		if (pose->get_bone_has_rotation(bone_name)) {
+			p_target_pose->set_bone_rotation(bone_name, pose->get_bone_rotation(bone_name));
 		}
-		if (source->has_scale) {
-			target->has_scale = true;
-			target->scale = source->scale;
+		if (pose->get_bone_has_scale(bone_name)) {
+			p_target_pose->set_bone_scale(bone_name, pose->get_bone_scale(bone_name));
 		}
 	}
 }
@@ -54,8 +50,4 @@ void EPASPoseNode::_debug_node_draw() const {
 
 Ref<EPASPose> EPASPoseNode::get_pose() const {
 	return pose;
-}
-
-EPASPoseNode::EPASPoseNode() :
-		EPASNode(get_input_count()) {
 }

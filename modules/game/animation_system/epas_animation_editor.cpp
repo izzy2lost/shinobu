@@ -267,8 +267,8 @@ void EPASAnimationEditor::_apply_handle_transform(int p_handle, const Transform3
 	// Apply bone transform
 	Transform3D bone_trf;
 	_world_to_bone_trf(bone_idx, current_handle_trf_matrix.ptr(), bone_trf);
-	String bone_name = editing_skeleton->get_bone_name(bone_idx);
-	if (!current_pose->get_bone_data(bone_name)) {
+	StringName bone_name = editing_skeleton->get_bone_name(bone_idx);
+	if (!current_pose->has_bone(bone_name)) {
 		current_pose->create_bone(bone_name);
 	}
 	switch (guizmo_operation) {
@@ -508,7 +508,7 @@ void EPASAnimationEditor::_draw_ui() {
 		ImGui::BeginDisabled(current_pose.is_valid() || _is_playing());
 		if (ImGui::Button(FONT_REMIX_ICON_ADD)) {
 			// Add keyframe
-			if (current_pose.is_valid()) {
+			if (!current_pose.is_valid()) {
 				// Get the currently interpolated pose, if we don't have any just use an empty pose
 				Ref<EPASPose> output_pose = epas_controller->get_output_pose();
 				Ref<EPASPose> kf_pose = output_pose.is_valid() ? output_pose->duplicate() : memnew(EPASPose);
@@ -637,43 +637,45 @@ void EPASAnimationEditor::_draw_ui() {
 
 	if (ImGui::Begin("PoseDBG")) {
 		if (current_pose.is_valid()) {
-			for (const KeyValue<String, EPASPose::BoneData *> &ps : current_pose->get_bone_map()) {
-				if (ImGui::CollapsingHeader(ps.value->bone_name.utf8().get_data())) {
-					ImGui::PushID(ps.value);
-					if (ps.value->has_position) {
+			for (int i = 0; i < current_pose->get_bone_count(); i++) {
+				StringName bone_name = current_pose->get_bone_name(i);
+				String bone_name_str = bone_name;
+				if (ImGui::CollapsingHeader(bone_name_str.utf8().get_data())) {
+					ImGui::PushID(bone_name.data_unique_pointer());
+					if (current_pose->get_bone_has_position(bone_name)) {
 						ImGui::AlignTextToFramePadding();
-						ImGui::TextUnformatted(vformat("Pos %s", ps.value->position).utf8().ptr());
+						ImGui::TextUnformatted(vformat("Pos %s", current_pose->get_bone_position(bone_name)).utf8().get_data());
 						ImGui::SameLine();
 						if (ImGui::Button("X##pos")) {
 							undo_redo->create_action("Remove position from keyframe");
-							undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_position).bind(ps.key, false));
-							undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_position).bind(ps.key, true));
+							undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_position).bind(bone_name, false));
+							undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_position).bind(bone_name, true));
 							undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
 							undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
 							undo_redo->commit_action();
 						}
 					}
-					if (ps.value->has_rotation) {
+					if (current_pose->get_bone_has_rotation(bone_name)) {
 						ImGui::AlignTextToFramePadding();
-						ImGui::TextUnformatted(vformat("Rot %s", ps.value->rotation).utf8().ptr());
+						ImGui::TextUnformatted(vformat("Rot %s", current_pose->get_bone_rotation(bone_name)).utf8().ptr());
 						ImGui::SameLine();
 						if (ImGui::Button("X##rot")) {
 							undo_redo->create_action("Remove rotation from keyframe");
-							undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_rotation).bind(ps.key, false));
-							undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_rotation).bind(ps.key, true));
+							undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_rotation).bind(bone_name, false));
+							undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_rotation).bind(bone_name, true));
 							undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
 							undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
 							undo_redo->commit_action();
 						}
 					}
-					if (ps.value->has_scale) {
+					if (current_pose->get_bone_has_scale(bone_name)) {
 						ImGui::AlignTextToFramePadding();
-						ImGui::TextUnformatted(vformat("Scale %s", ps.value->scale).utf8().ptr());
+						ImGui::TextUnformatted(vformat("Scale %s", current_pose->get_bone_scale(bone_name)).utf8().ptr());
 						ImGui::SameLine();
 						if (ImGui::Button("X##scale")) {
 							undo_redo->create_action("Remove scale from keyframe");
-							undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_scale).bind(ps.key, false));
-							undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_scale).bind(ps.key, true));
+							undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_scale).bind(bone_name, false));
+							undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_scale).bind(bone_name, true));
 							undo_redo->commit_action();
 						}
 					}
@@ -762,12 +764,12 @@ void EPASAnimationEditor::_commit_guizmo_transform() {
 	const Ref<Selection> selection_handle = selection_handles[editing_selection_handle];
 	// No need to get fancy since both fk_bone_idx and ik_bone_idx are ints
 	int editing_bone = selection_handle->bone_idx;
-	String bone_name = editing_skeleton->get_bone_name(editing_bone);
+	StringName bone_name = editing_skeleton->get_bone_name(editing_bone);
 	Transform3D new_bone_trf;
 	Transform3D old_bone_trf;
 	_world_to_bone_trf(editing_bone, current_handle_trf_matrix.ptr(), new_bone_trf);
 	_world_to_bone_trf(editing_bone, prev_handle_trf_matrix.ptr(), old_bone_trf);
-	if (!current_pose->get_bone_data(bone_name)) {
+	if (!current_pose->has_bone(bone_name)) {
 		current_pose->create_bone(bone_name);
 	}
 	switch (guizmo_operation) {
@@ -890,7 +892,7 @@ void EPASAnimationEditor::_update_editing_handle_trf() {
 	}
 }
 
-void EPASAnimationEditor::input(const Ref<InputEvent> &p_event) {
+void EPASAnimationEditor::unhandled_input(const Ref<InputEvent> &p_event) {
 	const Ref<InputEventKey> &kev = p_event;
 	if (kev.is_valid()) {
 		if (kev->is_pressed() && !kev->is_echo() && kev->get_modifiers_mask().has_flag(KeyModifierMask::CTRL)) {
@@ -912,9 +914,11 @@ void EPASAnimationEditor::input(const Ref<InputEvent> &p_event) {
 		if (bev->get_button_index() == MouseButton::LEFT) {
 			if (!bev->is_pressed()) {
 				editing_selection_handle = -1;
+				print_line("CLEAR SELECTION");
 				if (Input::get_singleton()->is_key_pressed(Key::CTRL)) {
 					editing_selection_handle = currently_hovered_selection_handle;
 					if (editing_selection_handle != -1) {
+						print_line("CHANGE!");
 						_update_editing_handle_trf();
 						accept_event();
 					}
@@ -1040,7 +1044,7 @@ EPASAnimationEditor::EPASAnimationEditor() {
 			add_child(wenv);
 		}
 
-		set_process_input(true);
+		set_process_unhandled_input(true);
 
 		// Setup animation display
 

@@ -167,14 +167,12 @@ Ref<EPASPose> EPASController::get_base_pose() {
 		base_pose_cache = Ref<EPASPose>(memnew(EPASPose));
 
 		for (int i = 0; i < skel->get_bone_count(); i++) {
-			EPASPose::BoneData *bd = base_pose_cache->create_bone(skel->get_bone_name(i));
+			StringName bone_name = skel->get_bone_name(i);
+			base_pose_cache->create_bone(bone_name);
 			Transform3D rest = skel->get_bone_rest(i);
-			bd->has_position = true;
-			bd->position = rest.origin;
-			bd->has_rotation = true;
-			bd->rotation = rest.get_basis().get_rotation_quaternion();
-			bd->has_scale = true;
-			bd->scale = rest.get_basis().get_scale();
+			base_pose_cache->set_bone_position(bone_name, rest.origin);
+			base_pose_cache->set_bone_rotation(bone_name, rest.get_basis().get_rotation_quaternion());
+			base_pose_cache->set_bone_scale(bone_name, rest.get_basis().get_scale());
 		}
 		skeleton_version = skel->get_version();
 		base_pose_dirty = false;
@@ -199,18 +197,16 @@ void EPASController::advance(float p_amount) {
 	ERR_FAIL_COND_MSG(!skel, "EPASController: skeleton is missing, major malfunction.");
 
 	for (int i = 0; i < skel->get_bone_count(); i++) {
-		String bone_name = skel->get_bone_name(i);
-		EPASPose::BoneData *base_data = base_pose->get_bone_data(bone_name);
-		EPASPose::BoneData *output_data = output_pose->get_bone_data(bone_name);
+		StringName bone_name = skel->get_bone_name(i);
 
-		if (!output_data) {
-			skel->set_bone_pose_position(i, base_data->position);
-			skel->set_bone_pose_rotation(i, base_data->rotation);
-			skel->set_bone_pose_scale(i, base_data->scale);
+		if (!output_pose->has_bone(bone_name)) {
+			skel->set_bone_pose_position(i, base_pose->get_bone_position(bone_name));
+			skel->set_bone_pose_rotation(i, base_pose->get_bone_rotation(bone_name));
+			skel->set_bone_pose_scale(i, base_pose->get_bone_scale(bone_name));
 		} else {
-			skel->set_bone_pose_position(i, output_data->get_position(base_data));
-			skel->set_bone_pose_rotation(i, output_data->get_rotation(base_data));
-			skel->set_bone_pose_scale(i, output_data->get_scale(base_data));
+			skel->set_bone_pose_position(i, output_pose->get_bone_position(bone_name, base_pose));
+			skel->set_bone_pose_rotation(i, output_pose->get_bone_rotation(bone_name, base_pose));
+			skel->set_bone_pose_scale(i, output_pose->get_bone_scale(bone_name, base_pose));
 		}
 	}
 

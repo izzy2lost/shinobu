@@ -23,10 +23,6 @@ void EPASAddNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p
 	}
 }
 
-int EPASAddNode::get_input_count() const {
-	return 2;
-}
-
 void EPASAddNode::set_add_amount(float p_add_amount) {
 	add_amount = p_add_amount;
 }
@@ -41,6 +37,7 @@ void EPASAddNode::_debug_node_draw() const {
 	ImGui::PopItemWidth();
 };
 #endif
-EPASAddNode::EPASAddNode() :
-		EPASNode(get_input_count()) {
+
+EPASAddNode::EPASAddNode() {
+	_set_input_count(2);
 }

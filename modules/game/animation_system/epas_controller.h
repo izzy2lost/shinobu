@@ -8,15 +8,13 @@
 
 class EPASRootNode : public EPASNode {
 public:
-	virtual int get_input_count() const override {
-		return 1;
-	}
 	void process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) override {
 		process_input_pose(0, p_base_pose, p_target_pose, p_delta);
 	}
 
-	EPASRootNode() :
-			EPASNode(get_input_count()) {}
+	EPASRootNode() {
+		_set_input_count(1);
+	}
 };
 
 class EPASController : public Node {

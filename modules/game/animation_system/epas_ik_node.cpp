@@ -28,10 +28,6 @@ void EPASIKNode::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "ik_end"), "set_ik_end", "get_ik_end");
 }
 
-int EPASIKNode::get_input_count() const {
-	return 1;
-}
-
 void EPASIKNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) {
 	Skeleton3D *skel = get_skeleton();
 	process_input_pose(0, p_base_pose, p_target_pose, p_delta);
@@ -48,9 +44,9 @@ void EPASIKNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_
 		return;
 	}
 
-	String a_bone_name = skel->get_bone_name(a_bone_idx);
-	String b_bone_name = skel->get_bone_name(b_bone_idx);
-	String c_bone_name = ik_end;
+	StringName a_bone_name = skel->get_bone_name(a_bone_idx);
+	StringName b_bone_name = skel->get_bone_name(b_bone_idx);
+	StringName c_bone_name = ik_end;
 
 	Transform3D a_global_trf = p_target_pose->calculate_bone_global_transform(a_bone_name, skel, p_base_pose);
 	Transform3D b_global_trf = p_target_pose->calculate_bone_global_transform(b_bone_name, skel, p_base_pose);
@@ -84,16 +80,11 @@ void EPASIKNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_
 	if (!p_target_pose->has_bone(c_bone_name)) {
 		p_target_pose->create_bone(c_bone_name);
 	}
-
 	Quaternion prev_a_local_rot = p_target_pose->get_bone_rotation(a_bone_name, p_base_pose);
 	Quaternion prev_b_local_rot = p_target_pose->get_bone_rotation(b_bone_name, p_base_pose);
 
 	p_target_pose->set_bone_rotation(a_bone_name, prev_a_local_rot.slerp(a_local_rot, ik_influence));
 	p_target_pose->set_bone_rotation(b_bone_name, prev_b_local_rot.slerp(b_local_rot, ik_influence));
-
-	// Apply tip rotation
-	//b_global_trf = p_target_pose->calculate_bone_global_transform(b_bone_name, skel, p_base_pose);
-	//p_target_pose->set_bone_rotation(c_bone_name, b_global_trf.basis.get_rotation_quaternion().inverse() * c_global_rot);
 }
 
 float EPASIKNode::get_ik_influence() const {
@@ -128,13 +119,14 @@ void EPASIKNode::set_magnet_position(const Vector3 &p_magnet_position) {
 	magnet_position = p_magnet_position;
 }
 
-String EPASIKNode::get_ik_end() const {
+StringName EPASIKNode::get_ik_end() const {
 	return ik_end;
 }
 
-void EPASIKNode::set_ik_end(const String &p_ik_end) {
+void EPASIKNode::set_ik_end(const StringName &p_ik_end) {
 	ik_end = p_ik_end;
 }
 
-EPASIKNode::EPASIKNode() :
-		EPASNode(get_input_count()) {}
+EPASIKNode::EPASIKNode() {
+	_set_input_count(1);
+}

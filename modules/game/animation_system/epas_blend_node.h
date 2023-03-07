@@ -15,7 +15,6 @@ public:
 #ifdef DEBUG_ENABLED
 	virtual void _debug_node_draw() const override;
 #endif
-	virtual int get_input_count() const override;
 	virtual void process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) override;
 	void set_blend_amount(float p_blend_amount);
 	float get_blend_amount() const;

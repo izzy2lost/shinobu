@@ -22,10 +22,6 @@ void EPASBlendNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose>
 	}
 }
 
-int EPASBlendNode::get_input_count() const {
-	return 2;
-}
-
 void EPASBlendNode::set_blend_amount(float p_blend_amount) {
 	p_blend_amount = p_blend_amount;
 }
@@ -43,6 +39,6 @@ void EPASBlendNode::_debug_node_draw() const {
 };
 #endif
 
-EPASBlendNode::EPASBlendNode() :
-		EPASNode(get_input_count()) {
+EPASBlendNode::EPASBlendNode() {
+	_set_input_count(2);
 }

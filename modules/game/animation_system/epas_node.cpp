@@ -25,8 +25,12 @@ Skeleton3D *EPASNode::get_skeleton() const {
 	return skel;
 }
 
+void EPASNode::_set_input_count(int p_count) {
+	children.resize_zeroed(p_count);
+}
+
 int EPASNode::get_input_count() const {
-	return 0;
+	return children.size();
 }
 
 void EPASNode::process_input_pose(int p_child, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) {
@@ -46,8 +50,4 @@ void EPASNode::connect_to_input(int p_input, Ref<EPASNode> p_node) {
 Ref<EPASNode> EPASNode::get_input(int p_input) const {
 	ERR_FAIL_INDEX_V_MSG(p_input, get_input_count(), Ref<EPASNode>(), vformat("Invalid input number: %d", p_input));
 	return children[p_input];
-}
-
-EPASNode::EPASNode(int p_input_count) {
-	children.resize_zeroed(p_input_count);
 }

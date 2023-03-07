@@ -17,14 +17,14 @@ protected:
 	EPASController *get_epas_controller() const;
 	static void _bind_methods();
 	Skeleton3D *get_skeleton() const;
+	void _set_input_count(int p_count);
 
 public:
-	virtual int get_input_count() const;
+	int get_input_count() const;
 	virtual void connect_to_input(int p_input, Ref<EPASNode> p_node);
 	void process_input_pose(int p_child, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta);
 	virtual void process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta){};
 	Ref<EPASNode> get_input(int p_input) const;
-	EPASNode(int p_input_count);
 #ifdef DEBUG_ENABLED
 	virtual void _debug_node_draw() const {};
 #endif

@@ -22,14 +22,14 @@ protected:
 public:
 	struct BoneData {
 		bool enabled = true;
-		String bone_name;
+		StringName bone_name;
 		bool has_position = false;
 		Vector3 position;
 		bool has_rotation = false;
 		Quaternion rotation;
 		bool has_scale = false;
 		Vector3 scale;
-		BoneData(const String &p_bone_name) {
+		BoneData(const StringName &p_bone_name) {
 			bone_name = p_bone_name;
 		}
 		Vector3 get_position(const BoneData *p_fallback) const {
@@ -79,40 +79,44 @@ public:
 	};
 
 private:
-	HashMap<String, BoneData *> bone_datas;
+	HashMap<StringName, BoneData *> bone_datas;
+	// This vector is used so we can access bone datas by index
+	Vector<BoneData *> bone_datas_v;
+	BoneData *get_bone_data(const StringName &p_bone_name) const;
+	const HashMap<StringName, BoneData *> get_bone_map() const;
 
 public:
 	static Ref<EPASPose> from_animation(Ref<Animation> p_animation);
 	int get_bone_count() const;
-	BoneData *get_bone_data(const String &p_bone_name) const;
-	bool has_bone(const String &p_bone_name) const;
-	const HashMap<String, BoneData *> get_bone_map() const;
-	BoneData *create_bone(const String &p_bone_name);
+	bool has_bone(const StringName &p_bone_name) const;
+	void create_bone(const StringName &p_bone_name);
 
 	// Special version of above without the pointer return type
 	// for GDScript binding
-	void create_bone_gd(const String &p_bone_name);
+	void create_bone_gd(const StringName &p_bone_name);
 
 	void flip_along_z();
 
-	void set_bone_position(const String &p_bone_name, const Vector3 &p_position);
-	Vector3 get_bone_position(const String &p_bone_name, const Ref<EPASPose> &p_base_pos = Ref<EPASPose>()) const;
-	void set_bone_has_position(const String &p_bone_name, bool p_has_position);
-	bool get_bone_has_position(const String &p_bone_name) const;
+	void set_bone_position(const StringName &p_bone_name, const Vector3 &p_position);
+	Vector3 get_bone_position(const StringName &p_bone_name, const Ref<EPASPose> &p_base_pos = Ref<EPASPose>()) const;
+	void set_bone_has_position(const StringName &p_bone_name, bool p_has_position);
+	bool get_bone_has_position(const StringName &p_bone_name) const;
 
-	void set_bone_rotation(const String &p_bone_name, const Quaternion &p_rotation);
-	Quaternion get_bone_rotation(const String &p_bone_name, const Ref<EPASPose> &p_base_pose = Ref<EPASPose>()) const;
-	void set_bone_has_rotation(const String &p_bone_name, bool p_has_rotation);
-	bool get_bone_has_rotation(const String &p_bone_name) const;
+	void set_bone_rotation(const StringName &p_bone_name, const Quaternion &p_rotation);
+	Quaternion get_bone_rotation(const StringName &p_bone_name, const Ref<EPASPose> &p_base_pose = Ref<EPASPose>()) const;
+	void set_bone_has_rotation(const StringName &p_bone_name, bool p_has_rotation);
+	bool get_bone_has_rotation(const StringName &p_bone_name) const;
 
-	void set_bone_scale(const String &p_bone_name, const Vector3 &p_scale);
-	Vector3 get_bone_scale(const String &p_bone_name, const Ref<EPASPose> &p_base_pose = Ref<EPASPose>()) const;
-	void set_bone_has_scale(const String &p_bone_name, bool p_has_scale);
-	bool get_bone_has_scale(const String &p_bone_name) const;
+	void set_bone_scale(const StringName &p_bone_name, const Vector3 &p_scale);
+	Vector3 get_bone_scale(const StringName &p_bone_name, const Ref<EPASPose> &p_base_pose = Ref<EPASPose>()) const;
+	void set_bone_has_scale(const StringName &p_bone_name, bool p_has_scale);
+	bool get_bone_has_scale(const StringName &p_bone_name) const;
 
-	Transform3D get_bone_transform(const String &p_bone_name, const Ref<EPASPose> &p_base_pose = Ref<EPASPose>()) const;
+	StringName get_bone_name(const int p_bone_idx) const;
+
+	Transform3D get_bone_transform(const StringName &p_bone_name, const Ref<EPASPose> &p_base_pose = Ref<EPASPose>()) const;
 	void reserve(int p_size);
-	Transform3D calculate_bone_global_transform(const String &p_bone_name, const Skeleton3D *p_skel, const Ref<EPASPose> p_base_pose = Ref<EPASPose>()) const;
+	Transform3D calculate_bone_global_transform(const StringName &p_bone_name, const Skeleton3D *p_skel, const Ref<EPASPose> p_base_pose = Ref<EPASPose>()) const;
 
 	void add(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output, float p_blend) const;
 	void blend(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output, float p_blend) const;

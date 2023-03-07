@@ -4,7 +4,6 @@
 
 #ifdef DEBUG_ENABLED
 #include "animation_system/epas_animation_editor.h"
-#include "animation_system/epas_pose_editor.h"
 #endif
 
 HBGameMainLoop::HBGameMainLoop() :
@@ -30,9 +29,7 @@ void HBGameMainLoop::initialize() {
 		if (args[i] == "--hb-tool") {
 			String tool_name = args[i + 1];
 			Node *tool = nullptr;
-			if (tool_name == "pose_editor") {
-				tool = memnew(EPASPoseEditor);
-			} else if (tool_name == "animation_editor") {
+			if (tool_name == "animation_editor") {
 				tool = memnew(EPASAnimationEditor);
 			}
 

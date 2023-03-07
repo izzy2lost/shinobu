@@ -80,6 +80,3 @@ void EPASAnimationNode::seek(float p_time) {
 float EPASAnimationNode::get_time() {
 	return time;
 }
-
-EPASAnimationNode::EPASAnimationNode() :
-		EPASNode(0) {}

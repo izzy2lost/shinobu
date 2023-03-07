@@ -60,7 +60,6 @@ public:
 #ifdef DEBUG_ENABLED
 	virtual void _debug_node_draw() const override;
 #endif
-	virtual int get_input_count() const override;
 	virtual void process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) override;
 	float get_wheel_angle() const;
 	void set_linear_velocity(const Vector3 &p_linear_velocity);
@@ -74,9 +73,6 @@ public:
 	void set_locomotion_set_animation(int p_idx, Ref<EPASAnimation> p_pose);
 	void set_locomotion_set_type(int p_idx, LocomotionSetType p_type);
 
-	EPASWheelLocomotion() :
-			EPASNode(get_input_count()) {
-	}
 	virtual ~EPASWheelLocomotion();
 };
 

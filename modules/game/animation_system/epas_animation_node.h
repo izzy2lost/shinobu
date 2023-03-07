@@ -37,8 +37,6 @@ public:
 	EPASAnimation::InterpolationMethod get_interpolation_method() const;
 	void seek(float p_time);
 	float get_time();
-
-	EPASAnimationNode();
 };
 
 VARIANT_ENUM_CAST(EPASAnimationNode::PlaybackMode);

@@ -52,7 +52,6 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(EPASIKNode);
 		GDREGISTER_CLASS(HBUtils);
 #ifdef DEBUG_ENABLED
-		GDREGISTER_CLASS(EPASPoseEditor);
 		GDREGISTER_CLASS(EPASAnimationEditor);
 		GDREGISTER_CLASS(EPASEditorGrid);
 		GDREGISTER_CLASS(EPASEditorCamera);

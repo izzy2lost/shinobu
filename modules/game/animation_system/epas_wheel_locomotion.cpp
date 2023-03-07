@@ -112,10 +112,6 @@ void EPASWheelLocomotion::set_linear_velocity(const Vector3 &p_linear_velocity) 
 	linear_velocity = p_linear_velocity;
 }
 
-int EPASWheelLocomotion::get_input_count() const {
-	return 0;
-}
-
 void EPASWheelLocomotion::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_linear_velocity", "velocity"), &EPASWheelLocomotion::set_linear_velocity);
 	ClassDB::bind_method(D_METHOD("get_wheel_angle"), &EPASWheelLocomotion::get_wheel_angle);

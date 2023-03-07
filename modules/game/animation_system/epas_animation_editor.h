@@ -145,7 +145,7 @@ private:
 
 protected:
 	void _notification(int p_what);
-	virtual void input(const Ref<InputEvent> &p_event) override;
+	virtual void unhandled_input(const Ref<InputEvent> &p_event) override;
 
 public:
 	Transform3D get_edited_object_transform();
