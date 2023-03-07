@@ -2,6 +2,7 @@
 #include "utils.h"
 
 #ifdef DEBUG_ENABLED
+#include "implot.h"
 #include "modules/imgui/godot_imgui.h"
 #endif
 
@@ -16,7 +17,13 @@ HBAgent::HBAgent() :
 		set_process_internal(true);
 		agent_constants.instantiate();
 	}
-
+#ifdef DEBUG_ENABLED
+	velocity_plot_lines_y.resize_zeroed(VELOCITY_PLOT_SIZE);
+	velocity_plot_lines_x.resize_zeroed(VELOCITY_PLOT_SIZE);
+	desired_velocity_plot_lines_y.resize_zeroed(VELOCITY_PLOT_SIZE);
+	acceleration_plot_lines_x.resize_zeroed(VELOCITY_PLOT_SIZE);
+	acceleration_plot_lines_y.resize_zeroed(VELOCITY_PLOT_SIZE);
+#endif
 	REGISTER_DEBUG(this);
 }
 
@@ -62,10 +69,6 @@ void HBAgent::_rotate_towards_velocity(float p_delta) {
 				current_forward.y = 0.0f;
 				current_forward.normalize();
 
-				real_t rotation_speed = Math::deg_to_rad((real_t)GLOBAL_GET("game/player/graphics_rotation_speed"));
-
-				//HBUtils::rotate_normal_towards(current_forward, desired_look_normal, p_delta * rotation_speed);
-
 				gn->look_at(gn->get_global_transform().origin + desired_look_normal);
 			}
 		}
@@ -95,7 +98,7 @@ void HBAgent::_tilt_towards_acceleration(float p_delta) {
 
 		Quaternion current_rot = tn->get_global_transform().basis.get_rotation_quaternion();
 		rotation_goal = rotation_goal * tn->get_parent_node_3d()->get_global_transform().get_basis().get_rotation_quaternion();
-		HBUtils::simple_spring_damper_exact_quat(current_rot, tilt_spring_velocity, rotation_goal, tilt_spring_halflife, p_delta);
+		HBUtils::simple_spring_damper_exact_quat(current_rot, tilt_spring_velocity, rotation_goal, agent_constants->get_tilt_spring_halflife(), p_delta);
 		global_trf.basis = Basis(current_rot);
 		tn->set_global_transform(global_trf);
 	}
@@ -219,11 +222,53 @@ void HBAgent::_notification(int p_what) {
 			GodotImGui *gim = GodotImGui::get_singleton();
 			if (gim && gim->is_debug_enabled(this)) {
 				if (gim->begin_debug_window(this)) {
-					ImGui::Text("Velocity %s", String(get_global_position()).utf8().ptr());
-					ImGui::Separator();
-					ImGui::InputFloat("Velocity Spring Half-life", &velocity_spring_halflife);
-					ImGui::Text("Tilt spring velocity %s", String(get_global_position()).utf8().ptr());
-					ImGui::InputFloat("Tilt Spring Half-life", &tilt_spring_halflife);
+					ImGui::Text("Velocity %s", String(get_linear_velocity()).utf8().get_data());
+					plot_t += get_process_delta_time();
+
+					{
+						for (int i = 1; i < VELOCITY_PLOT_SIZE; i++) {
+							velocity_plot_lines_x.set(i - 1, velocity_plot_lines_x[i]);
+							velocity_plot_lines_y.set(i - 1, velocity_plot_lines_y[i]);
+							desired_velocity_plot_lines_y.set(i - 1, desired_velocity_plot_lines_y[i]);
+						}
+						velocity_plot_lines_x.set(VELOCITY_PLOT_SIZE - 1, plot_t);
+						velocity_plot_lines_y.set(VELOCITY_PLOT_SIZE - 1, get_linear_velocity().length());
+						desired_velocity_plot_lines_y.set(VELOCITY_PLOT_SIZE - 1, _get_desired_velocity().length());
+
+						String title = vformat("Velocity\n%.2f m/s", get_linear_velocity().length());
+						if (ImPlot::BeginPlot(title.utf8().get_data(), ImVec2(-1, 200.0f), ImPlotFlags_CanvasOnly & ~(ImPlotFlags_NoTitle | ImPlotFlags_NoLegend))) {
+							ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoTickLabels);
+							ImPlot::SetupAxisLimits(ImAxis_X1, velocity_plot_lines_x[0], velocity_plot_lines_x[velocity_plot_lines_x.size() - 1], ImGuiCond_Always);
+							ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0f, 4.0f);
+							ImPlot::PlotLine("Velocity", velocity_plot_lines_x.ptr(), velocity_plot_lines_y.ptr(), VELOCITY_PLOT_SIZE);
+							ImPlot::PlotLine("Desired velocity", velocity_plot_lines_x.ptr(), desired_velocity_plot_lines_y.ptr(), VELOCITY_PLOT_SIZE);
+							ImPlot::EndPlot();
+						}
+					}
+
+					{
+						for (int i = 1; i < VELOCITY_PLOT_SIZE; i++) {
+							acceleration_plot_lines_x.set(i - 1, acceleration_plot_lines_x[i]);
+							acceleration_plot_lines_y.set(i - 1, acceleration_plot_lines_y[i]);
+						}
+						float accel_number = Math::abs(get_linear_velocity().angle_to(velocity_spring_acceleration));
+						accel_number = Math::remap(accel_number, 0.0f, Math::deg_to_rad(180.0f), 1.0f, -1.0f);
+						accel_number *= velocity_spring_acceleration.length();
+						acceleration_plot_lines_x.set(VELOCITY_PLOT_SIZE - 1, plot_t);
+						acceleration_plot_lines_y.set(VELOCITY_PLOT_SIZE - 1, accel_number);
+
+						String title = vformat("Acceleration\n%.2f m/s2", accel_number);
+						if (ImPlot::BeginPlot(title.utf8().get_data(), ImVec2(-1, 200.0f), ImPlotFlags_CanvasOnly & ~ImPlotFlags_NoTitle)) {
+							ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoTickLabels);
+							ImPlot::SetupAxisLimits(ImAxis_X1, acceleration_plot_lines_x[0], acceleration_plot_lines_x[VELOCITY_PLOT_SIZE - 1], ImGuiCond_Always);
+							ImPlot::SetupAxisLimits(ImAxis_Y1, -10.0f, 10.0f);
+							ImPlot::PlotLine("Acceleration", acceleration_plot_lines_x.ptr(), acceleration_plot_lines_y.ptr(), VELOCITY_PLOT_SIZE);
+							ImPlot::EndPlot();
+						}
+					}
+
+					//ImGui::Separator();
+					//ImGui::Text("Tilt spring velocity %s", String(get_global_position()).utf8().ptr());
 				}
 				ImGui::End();
 			}
@@ -236,4 +281,10 @@ Ref<HBAgentConstants> HBAgent::_get_agent_constants() const {
 	// same as get_agent_constants but with checking
 	ERR_FAIL_COND_V(agent_constants.is_null(), nullptr);
 	return agent_constants;
+}
+
+Vector3 HBAgent::_get_desired_velocity() const {
+	Vector3 input_vector = get_input();
+	Vector3 desired_velocity = input_vector * agent_constants->get_max_move_velocity();
+	return desired_velocity;
 }

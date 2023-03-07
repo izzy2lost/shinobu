@@ -13,6 +13,7 @@
 #include "godot_imgui.h"
 
 #include "imnodes.h"
+#include "implot.h"
 #include "main/performance.h"
 #include "scene/gui/label.h"
 #include "servers/rendering/rendering_device_binds.h"
@@ -126,6 +127,7 @@ GodotImGui::GodotImGui() {
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImNodes::CreateContext();
+	ImPlot::CreateContext();
 
 	ImGuiIO &io = ImGui::GetIO();
 	(void)io;
@@ -490,6 +492,10 @@ void GodotImGui::gui_input(const Ref<InputEvent> &p_event) {
 
 	if (captured) {
 		accept_event();
+		get_viewport()->set_input_as_handled();
+		if (mouse_but_event.is_valid()) {
+			print_line("ACCEPT EVENT!");
+		}
 	}
 }
 
@@ -716,6 +722,7 @@ GodotImGui::~GodotImGui() {
 		rd->free(vertex_buffer);
 	}
 	ImNodes::DestroyContext();
+	ImPlot::DestroyContext();
 	ImGui::DestroyContext();
 }
 

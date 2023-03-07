@@ -13,6 +13,10 @@ void HBAgentConstants::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_velocity_spring_halflife", "velocity_spring_halflife"), &HBAgentConstants::set_velocity_spring_halflife);
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "velocity_spring_halflife"), "set_velocity_spring_halflife", "get_velocity_spring_halflife");
 
+	ClassDB::bind_method(D_METHOD("get_tilt_spring_halflife"), &HBAgentConstants::get_tilt_spring_halflife);
+	ClassDB::bind_method(D_METHOD("set_tilt_spring_halflife", "tilt_spring_halflife"), &HBAgentConstants::set_tilt_spring_halflife);
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tilt_spring_halflife"), "set_tilt_spring_halflife", "get_tilt_spring_halflife");
+
 	ClassDB::bind_method(D_METHOD("get_tilt_max_angle_degrees"), &HBAgentConstants::get_tilt_max_angle_degrees);
 	ClassDB::bind_method(D_METHOD("set_tilt_max_angle_degrees", "tilt_max_angle_degrees"), &HBAgentConstants::set_tilt_max_angle_degrees);
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tilt_max_angle_degrees", PROPERTY_HINT_RANGE, "0,180,degrees"), "set_tilt_max_angle_degrees", "get_tilt_max_angle_degrees");

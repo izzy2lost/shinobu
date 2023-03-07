@@ -20,6 +20,8 @@ thirdparty_sources = [
     "imgui_neo_internal.cpp",
     "imgui_neo_sequencer.cpp",
     "misc/freetype/imgui_freetype.cpp",
+    "implot.cpp",
+    "implot_items.cpp",
 ]
 
 thirdparty_sources = [thirdparty_dir + file for file in thirdparty_sources]

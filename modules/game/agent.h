@@ -16,13 +16,9 @@ public:
 private:
 	MovementMode movement_mode = MovementMode::MOVE_GROUNDED;
 
-	Vector3 gravity = Vector3(0.0f, -20.81f, 0.0f);
-	float move_velocity = 2.8f;
-	float velocity_spring_halflife = 0.175f;
 	Vector3 velocity_spring_acceleration;
 
 	Vector3 tilt_spring_velocity;
-	float tilt_spring_halflife = 0.3f;
 
 	NodePath graphics_node;
 	NodePath tilt_node;
@@ -45,6 +41,7 @@ protected:
 	void _notification(int p_what);
 	virtual Vector3 get_input() const { return Vector3(); };
 	Ref<HBAgentConstants> _get_agent_constants() const;
+	Vector3 _get_desired_velocity() const;
 
 public:
 	void set_graphics_node(NodePath p_path);
@@ -56,6 +53,16 @@ public:
 
 	Ref<HBAgentConstants> get_agent_constants() const;
 	void set_agent_constants(const Ref<HBAgentConstants> &p_agent_constants);
+
+#ifdef DEBUG_ENABLED
+	const int VELOCITY_PLOT_SIZE = 90;
+	float plot_t = 0.0f;
+	Vector<float> velocity_plot_lines_x;
+	Vector<float> velocity_plot_lines_y;
+	Vector<float> desired_velocity_plot_lines_y;
+	Vector<float> acceleration_plot_lines_x;
+	Vector<float> acceleration_plot_lines_y;
+#endif
 
 	HBAgent();
 	virtual ~HBAgent();
