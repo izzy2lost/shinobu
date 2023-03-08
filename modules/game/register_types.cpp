@@ -16,7 +16,6 @@
 #ifdef DEBUG_ENABLED
 #include "animation_system/epas_editor_camera.h"
 #include "animation_system/epas_editor_grid.h"
-#include "animation_system/epas_pose_editor.h"
 #endif
 
 #include "animation_system/epas_add_node.h"
@@ -24,6 +23,7 @@
 #include "animation_system/epas_animation_node.h"
 #include "animation_system/epas_blend_node.h"
 #include "animation_system/epas_controller.h"
+#include "animation_system/epas_inertialization_node.h"
 #include "animation_system/epas_node.h"
 #include "animation_system/epas_pose.h"
 #include "animation_system/epas_pose_node.h"
@@ -42,6 +42,7 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_ABSTRACT_CLASS(EPASNode);
 		GDREGISTER_CLASS(EPASBlendNode);
 		GDREGISTER_CLASS(EPASAddNode);
+		GDREGISTER_CLASS(EPASInertializationNode);
 		GDREGISTER_CLASS(EPASPoseNode);
 		GDREGISTER_CLASS(EPASWheelLocomotion);
 		GDREGISTER_CLASS(EPASWheelVisualizer);

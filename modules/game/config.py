@@ -24,6 +24,7 @@ def get_doc_classes():
         "EPASPoseNode",
         "EPASController",
         "EPASWheelLocomotion",
+        "EPASInertializationNode",
         "EPASKeyframe",
         "EPASAnimation",
         "HBUtils",

@@ -190,6 +190,15 @@ public:
 		weights[2] = 0.5f * (-3.0f * interp_cubed + 4.0f * interp_squared + interp);
 		weights[3] = 0.5f * (interp_cubed - interp_squared);
 	}
+
+	static float inertialize(float p_x0, float p_v0, float p_blend_time, float p_t) {
+		float accel = MAX(-8.0f * p_v0 * p_blend_time - 20.0f * p_x0, 0.0f);
+		float A = -((accel * Math::pow(p_blend_time, 2.0f) + 6.0f * p_v0 * p_blend_time + 12.0f * p_x0) / (2.0f * Math::pow(p_blend_time, 5.0f)));
+		float B = (3.0f * accel * Math::pow(p_blend_time, 2.0f) + 16.0f * p_v0 * p_blend_time + 30.0f * p_x0) / (2.0f * Math::pow(p_blend_time, 4.0f));
+		float C = -((3.0f * accel * Math::pow(p_blend_time, 2.0f) + 12.0f * p_v0 * p_blend_time + 20.0f * p_x0) / (2.0f * Math::pow(p_blend_time, 3.0f)));
+
+		return A * Math::pow(p_t, 5.0f) + B * Math::pow(p_t, 4.0f) + C * Math::pow(p_t, 3.0f) + (accel * 0.5f) * Math::pow(p_t, 2.0f) + p_v0 * p_t + p_x0;
+	}
 };
 
 #endif // UTILS_H

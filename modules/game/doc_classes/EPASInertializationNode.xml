@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EPASInertializationNode" inherits="EPASNode" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		Node for using the [url=https://www.youtube.com/watch?v=BYyv4KTegJI]inertialization[/url] pose transition technique.
+	</brief_description>
+	<description>
+		To use, do whatever changes you need to the tree and then call [method inertialize].
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="inertialize">
+			<return type="void" />
+			<param index="0" name="transition_duration" type="float" default="0.25" />
+			<param index="1" name="bone_filter" type="StringName[]" default="[]" />
+			<description>
+				Queues an inertialization transition, this should be called after the animation tree has been changed to reflect the new target pose.
+				If [param bone_filter] is not empty the inertialization routine will only affect the bones contained within it.
+				[b]Note:[/b] The [param transition_duration] may be lowered to prevent overshoot (and may vary between bones), it will however never be higher than the input.
+			</description>
+		</method>
+	</methods>
+</class>
