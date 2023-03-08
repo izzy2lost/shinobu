@@ -8,7 +8,7 @@
 	<tutorials>
 	</tutorials>
 	<members>
-		<member name="ik_end" type="String" setter="set_ik_end" getter="get_ik_end" default="&quot;&quot;">
+		<member name="ik_end" type="StringName" setter="set_ik_end" getter="get_ik_end" default="&amp;&quot;&quot;">
 			The bone name of the end of the IK chain.
 		</member>
 		<member name="ik_influence" type="float" setter="set_ik_influence" getter="get_ik_influence" default="1.0">

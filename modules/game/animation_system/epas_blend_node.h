@@ -7,6 +7,7 @@ class EPASBlendNode : public EPASNode {
 
 private:
 	float blend_amount = 0.0f;
+	TypedArray<StringName> bone_filter;
 
 protected:
 	static void _bind_methods();
@@ -19,5 +20,8 @@ public:
 	void set_blend_amount(float p_blend_amount);
 	float get_blend_amount() const;
 	EPASBlendNode();
+
+	TypedArray<StringName> get_bone_filter() const;
+	void set_bone_filter(const TypedArray<StringName> &p_bone_filter);
 };
 #endif // EPAS_BLEND_NODE_H

@@ -118,8 +118,8 @@ public:
 	void reserve(int p_size);
 	Transform3D calculate_bone_global_transform(const StringName &p_bone_name, const Skeleton3D *p_skel, const Ref<EPASPose> p_base_pose = Ref<EPASPose>()) const;
 
-	void add(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output, float p_blend) const;
-	void blend(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output, float p_blend) const;
+	void add(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output, float p_blend, TypedArray<StringName> p_bone_filter = TypedArray<StringName>()) const;
+	void blend(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output, float p_blend, TypedArray<StringName> p_bone_filter = TypedArray<StringName>()) const;
 
 	void clear();
 

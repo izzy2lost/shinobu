@@ -209,9 +209,6 @@ void EPASPose::set_bone_has_position(const StringName &p_bone_name, bool p_has_p
 }
 
 bool EPASPose::get_bone_has_position(const StringName &p_bone_name) const {
-	if (!has_bone(p_bone_name)) {
-		print_line("???");
-	}
 	ERR_FAIL_COND_V_MSG(!has_bone(p_bone_name), false, vformat("Bone %s does not exist", p_bone_name));
 	return get_bone_data(p_bone_name)->has_position;
 }
@@ -349,10 +346,14 @@ void EPASPose::flip_along_z() {
 	}
 }
 
-void EPASPose::add(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output, float p_blend) const {
+void EPASPose::add(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output, float p_blend, TypedArray<StringName> p_bone_filter) const {
 	for (int i = 0; i < p_base_pose->get_bone_count(); i++) {
 		// this is the output bonedata
 		StringName bone_name = p_base_pose->get_bone_name(i);
+
+		if (p_bone_filter.size() > 0 && p_bone_filter.has(bone_name)) {
+			continue;
+		}
 
 		bool first_has_bone = has_bone(bone_name);
 		bool second_has_bone = p_second_pose->has_bone(bone_name);
@@ -399,10 +400,14 @@ void EPASPose::add(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_ba
 	}
 }
 
-void EPASPose::blend(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output, float p_blend) const {
+void EPASPose::blend(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output, float p_blend, TypedArray<StringName> p_bone_filter) const {
 	for (int i = 0; i < p_base_pose->get_bone_count(); i++) {
 		// this is the output bonedata
 		StringName bone_name = p_base_pose->get_bone_name(i);
+
+		if (p_bone_filter.size() > 0 && p_bone_filter.has(bone_name)) {
+			continue;
+		}
 
 		bool first_has_bone = has_bone(bone_name);
 		bool second_has_bone = p_second_pose->has_bone(bone_name);

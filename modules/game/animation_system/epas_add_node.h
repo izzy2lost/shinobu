@@ -7,6 +7,7 @@ class EPASAddNode : public EPASNode {
 
 private:
 	float add_amount = 0.0f;
+	TypedArray<StringName> bone_filter;
 
 protected:
 	static void _bind_methods();
@@ -19,5 +20,8 @@ public:
 	void set_add_amount(float p_add_amount);
 	float get_add_amount() const;
 	EPASAddNode();
+
+	TypedArray<StringName> get_bone_filter() const;
+	void set_bone_filter(const TypedArray<StringName> &p_bone_filter);
 };
 #endif // EPAS_ADD_NODE_H

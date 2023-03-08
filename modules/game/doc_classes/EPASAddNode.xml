@@ -10,5 +10,8 @@
 		<member name="add_amount" type="float" setter="set_add_amount" getter="get_add_amount" default="0.0">
 			The percentage of the second input animation that should be added to the first input.
 		</member>
+		<member name="bone_filter" type="StringName[]" setter="set_bone_filter" getter="get_bone_filter" default="[]">
+			The bones on which to apply this node, if empty it will apply to all.
+		</member>
 	</members>
 </class>

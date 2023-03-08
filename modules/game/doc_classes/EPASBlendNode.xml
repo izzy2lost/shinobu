@@ -11,5 +11,8 @@
 		<member name="blend_amount" type="float" setter="set_blend_amount" getter="get_blend_amount" default="0.0">
 			0-1 value that represents how much it should blend from input 0 and input 1
 		</member>
+		<member name="bone_filter" type="StringName[]" setter="set_bone_filter" getter="get_bone_filter" default="[]">
+			The bones on which to apply this node, if empty it will apply to all.
+		</member>
 	</members>
 </class>

@@ -7,6 +7,10 @@ void EPASAddNode::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_add_amount", "amount"), &EPASAddNode::set_add_amount);
 	ClassDB::bind_method(D_METHOD("get_add_amount"), &EPASAddNode::get_add_amount);
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "add_amount", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_add_amount", "get_add_amount");
+
+	ClassDB::bind_method(D_METHOD("set_bone_filter", "bone_filter"), &EPASAddNode::set_bone_filter);
+	ClassDB::bind_method(D_METHOD("get_bone_filter"), &EPASAddNode::get_bone_filter);
+	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "bone_filter", PROPERTY_HINT_ARRAY_TYPE, "StringName"), "set_bone_filter", "get_bone_filter");
 }
 
 void EPASAddNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) {
@@ -19,7 +23,7 @@ void EPASAddNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p
 		Ref<EPASPose> second_pose = memnew(EPASPose);
 		process_input_pose(1, p_base_pose, second_pose, p_delta);
 
-		p_target_pose->add(second_pose, p_base_pose, p_target_pose, add_amount);
+		p_target_pose->add(second_pose, p_base_pose, p_target_pose, add_amount, bone_filter);
 	}
 }
 
@@ -30,6 +34,7 @@ void EPASAddNode::set_add_amount(float p_add_amount) {
 float EPASAddNode::get_add_amount() const {
 	return add_amount;
 }
+
 #ifdef DEBUG_ENABLED
 void EPASAddNode::_debug_node_draw() const {
 	ImGui::PushItemWidth(100.0f);
@@ -40,4 +45,11 @@ void EPASAddNode::_debug_node_draw() const {
 
 EPASAddNode::EPASAddNode() {
 	_set_input_count(2);
+}
+TypedArray<StringName> EPASAddNode::get_bone_filter() const {
+	return bone_filter;
+}
+
+void EPASAddNode::set_bone_filter(const TypedArray<StringName> &p_bone_filter) {
+	bone_filter = p_bone_filter;
 }

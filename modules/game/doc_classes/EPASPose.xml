@@ -10,7 +10,7 @@
 	<methods>
 		<method name="create_bone">
 			<return type="void" />
-			<param index="0" name="bone_name" type="String" />
+			<param index="0" name="bone_name" type="StringName" />
 			<description>
 				Creates a bone that doesn't already exist.
 			</description>
@@ -24,7 +24,7 @@
 		</method>
 		<method name="set_bone_position">
 			<return type="void" />
-			<param index="0" name="bone_name" type="String" />
+			<param index="0" name="bone_name" type="StringName" />
 			<param index="1" name="position" type="Vector3" />
 			<description>
 				Sets the position of a bone.
@@ -33,7 +33,7 @@
 		</method>
 		<method name="set_bone_rotation">
 			<return type="void" />
-			<param index="0" name="bone_name" type="String" />
+			<param index="0" name="bone_name" type="StringName" />
 			<param index="1" name="rotation" type="Quaternion" />
 			<description>
 				Sets the rotation of a bone.
@@ -42,7 +42,7 @@
 		</method>
 		<method name="set_bone_scale">
 			<return type="void" />
-			<param index="0" name="bone_name" type="String" />
+			<param index="0" name="bone_name" type="StringName" />
 			<param index="1" name="scale" type="Vector3" />
 			<description>
 				Sets the scale of a bone.
