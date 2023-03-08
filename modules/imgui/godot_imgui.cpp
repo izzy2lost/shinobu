@@ -493,9 +493,6 @@ void GodotImGui::gui_input(const Ref<InputEvent> &p_event) {
 	if (captured) {
 		accept_event();
 		get_viewport()->set_input_as_handled();
-		if (mouse_but_event.is_valid()) {
-			print_line("ACCEPT EVENT!");
-		}
 	}
 }
 

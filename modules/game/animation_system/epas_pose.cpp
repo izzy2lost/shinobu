@@ -351,7 +351,7 @@ void EPASPose::add(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_ba
 		// this is the output bonedata
 		StringName bone_name = p_base_pose->get_bone_name(i);
 
-		if (p_bone_filter.size() > 0 && p_bone_filter.has(bone_name)) {
+		if (p_bone_filter.size() > 0 && !p_bone_filter.has(bone_name)) {
 			continue;
 		}
 
@@ -405,7 +405,7 @@ void EPASPose::blend(const Ref<EPASPose> &p_second_pose, const Ref<EPASPose> &p_
 		// this is the output bonedata
 		StringName bone_name = p_base_pose->get_bone_name(i);
 
-		if (p_bone_filter.size() > 0 && p_bone_filter.has(bone_name)) {
+		if (p_bone_filter.size() > 0 && !p_bone_filter.has(bone_name)) {
 			continue;
 		}
 
