@@ -306,7 +306,7 @@ void EPASPose::flip_along_z() {
 		}
 		processed_bones.insert(kv.key);
 		if (kv.value->has_position) {
-			kv.value->position = kv.value->position * Vector3(1.0, 1.0, -1.0);
+			kv.value->position = kv.value->position * Vector3(-1.0, 1.0, 1.0);
 		}
 		if (kv.value->has_rotation) {
 			Basis bas = Basis(kv.value->rotation);
@@ -331,7 +331,7 @@ void EPASPose::flip_along_z() {
 			ERR_FAIL_COND(!other_bone_data);
 			processed_bones.insert(other_bone_name);
 			if (other_bone_data->has_position) {
-				other_bone_data->position = other_bone_data->position * Vector3(1.0, 1.0, -1.0);
+				other_bone_data->position = other_bone_data->position * Vector3(-1.0, 1.0, 1.0);
 			}
 			if (other_bone_data->has_rotation) {
 				Basis bas = Basis(other_bone_data->rotation);
