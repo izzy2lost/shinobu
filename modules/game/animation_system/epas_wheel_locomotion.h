@@ -27,6 +27,7 @@ private:
 		Ref<EPASAnimation> animation;
 		LocomotionSetType set_type = LocomotionSetType::WHEEL;
 		float step_length = 1.0f;
+		float bounce_height = 0.0f;
 
 		void interpolate(float p_amount, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output) const {
 			// p_amount can never *actually* be 1.0 since its fed by an fmodded value
@@ -44,6 +45,7 @@ private:
 	float x_blend = 0.0f;
 	float wheel_angle = 0.0f;
 	float time = 0.0f;
+	StringName root_bone_name;
 	Vector<LocomotionSet *> locomotion_sets;
 	// We need to keep sorted locomotion sets in a separate vector
 	// the reason is so that the sets can be accessed by their indexed order
@@ -72,6 +74,10 @@ public:
 	void set_locomotion_set_step_length(int p_idx, float p_step);
 	void set_locomotion_set_animation(int p_idx, Ref<EPASAnimation> p_pose);
 	void set_locomotion_set_type(int p_idx, LocomotionSetType p_type);
+	void set_locomotion_set_bounce_height(int p_idx, float p_bounce_height);
+
+	StringName get_root_bone_name() const;
+	void set_root_bone_name(const StringName &p_root_bone_name);
 
 	virtual ~EPASWheelLocomotion();
 };

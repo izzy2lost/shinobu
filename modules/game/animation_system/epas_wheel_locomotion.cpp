@@ -66,6 +66,21 @@ void EPASWheelLocomotion::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPA
 
 			// Then we blend them together based on x_blend
 			p_target_pose->blend(second_pose, p_base_pose, p_target_pose, x);
+			if (!String(root_bone_name).is_empty()) {
+				Vector3 pos = p_target_pose->get_bone_position(root_bone_name, p_base_pose);
+				if (!p_target_pose->has_bone(root_bone_name)) {
+					p_target_pose->create_bone(root_bone_name);
+				}
+				float current_bounce_height = Math::lerp(first_set->bounce_height, second_set->bounce_height, x);
+				// contact_l 0.0 = 0.0
+				// pass_l 0.25 	 = 1.0
+				// contact_r 0.5 = 0.0
+				// pass_r 0.75   = 1.0
+				// contact_l 1.0 = 0.0
+				float current_bounce = (Math::sin(Math_TAU * 2.0f * cycle_time + 3.0f * Math_PI / 2.0f) + 1.0f) / 2.0f;
+				pos.y += current_bounce * current_bounce_height;
+				p_target_pose->set_bone_position(root_bone_name, pos);
+			}
 		}
 	}
 }
@@ -104,6 +119,19 @@ void EPASWheelLocomotion::set_locomotion_set_type(int p_idx, LocomotionSetType p
 	locomotion_sets[p_idx]->set_type = p_type;
 }
 
+void EPASWheelLocomotion::set_locomotion_set_bounce_height(int p_idx, float p_bounce_height) {
+	ERR_FAIL_INDEX_MSG(p_idx, locomotion_sets.size(), "Locomotion set out of range");
+	locomotion_sets[p_idx]->bounce_height = p_bounce_height;
+}
+
+StringName EPASWheelLocomotion::get_root_bone_name() const {
+	return root_bone_name;
+}
+
+void EPASWheelLocomotion::set_root_bone_name(const StringName &p_root_bone_name) {
+	root_bone_name = p_root_bone_name;
+}
+
 float EPASWheelLocomotion::get_wheel_angle() const {
 	return wheel_angle;
 }
@@ -123,7 +151,11 @@ void EPASWheelLocomotion::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_locomotion_set_animation", "idx", "animation"), &EPASWheelLocomotion::set_locomotion_set_animation);
 	ClassDB::bind_method(D_METHOD("set_locomotion_set_step_length", "idx", "step_length"), &EPASWheelLocomotion::set_locomotion_set_step_length);
 	ClassDB::bind_method(D_METHOD("set_locomotion_set_type", "idx", "type"), &EPASWheelLocomotion::set_locomotion_set_type);
+	ClassDB::bind_method(D_METHOD("set_locomotion_set_bounce_height", "idx", "bounce_height"), &EPASWheelLocomotion::set_locomotion_set_bounce_height);
+	ClassDB::bind_method(D_METHOD("set_root_bone_name", "root_bone_name"), &EPASWheelLocomotion::set_root_bone_name);
+	ClassDB::bind_method(D_METHOD("get_root_bone_name"), &EPASWheelLocomotion::get_root_bone_name);
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "x_blend", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_x_blend", "get_x_blend");
+	ADD_PROPERTY(PropertyInfo(Variant::STRING_NAME, "root_bone_name"), "set_root_bone_name", "get_root_bone_name");
 
 	BIND_ENUM_CONSTANT(WHEEL);
 	BIND_ENUM_CONSTANT(CONSTANT_VELOCITY);
