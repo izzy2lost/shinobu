@@ -214,7 +214,7 @@ void GodotImGui::_recreate_framebuffer() {
 	if (framebuffer.is_valid()) {
 		framebuffer = RID();
 	}
-	RID vp_text = RenderingServer::get_singleton()->texture_get_rd_texture_rid(viewport->get_texture()->get_rid());
+	RID vp_text = RenderingServer::get_singleton()->texture_get_rd_texture(viewport->get_texture()->get_rid());
 	Vector<RID> vp_text_a;
 	vp_text_a.push_back(vp_text);
 	framebuffer = RenderingDevice::get_singleton()->framebuffer_create(vp_text_a);
@@ -384,7 +384,7 @@ void GodotImGui::_setup_buffers(ImDrawData *p_draw_data) {
 
 			if (!uniform_sets.has(tex_id)) {
 				RID tex_rid = RID::from_uint64(tex_id);
-				tex_rid = RenderingServer::get_singleton()->texture_get_rd_texture_rid(tex_rid);
+				tex_rid = RenderingServer::get_singleton()->texture_get_rd_texture(tex_rid);
 				RenderingDevice::Uniform uniform;
 				uniform.binding = 0;
 				uniform.uniform_type = RenderingDevice::UniformType::UNIFORM_TYPE_SAMPLER_WITH_TEXTURE;
