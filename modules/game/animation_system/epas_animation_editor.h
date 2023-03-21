@@ -78,7 +78,6 @@ private:
 		}
 	};
 	Vector<AnimationKeyframeCache *> keyframe_cache;
-
 	ImGui::FrameIndexType current_frame = 0;
 	ImGui::FrameIndexType start_frame = 0;
 	ImGui::FrameIndexType end_frame = 100;
@@ -102,6 +101,7 @@ private:
 	EPASEditorCamera *camera;
 	Node3D *editor_3d_root;
 	EPASEditorGrid *grid;
+	MeshInstance3D *solid_ground;
 
 	Node3D *current_model = nullptr;
 	Skeleton3D *editing_skeleton = nullptr;
@@ -148,7 +148,6 @@ protected:
 	virtual void unhandled_input(const Ref<InputEvent> &p_event) override;
 
 public:
-	Transform3D get_edited_object_transform();
 	void open_file(const String &p_path);
 	void load_model(const String &p_path);
 	void set_animation(const Ref<EPASAnimation> &p_animation);

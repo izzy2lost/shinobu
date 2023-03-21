@@ -27,6 +27,7 @@
 #include "animation_system/epas_node.h"
 #include "animation_system/epas_pose.h"
 #include "animation_system/epas_pose_node.h"
+#include "animation_system/epas_transition_node.h"
 #include "animation_system/epas_wheel_locomotion.h"
 
 void initialize_game_module(ModuleInitializationLevel p_level) {
@@ -36,6 +37,7 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(HBAgent);
 		GDREGISTER_CLASS(HBAgentConstants);
 		GDREGISTER_CLASS(HBPlayerAgent);
+		GDREGISTER_CLASS(HBPlayerAgentController);
 		GDREGISTER_CLASS(HBPlayerCameraArm);
 		GDREGISTER_CLASS(HBGameMainLoop);
 		GDREGISTER_CLASS(EPASPose);
@@ -43,6 +45,7 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(EPASBlendNode);
 		GDREGISTER_CLASS(EPASAddNode);
 		GDREGISTER_CLASS(EPASInertializationNode);
+		GDREGISTER_CLASS(EPASTransitionNode);
 		GDREGISTER_CLASS(EPASPoseNode);
 		GDREGISTER_CLASS(EPASWheelLocomotion);
 		GDREGISTER_CLASS(EPASWheelVisualizer);

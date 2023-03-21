@@ -17,6 +17,9 @@
 		<member name="tilt_max_angle_degrees" type="float" setter="set_tilt_max_angle_degrees" getter="get_tilt_max_angle_degrees" default="25.0">
 			The maximum angle that the agent can tilt when accelerating.
 		</member>
+		<member name="tilt_spring_halflife" type="float" setter="set_tilt_spring_halflife" getter="get_tilt_spring_halflife" default="0.5">
+			The half-life of the spring used for smoothing out player tilting.
+		</member>
 		<member name="velocity_spring_halflife" type="float" setter="set_velocity_spring_halflife" getter="get_velocity_spring_halflife" default="0.175">
 			The half-life of the velocity spring that controls this agent's movement, see [url=https://theorangeduck.com/page/spring-roll-call#controllers]this article[/url] for a more detailed look at character velocity springs.
 		</member>

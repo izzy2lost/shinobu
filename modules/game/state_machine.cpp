@@ -72,9 +72,13 @@ HBStateMachine::HBStateMachine() {
 	set_process(true);
 }
 
-NodePath HBStateMachine::get_actor_node() const { return actor_node; }
+NodePath HBStateMachine::get_actor_node() const {
+	return actor_node;
+}
 
-void HBStateMachine::set_actor_node(const NodePath &p_actor_node) { actor_node = p_actor_node; }
+void HBStateMachine::set_actor_node(const NodePath &p_actor_node) {
+	actor_node = p_actor_node;
+}
 
 Node *HBStateMachineState::get_actor() const {
 	return state_machine->_get_actor();

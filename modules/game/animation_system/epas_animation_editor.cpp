@@ -21,12 +21,11 @@
 #include "scene/resources/primitive_meshes.h"
 #include "scene/resources/sky_material.h"
 
-Transform3D EPASAnimationEditor::get_edited_object_transform() {
-	return Transform3D();
-}
-
 void EPASAnimationEditor::_notification(int p_what) {
 	switch (p_what) {
+		case NOTIFICATION_READY: {
+			Input::get_singleton()->set_mouse_mode(Input::MouseMode::MOUSE_MODE_VISIBLE);
+		} break;
 		case NOTIFICATION_ENTER_TREE: {
 			label_font = get_theme_font(SNAME("font"));
 			GodotImGui::get_singleton()->set_enable_overlay(false);
@@ -164,16 +163,17 @@ void EPASAnimationEditor::_create_eirteam_humanoid_ik() {
 	ik_tips.push_back("foot.L");
 	ik_tips.push_back("foot.R");
 
-	Vector<int> ik_tips_idx;
+	Vector<int> bone_handles_to_hide;
 
 	for (int i = 0; i < ik_tips.size(); i++) {
 		int tip_idx = editing_skeleton->find_bone(ik_tips[i]);
 		ERR_FAIL_COND_MSG(tip_idx == -1, vformat("Can't build IK constraints, bone %s does not exist!", ik_tips[i]));
-		ik_tips_idx.push_back(tip_idx);
+		bone_handles_to_hide.push_back(tip_idx);
+		bone_handles_to_hide.push_back(editing_skeleton->get_bone_parent(tip_idx));
 	}
 
 	for (int i = 0; i < selection_handles.size(); i++) {
-		if (ik_tips_idx.has(selection_handles[i]->bone_idx)) {
+		if (bone_handles_to_hide.has(selection_handles[i]->bone_idx)) {
 			selection_handles.get(i)->hidden = true;
 		}
 	}
@@ -196,7 +196,7 @@ void EPASAnimationEditor::_create_eirteam_humanoid_ik() {
 			magnet_bone_idx = editing_skeleton->get_bone_count() - 1;
 		}
 
-		int ik_a_bone_idx = ik_tips_idx[i];
+		int ik_a_bone_idx = editing_skeleton->find_bone(ik_tips[i]);
 		int ik_b_bone_idx = editing_skeleton->get_bone_parent(ik_a_bone_idx);
 		int ik_c_bone_idx = editing_skeleton->get_bone_parent(ik_b_bone_idx);
 		{
@@ -330,8 +330,7 @@ void EPASAnimationEditor::_apply_constraints() {
 				a_local_rot,
 				b_local_rot,
 				true,
-				// Magnet is a child of no one, so its ok to use the local origin here
-				editing_skeleton->get_bone_pose_position(magnet_bone_idx));
+				editing_skeleton->get_bone_global_pose(magnet_bone_idx).origin);
 
 		String a_bone_name = editing_skeleton->get_bone_name(a_bone_idx);
 		String b_bone_name = editing_skeleton->get_bone_name(b_bone_idx);
@@ -385,7 +384,8 @@ void EPASAnimationEditor::_add_keyframe(Ref<EPASKeyframe> p_keyframe) {
 void EPASAnimationEditor::_remove_keyframe(Ref<EPASKeyframe> p_keyframe) {
 	for (int i = 0; i < keyframe_cache.size(); i++) {
 		if (keyframe_cache[i]->keyframe == p_keyframe) {
-			keyframe_cache.erase(keyframe_cache[i]);
+			memdelete(keyframe_cache[i]);
+			keyframe_cache.remove_at(i);
 			break;
 		}
 	}
@@ -411,10 +411,23 @@ void EPASAnimationEditor::_draw_ui() {
 	ImGuiIO io = ImGui::GetIO();
 	if (ImGui::BeginMainMenuBar()) {
 		if (ImGui::BeginMenu("File")) {
+			if (ImGui::MenuItem("New")) {
+				if (current_model) {
+					current_model->queue_free();
+					current_model = nullptr;
+					editing_skeleton = nullptr;
+				}
+				for (int i = 0; i < keyframe_cache.size(); i++) {
+					memdelete(keyframe_cache[i]);
+				}
+				keyframe_cache.clear();
+				undo_redo->clear_history();
+			}
 			if (ImGui::MenuItem("Open", "CTRL+O")) {
 				file_open_dialog->popup_centered_ratio(0.75);
 			}
 			if (ImGui::MenuItem("Save", "CTRL+S", false, !current_animation->get_path().is_empty())) {
+				print_line("SAVING TO!", current_animation->get_path());
 				save_to_path(current_animation->get_path());
 			}
 			if (ImGui::MenuItem("Save as...", "CTRL+S", false)) {
@@ -792,10 +805,15 @@ void EPASAnimationEditor::_commit_guizmo_transform() {
 		default: {
 		};
 	}
+	undo_redo->add_do_method(callable_mp(epas_controller, &EPASController::advance).bind(0.0f));
+	undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
+
+	undo_redo->add_undo_method(callable_mp(epas_controller, &EPASController::advance).bind(0.0f));
+	undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
+
 	undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_update_editing_handle_trf));
 	undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_update_editing_handle_trf));
-	undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
-	undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
+
 	undo_redo->commit_action();
 }
 
@@ -810,7 +828,6 @@ void EPASAnimationEditor::_show_error(const String &error) {
 void EPASAnimationEditor::open_file(const String &p_path) {
 	Error err;
 	Ref<EPASAnimation> animation = ResourceLoader::load(p_path, "EPASAnimation", ResourceFormatLoader::CACHE_MODE_REUSE, &err);
-	print_line("Err", err);
 	if (err == OK) {
 		if (animation.is_valid()) {
 			undo_redo->clear_history();
@@ -914,11 +931,9 @@ void EPASAnimationEditor::unhandled_input(const Ref<InputEvent> &p_event) {
 		if (bev->get_button_index() == MouseButton::LEFT) {
 			if (!bev->is_pressed()) {
 				editing_selection_handle = -1;
-				print_line("CLEAR SELECTION");
 				if (Input::get_singleton()->is_key_pressed(Key::CTRL)) {
 					editing_selection_handle = currently_hovered_selection_handle;
 					if (editing_selection_handle != -1) {
-						print_line("CHANGE!");
 						_update_editing_handle_trf();
 						accept_event();
 					}
@@ -952,7 +967,17 @@ void EPASAnimationEditor::save_to_path(const String &p_path) {
 
 EPASAnimationEditor::EPASAnimationEditor() {
 	if (!Engine::get_singleton()->is_editor_hint()) {
-		// HACK-ish but works
+		solid_ground = memnew(MeshInstance3D);
+		add_child(solid_ground);
+		solid_ground->set_position(Vector3(0, -0.001, 0));
+
+		Ref<PlaneMesh> plane;
+		plane.instantiate();
+		plane->set_size(Vector2(10, 10));
+
+		solid_ground->set_mesh(plane);
+
+		// HACK-ish but works, ensures we draw everything behind the imgui UI
 		set_z_index(-100);
 		set_theme(GameToolsTheme::generate_theme());
 		{
@@ -1017,7 +1042,7 @@ EPASAnimationEditor::EPASAnimationEditor() {
 
 		camera = memnew(EPASEditorCamera);
 		editor_3d_root->add_child(camera);
-		camera->set_position(Vector3(0.0, 1.0, 1.0));
+		camera->set_position(Vector3(0.0, 1.0, 2.0));
 
 		DirectionalLight3D *dl = memnew(DirectionalLight3D);
 		editor_3d_root->add_child(dl);

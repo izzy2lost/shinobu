@@ -40,7 +40,6 @@ void HBAgent::set_agent_constants(const Ref<HBAgentConstants> &p_agent_constants
 }
 
 void HBAgent::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("get_input"), &HBAgent::get_input);
 	ClassDB::bind_method(D_METHOD("set_graphics_node", "path"), &HBAgent::set_graphics_node);
 	ClassDB::bind_method(D_METHOD("get_graphics_node"), &HBAgent::get_graphics_node);
 	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "graphics_node", PROPERTY_HINT_NODE_PATH_VALID_TYPES, "Node3D"), "set_graphics_node", "get_graphics_node");
@@ -51,10 +50,17 @@ void HBAgent::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_agent_constants"), &HBAgent::get_agent_constants);
 	ClassDB::bind_method(D_METHOD("set_agent_constants", "agent_constants"), &HBAgent::set_agent_constants);
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "agent_constants", PROPERTY_HINT_RESOURCE_TYPE, "HBAgentConstants"), "set_agent_constants", "get_agent_constants");
+
+	ClassDB::bind_method(D_METHOD("set_input_action_state", "event", "state"), &HBAgent::set_input_action_state);
+
+	ClassDB::bind_method(D_METHOD("get_desired_movement_input"), &HBAgent::get_desired_movement_input);
+	ClassDB::bind_method(D_METHOD("set_movement_input", "movement_input"), &HBAgent::set_movement_input);
+
+	BIND_ENUM_CONSTANT(INPUT_ACTION_RUN);
 }
 
 void HBAgent::_rotate_towards_velocity(float p_delta) {
-	Vector3 input_vector = get_input();
+	Vector3 input_vector = get_desired_movement_input();
 	Node3D *gn = _get_graphics_node();
 
 	if (gn && agent_constants.is_valid()) {
@@ -64,15 +70,25 @@ void HBAgent::_rotate_towards_velocity(float p_delta) {
 			desired_look_normal.y = 0.0f;
 			desired_look_normal.normalize();
 			if (desired_look_normal.length() > 0.0f) {
-				Transform3D global_trf = gn->get_global_transform();
-				Vector3 current_forward = -global_trf.get_basis().get_column(Vector3::AXIS_Z);
+				Vector3 forward = Vector3(0, 0, -1);
+				Vector3 current_forward = look_at_rot.xform(forward);
 				current_forward.y = 0.0f;
 				current_forward.normalize();
+				Vector3 up = Vector3(0, 1.0f, 0);
 
-				gn->look_at(gn->get_global_transform().origin + desired_look_normal);
+				float angle_diff = current_forward.signed_angle_to(desired_look_normal, up);
+
+				float angle_delta = SIGN(angle_diff) * MIN(Math::abs(angle_diff), p_delta * Math::deg_to_rad(360.0f));
+				look_at_rot = Quaternion(up, angle_delta) * look_at_rot;
+				Transform3D global_trf = gn->get_global_transform();
+				global_trf.basis.set_quaternion(look_at_rot);
+				gn->set_global_transform(global_trf);
 			}
 		}
 	}
+
+	last_last_rotation = last_rotation;
+	last_rotation = gn->get_global_transform().basis.get_rotation_quaternion();
 }
 
 void HBAgent::_tilt_towards_acceleration(float p_delta) {
@@ -109,7 +125,7 @@ void HBAgent::_physics_process(float p_delta) {
 	ERR_FAIL_COND(!agent_constants.is_valid());
 	switch (movement_mode) {
 		case MovementMode::MOVE_GROUNDED: {
-			Vector3 input_vector = get_input();
+			Vector3 input_vector = get_desired_movement_input();
 			Vector3 desired_velocity = input_vector * agent_constants->get_max_move_velocity();
 			HBUtils::velocity_spring_vector3(
 					vel,
@@ -117,6 +133,9 @@ void HBAgent::_physics_process(float p_delta) {
 					desired_velocity,
 					agent_constants->get_velocity_spring_halflife(),
 					p_delta);
+		} break;
+		case MovementMode::MOVE_MANUAL: {
+			// TODO?
 		} break;
 	}
 
@@ -128,6 +147,19 @@ void HBAgent::_physics_process(float p_delta) {
 	_tilt_towards_acceleration(p_delta);
 
 	move_and_slide();
+	prev_input_state = current_input_state;
+}
+
+bool HBAgent::is_action_pressed(AgentInputAction p_action) const {
+	return current_input_state.action_states[p_action];
+}
+
+bool HBAgent::is_action_just_pressed(AgentInputAction p_action) const {
+	return current_input_state.action_states[p_action] && !prev_input_state.action_states[p_action];
+}
+
+bool HBAgent::is_action_just_released(AgentInputAction p_action) const {
+	return !current_input_state.action_states[p_action] && prev_input_state.action_states[p_action];
 }
 
 void HBAgent::_update_graphics_node_cache() {
@@ -284,7 +316,21 @@ Ref<HBAgentConstants> HBAgent::_get_agent_constants() const {
 }
 
 Vector3 HBAgent::_get_desired_velocity() const {
-	Vector3 input_vector = get_input();
+	Vector3 input_vector = get_desired_movement_input();
 	Vector3 desired_velocity = input_vector * agent_constants->get_max_move_velocity();
 	return desired_velocity;
+}
+
+void HBAgent::set_input_action_state(AgentInputAction p_event, bool p_state) {
+	current_input_state.action_states[p_event] = p_state;
+}
+
+void HBAgent::set_movement_input(Vector3 p_movement_input) {
+	ERR_FAIL_COND(p_movement_input.y != 0.0f);
+	current_input_state.movement = p_movement_input;
+}
+
+Vector3 HBAgent::get_desired_movement_input() const {
+	float movement_mul = is_action_pressed(AgentInputAction::INPUT_ACTION_RUN) ? 1.0f : 0.5f;
+	return current_input_state.movement * movement_mul;
 }

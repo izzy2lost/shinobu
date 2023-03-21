@@ -7,10 +7,25 @@
 	<tutorials>
 	</tutorials>
 	<methods>
-		<method name="get_input" qualifiers="const">
+		<method name="get_desired_movement_input" qualifiers="const">
 			<return type="Vector3" />
 			<description>
-				Returns the current directional input that this agent is receiving.
+				Returns the movement input after modifiers (such as run/walk) are applied.
+			</description>
+		</method>
+		<method name="set_input_action_state">
+			<return type="void" />
+			<param index="0" name="event" type="int" enum="HBAgent.AgentInputAction" />
+			<param index="1" name="state" type="bool" />
+			<description>
+				Sets the state of the given digital input action.
+			</description>
+		</method>
+		<method name="set_movement_input">
+			<return type="void" />
+			<param index="0" name="movement_input" type="Vector3" />
+			<description>
+				Sets the current analog movement input for the agent.
 			</description>
 		</method>
 	</methods>
@@ -24,4 +39,9 @@
 			The path to the node that should tilt when accelerating, this should be different from [member graphics_node].
 		</member>
 	</members>
+	<constants>
+		<constant name="INPUT_ACTION_RUN" value="0" enum="AgentInputAction">
+			Action that when enabled makes the character's movement switch to run mode from walk mode.
+		</constant>
+	</constants>
 </class>

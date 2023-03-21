@@ -3,9 +3,12 @@
 #include "core/variant/array.h"
 #include "core/variant/variant.h"
 #include "imgui.h"
+#ifdef DEBUG_ENABLED
+#include "implot.h"
 #include "modules/imgui/godot_imgui.h"
 #include "modules/imgui/godot_imgui_macros.h"
 #include "modules/imgui/thirdparty/imgui/imnodes.h"
+#endif
 #include "scene/3d/mesh_instance_3d.h"
 #include "scene/3d/skeleton_3d.h"
 #include "scene/resources/immediate_mesh.h"
@@ -42,6 +45,24 @@ void EPASController::_notification(int p_what) {
 			GodotImGui *gim = GodotImGui::get_singleton();
 			if (gim && gim->is_debug_enabled(this)) {
 				if (gim->begin_debug_window(this)) {
+					if (output_pose.is_valid() && output_pose->has_bone("spine")) {
+						for (int i = 1; i < 90; i++) {
+							hip_plot_lines_x.set(i - 1, hip_plot_lines_x[i]);
+							hip_plot_lines_y.set(i - 1, hip_plot_lines_y[i]);
+						}
+						plot_t += get_process_delta_time();
+						hip_plot_lines_x.set(90 - 1, plot_t);
+						hip_plot_lines_y.set(90 - 1, output_pose->get_bone_position("spine", base_pose_cache).y);
+						String title = "Hip Y";
+						if (ImPlot::BeginPlot("Hip Y", ImVec2(-1, 200.0f), ImPlotFlags_CanvasOnly & ~(ImPlotFlags_NoTitle | ImPlotFlags_NoLegend))) {
+							ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoTickLabels);
+							ImPlot::SetupAxisLimits(ImAxis_X1, hip_plot_lines_x[0], hip_plot_lines_x[hip_plot_lines_x.size() - 1], ImGuiCond_Always);
+							ImPlot::SetupAxisLimits(ImAxis_Y1, -1.0f, 1.0f);
+							ImPlot::PlotLine("Hip Y", hip_plot_lines_x.ptr(), hip_plot_lines_y.ptr(), hip_plot_lines_x.size());
+							ImPlot::EndPlot();
+						}
+					}
+
 					ImGui::Text("Node count %d", nodes.size());
 					ImGui::Checkbox("Show skeleton", &debug_enable_skeleton_vis);
 					ImNodes::BeginNodeEditor();
@@ -304,6 +325,8 @@ EPASController::EPASController() {
 #ifdef DEBUG_ENABLED
 	set_process_internal(true);
 	root->set_meta("epas_name", "Output");
+	hip_plot_lines_x.resize_zeroed(90);
+	hip_plot_lines_y.resize_zeroed(90);
 #endif
 	REGISTER_DEBUG(this);
 }

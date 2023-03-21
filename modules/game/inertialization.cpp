@@ -1,0 +1,151 @@
+#include "inertialization.h"
+#include "utils.h"
+
+Quaternion RotationInertializer::advance(float p_delta) {
+	current_transition_time += p_delta;
+	float rot_x = HBUtils::inertialize(rotation_offset.get_angle(), rotation_velocity, transition_duration, current_transition_time);
+	Quaternion rot_off = Quaternion(rotation_offset.get_axis().normalized(), rot_x);
+	return rot_off;
+}
+
+bool RotationInertializer::is_done() const {
+	return current_transition_time >= transition_duration;
+}
+
+Quaternion RotationInertializer::get_offset() const {
+	return rotation_offset;
+}
+
+Ref<RotationInertializer> RotationInertializer::create(const Quaternion &p_prev_prev, const Quaternion &p_prev, const Quaternion &p_target, float p_duration, float p_delta) {
+	Ref<RotationInertializer> in;
+	in.instantiate();
+
+	Quaternion q_prev = p_prev * p_target.inverse();
+	Quaternion q_prev_prev = p_prev_prev * p_target.inverse();
+	Vector3 x0_axis;
+	float x0_angle;
+
+	q_prev.get_axis_angle(x0_axis, x0_angle);
+	x0_axis.normalize();
+
+	if (x0_axis.is_normalized()) {
+		Vector3 q_x_y_z = Vector3(q_prev_prev.x, q_prev_prev.y, q_prev_prev.z);
+		float q_x_m_1 = 2.0f * Math::atan(q_x_y_z.dot(x0_axis) / q_prev_prev.w);
+		in->rotation_velocity = MIN((x0_angle - q_x_m_1) / p_delta, 0.0f);
+		in->rotation_offset = q_prev;
+		in->transition_duration = p_duration;
+		if (in->rotation_velocity != 0.0f) {
+			in->transition_duration = MIN(p_duration, -5.0f * x0_angle / in->rotation_velocity);
+		}
+	}
+
+	print_line(in->transition_duration);
+
+	return in;
+}
+
+Vector3 PositionInertializer::advance(float p_delta) {
+	current_transition_time += p_delta;
+	float pos_x = HBUtils::inertialize(position_offset.length(), position_velocity, transition_duration, current_transition_time);
+	Vector3 pos_off = position_offset.normalized() * pos_x;
+	return pos_off;
+}
+
+bool PositionInertializer::is_done() const {
+	return current_transition_time >= transition_duration;
+}
+
+Vector3 PositionInertializer::get_offset() const {
+	return position_offset;
+}
+
+Ref<PositionInertializer> PositionInertializer::create(const Vector3 &p_prev_prev, const Vector3 &p_prev, const Vector3 &p_target, float p_duration, float p_delta) {
+	Ref<PositionInertializer> in;
+	in.instantiate();
+
+	// Position info
+	Vector3 x_prev = p_prev - p_target;
+	Vector3 x_prev_prev = p_prev_prev - p_target;
+	float x_m_1 = x_prev_prev.dot(x_prev.normalized());
+	in->position_velocity = MIN((x_prev.length() - x_m_1) / p_delta, 0.0f);
+	in->position_offset = x_prev;
+	in->transition_duration = p_duration;
+	if (in->position_velocity != 0.0f) {
+		in->transition_duration = MIN(p_duration, -5.0f * (x_prev.length() / in->position_velocity));
+	}
+	return in;
+}
+
+float EPASPoseInertializer::get_current_transition_time() const {
+	return current_transition_time;
+}
+
+bool EPASPoseInertializer::advance(Ref<EPASPose> p_target_pose, const Ref<EPASPose> &p_base_pose, float p_delta) {
+	bool done = true;
+	for (int i = 0; i < transition_infos.size(); i++) {
+		StringName bone_name = transition_infos[i].bone_name;
+
+		if (!p_target_pose->has_bone(bone_name)) {
+			p_target_pose->create_bone(bone_name);
+		}
+
+		if (transition_infos[i].position_inertializer.is_valid() && !transition_infos[i].position_inertializer->is_done()) {
+			Ref<PositionInertializer> pos_inertializer = transition_infos[i].position_inertializer;
+			Vector3 bone_pos = p_target_pose->get_bone_position(bone_name, p_base_pose) + pos_inertializer->advance(p_delta);
+			p_target_pose->set_bone_position(bone_name, bone_pos);
+			done = !pos_inertializer->is_done() ? false : done;
+		}
+		if (transition_infos[i].rotation_inertializer.is_valid() && !transition_infos[i].rotation_inertializer->is_done()) {
+			Ref<RotationInertializer> rot_inertializer = transition_infos[i].rotation_inertializer;
+			Quaternion bone_rot = rot_inertializer->advance(p_delta) * p_target_pose->get_bone_rotation(bone_name, p_base_pose);
+			p_target_pose->set_bone_rotation(bone_name, bone_rot);
+			done = !rot_inertializer->is_done() ? false : done;
+		}
+	}
+	return done;
+}
+
+Ref<EPASPoseInertializer> EPASPoseInertializer::create(const Ref<EPASPose> p_poses[POSE_MAX], const Ref<EPASPose> &p_base_pose, float p_transition_duration, float p_delta, TypedArray<StringName> p_bone_filter) {
+	ERR_FAIL_COND_V_MSG(!p_poses[InertializationPose::PREV_PREV_POSE].is_valid(), Ref<EPASPoseInertializer>(), "No previous previous pose was given");
+	ERR_FAIL_COND_V_MSG(!p_poses[InertializationPose::PREV_POSE].is_valid(), Ref<EPASPoseInertializer>(), "No previous pose was given");
+	ERR_FAIL_COND_V_MSG(!p_poses[InertializationPose::TARGET_POSE].is_valid(), Ref<EPASPoseInertializer>(), "No current pose was given");
+	Ref<EPASPoseInertializer> in;
+	in.instantiate();
+	Vector<EPASPoseInertializer::TransitionInfo> transition_infos;
+
+	Ref<EPASPose> prev_prev_pose = p_poses[InertializationPose::PREV_PREV_POSE];
+	Ref<EPASPose> prev_pose = p_poses[InertializationPose::PREV_POSE];
+	Ref<EPASPose> target_pose = p_poses[InertializationPose::TARGET_POSE];
+
+	for (int i = 0; i < p_base_pose->get_bone_count(); i++) {
+		StringName bone_name = p_base_pose->get_bone_name(i);
+		if (p_bone_filter.size() > 0 && !p_bone_filter.has(bone_name)) {
+			continue;
+		}
+		EPASPoseInertializer::TransitionInfo ti;
+		ti.bone_name = bone_name;
+
+		// Position setup
+		Vector3 prev_prev_bone_pos = prev_prev_pose->get_bone_position(bone_name, p_base_pose);
+		Vector3 prev_bone_pos = prev_pose->get_bone_position(bone_name, p_base_pose);
+		Vector3 target_bone_pos = target_pose->get_bone_position(bone_name, p_base_pose);
+		Ref<PositionInertializer> pos_inertializer = PositionInertializer::create(prev_prev_bone_pos, prev_bone_pos, target_bone_pos, p_transition_duration, p_delta);
+		if (!Math::is_zero_approx(pos_inertializer->get_offset().length())) {
+			ti.position_inertializer = pos_inertializer;
+		}
+
+		Quaternion prev_prev_bone_rot = prev_prev_pose->get_bone_rotation(bone_name, p_base_pose);
+		Quaternion prev_bone_rot = prev_pose->get_bone_rotation(bone_name, p_base_pose);
+		Quaternion target_bone_rot = target_pose->get_bone_rotation(bone_name, p_base_pose);
+		Ref<RotationInertializer> rot_inertializer = RotationInertializer::create(prev_prev_bone_rot, prev_bone_rot, target_bone_rot, p_transition_duration, p_delta);
+		if (!Math::is_zero_approx(rot_inertializer->get_offset().get_angle())) {
+			ti.rotation_inertializer = rot_inertializer;
+		}
+
+		if (ti.position_inertializer.is_valid() || ti.rotation_inertializer.is_valid()) {
+			transition_infos.push_back(ti);
+		}
+	}
+	in->transition_infos = transition_infos;
+	return in;
+}

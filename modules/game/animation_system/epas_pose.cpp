@@ -173,6 +173,7 @@ Transform3D EPASPose::calculate_bone_global_transform(const StringName &p_bone_n
 
 void EPASPose::create_bone(const StringName &p_bone_name) {
 	ERR_FAIL_COND_MSG(bone_datas.has(p_bone_name), vformat("Bone %s already exists", p_bone_name));
+	ERR_FAIL_COND(String(p_bone_name).is_empty());
 	BoneData *bd = memnew(BoneData(p_bone_name));
 	bone_datas_v.push_back(bd);
 	bone_datas.insert(p_bone_name, bd);

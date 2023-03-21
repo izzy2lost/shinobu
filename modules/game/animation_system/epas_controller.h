@@ -20,6 +20,12 @@ public:
 class EPASController : public Node {
 	GDCLASS(EPASController, Node);
 
+#ifdef DEBUG_ENABLED
+	Vector<float> hip_plot_lines_y;
+	Vector<float> hip_plot_lines_x;
+	float plot_t = 0.0f;
+#endif
+
 public:
 	enum PlaybackProcessMode {
 		IDLE,

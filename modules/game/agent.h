@@ -3,6 +3,7 @@
 #define AGENT_H
 
 #include "agent_constants.h"
+#include "inertialization.h"
 #include "scene/3d/physics_body_3d.h"
 
 class HBAgent : public CharacterBody3D {
@@ -10,8 +11,22 @@ class HBAgent : public CharacterBody3D {
 
 public:
 	enum MovementMode {
-		MOVE_GROUNDED
+		MOVE_GROUNDED,
+		MOVE_MANUAL
 	};
+
+	enum AgentInputAction {
+		INPUT_ACTION_RUN,
+		INPUT_ACTION_MAX
+	};
+
+	struct InputState {
+		Vector3 movement;
+		bool action_states[AgentInputAction::INPUT_ACTION_MAX] = {};
+	};
+
+	InputState current_input_state;
+	InputState prev_input_state;
 
 private:
 	MovementMode movement_mode = MovementMode::MOVE_GROUNDED;
@@ -27,6 +42,12 @@ private:
 	ObjectID graphics_node_cache;
 	Ref<HBAgentConstants> agent_constants;
 
+	Quaternion last_rotation;
+	Quaternion last_last_rotation;
+	Ref<RotationInertializer> look_at_rot_inertializer;
+	// look at rot before inertialization being applied
+	Quaternion look_at_rot;
+
 	void _update_graphics_node_cache();
 	void _update_tilt_node_cache();
 	Node3D *_get_graphics_node();
@@ -36,14 +57,21 @@ private:
 
 	void _physics_process(float p_delta);
 
+	// Input handling
+	bool is_action_pressed(AgentInputAction p_action) const;
+	bool is_action_just_pressed(AgentInputAction p_action) const;
+	bool is_action_just_released(AgentInputAction p_action) const;
+
 protected:
 	static void _bind_methods();
 	void _notification(int p_what);
-	virtual Vector3 get_input() const { return Vector3(); };
 	Ref<HBAgentConstants> _get_agent_constants() const;
 	Vector3 _get_desired_velocity() const;
 
 public:
+	void set_input_action_state(AgentInputAction p_event, bool p_state);
+	Vector3 get_desired_movement_input() const;
+	void set_movement_input(Vector3 p_movement_input);
 	void set_graphics_node(NodePath p_path);
 	NodePath get_graphics_node() const;
 	void set_tilt_node(NodePath p_path);
@@ -67,5 +95,7 @@ public:
 	HBAgent();
 	virtual ~HBAgent();
 };
+
+VARIANT_ENUM_CAST(HBAgent::AgentInputAction);
 
 #endif // AGENT_H

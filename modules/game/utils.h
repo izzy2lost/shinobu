@@ -164,7 +164,7 @@ public:
 		// Calculate the axis of rotation for lengthening/shortening the chain
 		Vector3 axis0 = pos_a.direction_to(pos_c).cross(pos_a.direction_to(pos_c)).normalized();
 		if (p_use_magnet) {
-			Vector3 dir = pos_a.direction_to(p_magnet_pos);
+			Vector3 dir = pos_b.direction_to(p_magnet_pos);
 			axis0 = pos_a.direction_to(pos_c).cross(dir).normalized();
 		}
 		// Calculate the axis of rotation for aligning the chain with the target

@@ -16,6 +16,7 @@ def get_doc_classes():
     return [
         "HBAgent",
         "HBPlayerAgent",
+        "HBPlayerAgentController",
         "HBPlayerCameraArm",
         "EPASPose",
         "EPASNode",
@@ -25,6 +26,7 @@ def get_doc_classes():
         "EPASController",
         "EPASWheelLocomotion",
         "EPASInertializationNode",
+        "EPASTransitionNode",
         "EPASKeyframe",
         "EPASAnimation",
         "HBUtils",

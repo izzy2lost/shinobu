@@ -59,6 +59,14 @@
 				[b]Note:[/b] This animation should start from 0 and be 1 second in length.
 			</description>
 		</method>
+		<method name="set_locomotion_set_bounce_height">
+			<return type="void" />
+			<param index="0" name="idx" type="int" />
+			<param index="1" name="bounce_height" type="float" />
+			<description>
+				Sets the bounce height of this locomotion set, the bounce height is applied in such a way that its 1 during the pass pose and 0 during the contact pose.
+			</description>
+		</method>
 		<method name="set_locomotion_set_step_length">
 			<return type="void" />
 			<param index="0" name="idx" type="int" />
@@ -76,7 +84,12 @@
 		</method>
 	</methods>
 	<members>
+		<member name="root_bone_name" type="StringName" setter="set_root_bone_name" getter="get_root_bone_name" default="&amp;&quot;&quot;">
+			The name of the root bone, used for bouncing.
+		</member>
 		<member name="x_blend" type="float" setter="set_x_blend" getter="get_x_blend" default="0.0">
+			Value that indicates how the different locomotion sets are blended.
+			Usually scaled by speed.
 		</member>
 	</members>
 	<constants>
