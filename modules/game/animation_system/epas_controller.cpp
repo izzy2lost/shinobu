@@ -45,6 +45,7 @@ void EPASController::_notification(int p_what) {
 			GodotImGui *gim = GodotImGui::get_singleton();
 			if (gim && gim->is_debug_enabled(this)) {
 				if (gim->begin_debug_window(this)) {
+					ImGui::Checkbox("Show skeleton", &debug_enable_skeleton_vis);
 					if (output_pose.is_valid() && output_pose->has_bone("spine")) {
 						for (int i = 1; i < 90; i++) {
 							hip_plot_lines_x.set(i - 1, hip_plot_lines_x[i]);
@@ -54,7 +55,7 @@ void EPASController::_notification(int p_what) {
 						hip_plot_lines_x.set(90 - 1, plot_t);
 						hip_plot_lines_y.set(90 - 1, output_pose->get_bone_position("spine", base_pose_cache).y);
 						String title = "Hip Y";
-						if (ImPlot::BeginPlot("Hip Y", ImVec2(-1, 200.0f), ImPlotFlags_CanvasOnly & ~(ImPlotFlags_NoTitle | ImPlotFlags_NoLegend))) {
+						if (ImPlot::BeginPlot("Hip Y", ImVec2(600.0f, 200.0f), ImPlotFlags_CanvasOnly & ~(ImPlotFlags_NoTitle | ImPlotFlags_NoLegend))) {
 							ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoTickLabels);
 							ImPlot::SetupAxisLimits(ImAxis_X1, hip_plot_lines_x[0], hip_plot_lines_x[hip_plot_lines_x.size() - 1], ImGuiCond_Always);
 							ImPlot::SetupAxisLimits(ImAxis_Y1, -1.0f, 1.0f);
@@ -64,7 +65,6 @@ void EPASController::_notification(int p_what) {
 					}
 
 					ImGui::Text("Node count %d", nodes.size());
-					ImGui::Checkbox("Show skeleton", &debug_enable_skeleton_vis);
 					ImNodes::BeginNodeEditor();
 					debug_draw_accumulator = 0;
 					debug_draw_link_accumulator = 0;
@@ -147,6 +147,7 @@ void EPASController::_debug_update_skeleton_vis() {
 		mat->set_flag(BaseMaterial3D::FLAG_DISABLE_DEPTH_TEST, true);
 		debug_skeleton_vis->set_material_override(mat);
 	}
+	debug_skeleton_vis->show();
 	Ref<ArrayMesh> mesh = debug_skeleton_vis->get_mesh();
 	int mesh_bone_count = mesh->get_meta("mesh_bone_count", -1);
 	if (mesh_bone_count != skel->get_bone_count()) {
@@ -234,6 +235,8 @@ void EPASController::advance(float p_amount) {
 #ifdef DEBUG_ENABLED
 	if (debug_enable_skeleton_vis) {
 		_debug_update_skeleton_vis();
+	} else if (debug_skeleton_vis) {
+		debug_skeleton_vis->hide();
 	}
 #endif
 }

@@ -18,10 +18,16 @@
 	</methods>
 	<constants>
 		<constant name="STEP" value="0" enum="InterpolationMethod">
+			Doesn't actually interpolate keyframes, just shows the current one as-is.
 		</constant>
 		<constant name="LINEAR" value="1" enum="InterpolationMethod">
+			Interplates between keyframes linearly.
 		</constant>
 		<constant name="BICUBIC_SPLINE" value="2" enum="InterpolationMethod">
+			Bicubic spine interpolation with wrap-around, meaning that the starting frame affects the ending frame and vice-versa, good for looping animations.
+		</constant>
+		<constant name="BICUBIC_SPLINE_CLAMPED" value="3" enum="InterpolationMethod">
+			Same as [constant BICUBIC_SPLINE] but it doesn't wrap-around, good for animations that don't loop.
 		</constant>
 	</constants>
 </class>

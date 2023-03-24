@@ -12,7 +12,6 @@
 
 #ifndef GODOT_IMGUI_H
 #define GODOT_IMGUI_H
-#include <cstdint>
 #ifdef DEBUG_ENABLED
 #include "ImGuizmo.h"
 #include "imgui.h"
@@ -20,6 +19,7 @@
 #include "scene/gui/subviewport_container.h"
 #include "scene/main/viewport.h"
 #include "thirdparty/fonts/imgui_fonts.h"
+#include <cstdint>
 
 class GodotImGui : public SubViewportContainer {
 	GDCLASS(GodotImGui, SubViewportContainer);

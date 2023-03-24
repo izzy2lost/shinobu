@@ -31,6 +31,17 @@ void EPASAnimationEditor::_notification(int p_what) {
 			GodotImGui::get_singleton()->set_enable_overlay(false);
 		} break;
 		case NOTIFICATION_INTERNAL_PROCESS: {
+			if (warp_point_sphere_update_queued) {
+				// Update warp point spheres to new positions
+				Ref<MultiMesh> mm = warp_point_spheres->get_multimesh();
+				mm->set_instance_count(current_animation->get_warp_point_count());
+				for (int i = 0; i < current_animation->get_warp_point_count(); i++) {
+					Transform3D trf = current_animation->get_warp_point(i)->get_transform();
+					mm->set_instance_transform(i, trf);
+				}
+				warp_point_sphere_update_queued = false;
+			}
+
 			_draw_ui();
 			if (!_is_playing()) {
 				epas_animation_node->seek(current_frame / (float)FPS);
@@ -50,7 +61,7 @@ void EPASAnimationEditor::_draw_bone_positions() {
 	Camera3D *cam = get_viewport()->get_camera_3d();
 
 	if (cam && editing_skeleton && get_current_pose().is_valid()) {
-		if (editing_skeleton->get_bone_count() == 0) {
+		if (selection_handles.size() == 0) {
 			return;
 		}
 		HashMap<int, Vector2> handles_screen_position;
@@ -60,11 +71,19 @@ void EPASAnimationEditor::_draw_bone_positions() {
 		Vector2 closest_handle_scr_pos;
 		for (int i = 0; i < selection_handles.size(); i++) {
 			Vector3 handle_pos;
-			if (selection_handles[i]->hidden) {
+			if (selection_handles[i]->hidden || !ui_info.group_visibility[selection_handles[i]->group]) {
 				continue;
 			}
-			int bone_idx = selection_handles[i]->bone_idx;
-			handle_pos = editing_skeleton->to_global(editing_skeleton->get_bone_global_pose(bone_idx).origin);
+			switch (selection_handles[i]->type) {
+				case Selection::SelectionType::FK_BONE:
+				case Selection::SelectionType::IK_HANDLE: {
+					int bone_idx = selection_handles[i]->bone_idx;
+					handle_pos = editing_skeleton->to_global(editing_skeleton->get_bone_global_pose(bone_idx).origin);
+				} break;
+				case Selection::SelectionType::WARP_POINT: {
+					handle_pos = selection_handles[i]->warp_point->get_transform().origin;
+				}
+			}
 
 			if (!cam->is_position_behind(handle_pos)) {
 				Vector2 handle_scr_pos = cam->unproject_position(handle_pos);
@@ -83,6 +102,7 @@ void EPASAnimationEditor::_draw_bone_positions() {
 		Color color_right = Color::named("Red");
 		Color color_left = Color::named("Lime Green");
 		Color color_ik = Color::named("Blue");
+		Color color_warp_point = Color::named("Green");
 
 		Ref<MultiMesh> mm = selection_handle_dots->get_multimesh();
 
@@ -112,6 +132,10 @@ void EPASAnimationEditor::_draw_bone_positions() {
 					}
 					handle_color = color_ik;
 				} break;
+				case Selection::WARP_POINT: {
+					handle_color = color_warp_point;
+					handle_name = handle->warp_point->get_point_name();
+				} break;
 			}
 
 			if (pair.key == closest_handle) {
@@ -137,11 +161,11 @@ void EPASAnimationEditor::_draw_bone_positions() {
 
 void EPASAnimationEditor::_world_to_bone_trf(int p_bone_idx, const float *p_world_trf, Transform3D &p_out) {
 	HBUtils::mat_to_trf(p_world_trf, p_out);
-	p_out = editing_skeleton->get_global_transform().affine_inverse() * p_out;
 	int parent = editing_skeleton->get_bone_parent(p_bone_idx);
 	if (parent != -1) {
 		p_out = editing_skeleton->get_bone_global_pose(parent).affine_inverse() * p_out;
 	}
+	p_out = editing_skeleton->get_global_transform().affine_inverse() * p_out;
 }
 
 // Need this thing for undo_redo reasons
@@ -156,6 +180,8 @@ void EPASAnimationEditor::_create_eirteam_humanoid_ik() {
 		_show_error("You need to load a model before creating an IK rig for it!");
 		return;
 	}
+	int root = editing_skeleton->get_parentless_bones()[0];
+	Transform3D root_rest = editing_skeleton->get_bone_rest(root);
 	undo_redo->clear_history();
 	Vector<String> ik_tips;
 	ik_tips.push_back("hand.L");
@@ -186,6 +212,7 @@ void EPASAnimationEditor::_create_eirteam_humanoid_ik() {
 		if (target_bone_idx == -1) {
 			editing_skeleton->add_bone(ik_target_bone_name);
 			target_bone_idx = editing_skeleton->get_bone_count() - 1;
+			editing_skeleton->set_bone_parent(target_bone_idx, root);
 		}
 
 		String ik_magnet_bone_name = "IK.Magnet." + ik_tips[i];
@@ -194,6 +221,7 @@ void EPASAnimationEditor::_create_eirteam_humanoid_ik() {
 		if (magnet_bone_idx == -1) {
 			editing_skeleton->add_bone(ik_magnet_bone_name);
 			magnet_bone_idx = editing_skeleton->get_bone_count() - 1;
+			editing_skeleton->set_bone_parent(magnet_bone_idx, root);
 		}
 
 		int ik_a_bone_idx = editing_skeleton->find_bone(ik_tips[i]);
@@ -201,7 +229,7 @@ void EPASAnimationEditor::_create_eirteam_humanoid_ik() {
 		int ik_c_bone_idx = editing_skeleton->get_bone_parent(ik_b_bone_idx);
 		{
 			// Set the rest position for the target bone
-			editing_skeleton->set_bone_rest(target_bone_idx, editing_skeleton->get_bone_global_rest(ik_a_bone_idx));
+			editing_skeleton->set_bone_rest(target_bone_idx, root_rest.affine_inverse() * editing_skeleton->get_bone_global_rest(ik_a_bone_idx));
 			editing_skeleton->reset_bone_pose(target_bone_idx);
 
 			Transform3D a_trf = editing_skeleton->get_bone_global_rest(ik_a_bone_idx);
@@ -220,7 +248,7 @@ void EPASAnimationEditor::_create_eirteam_humanoid_ik() {
 			// Set rest position for the magnet bone
 			Transform3D magnet_trf;
 			magnet_trf.origin = magnet_pos;
-			editing_skeleton->set_bone_rest(magnet_bone_idx, magnet_trf);
+			editing_skeleton->set_bone_rest(magnet_bone_idx, root_rest.affine_inverse() * magnet_trf);
 			editing_skeleton->reset_bone_pose(magnet_bone_idx);
 		}
 
@@ -241,51 +269,18 @@ void EPASAnimationEditor::_create_eirteam_humanoid_ik() {
 		ik_target_handle->bone_idx = target_bone_idx;
 		ik_target_handle->ik_joint = ik_constraint;
 		ik_target_handle->type = Selection::SelectionType::IK_HANDLE;
+		ik_target_handle->group = Selection::SelectionGroup::IK_GROUP;
 
 		ik_magnet_handle->bone_idx = magnet_bone_idx;
 		ik_magnet_handle->is_ik_magnet = true;
 		ik_magnet_handle->ik_joint = ik_constraint;
 		ik_magnet_handle->type = Selection::SelectionType::IK_HANDLE;
+		ik_magnet_handle->group = Selection::SelectionGroup::IK_GROUP;
 
 		selection_handles.push_back(ik_target_handle);
 		selection_handles.push_back(ik_magnet_handle);
 		ik_constraints.push_back(ik_constraint);
 	}
-}
-
-void EPASAnimationEditor::_apply_handle_transform(int p_handle, const Transform3D &p_trf) {
-	// Apply the handle transform based on the user's input, after the user is done use
-	// _commit_handle_transform to save it to undo_redo
-	ERR_FAIL_INDEX_MSG(p_handle, selection_handles.size(), "Handle idx is out of range");
-	Ref<Selection> selection_handle = selection_handles[p_handle];
-	Ref<EPASPose> current_pose = get_current_pose();
-	ERR_FAIL_COND(!current_pose.is_valid());
-
-	Ref<EPASPose> old_pose = current_pose->duplicate();
-	int bone_idx = selection_handle->bone_idx;
-
-	// Apply bone transform
-	Transform3D bone_trf;
-	_world_to_bone_trf(bone_idx, current_handle_trf_matrix.ptr(), bone_trf);
-	StringName bone_name = editing_skeleton->get_bone_name(bone_idx);
-	if (!current_pose->has_bone(bone_name)) {
-		current_pose->create_bone(bone_name);
-	}
-	switch (guizmo_operation) {
-		case ImGuizmo::TRANSLATE: {
-			current_pose->set_bone_position(bone_name, bone_trf.origin);
-		} break;
-		case ImGuizmo::ROTATE: {
-			current_pose->set_bone_rotation(bone_name, bone_trf.basis.get_rotation_quaternion());
-		} break;
-		case ImGuizmo::SCALE: {
-			current_pose->set_bone_scale(bone_name, bone_trf.basis.get_scale());
-		} break;
-		default: {
-		};
-	}
-
-	_apply_constraints();
 }
 
 void EPASAnimationEditor::_apply_constraints() {
@@ -437,6 +432,18 @@ void EPASAnimationEditor::_draw_ui() {
 			if (ImGui::MenuItem("Load model", "CTRL+L")) {
 				model_load_dialog->popup_centered_ratio(0.75);
 			}
+			if (ImGui::MenuItem("Load placeholder scene")) {
+				placeholder_load_dialog->popup_centered_ratio(0.75);
+			}
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("View")) {
+			if (ImGui::MenuItem("ConstraintDBG")) {
+				ui_info.constraintdbg_window_visible = !ui_info.constraintdbg_window_visible;
+			}
+			if (ImGui::MenuItem("PoseDBG")) {
+				ui_info.posedbg_window_visible = !ui_info.posedbg_window_visible;
+			}
 			ImGui::EndMenu();
 		}
 		if (ImGui::BeginMenu("Tools")) {
@@ -452,6 +459,33 @@ void EPASAnimationEditor::_draw_ui() {
 			if (ImGui::MenuItem("Create EIRTeam humanoid IK rig")) {
 				_create_eirteam_humanoid_ik();
 			}
+			if (ImGui::MenuItem("Convert legacy IK")) {
+				// In the past IK bones used to be children of nobody, nowadays they are children of root
+				if (editing_skeleton && current_animation->get_meta("_has_old_ik", true)) {
+					for (int i = 0; i < current_animation->get_keyframe_count(); i++) {
+						Ref<EPASKeyframe> kf = current_animation->get_keyframe(i);
+						Ref<EPASPose> pose = kf->get_pose();
+						for (int j = 0; j < ik_constraints.size(); j++) {
+							const Ref<EPASAnimationEditorIKJoint> ik_constraint = ik_constraints[j];
+							StringName target_bone_name = ik_constraint->get_ik_target_bone_name();
+							StringName magnet_bone_name = ik_constraint->get_ik_magnet_bone_name();
+							StringName bones[2] = { target_bone_name, magnet_bone_name };
+							Transform3D root_trf = pose->get_bone_transform("root", epas_controller->get_base_pose());
+							for (int k = 0; k < 2; k++) {
+								StringName bone_name = bones[k];
+								if (pose->has_bone(bone_name)) {
+									Transform3D curr_bone_global = pose->get_bone_transform(bone_name, epas_controller->get_base_pose());
+									Transform3D new_trf = root_trf.affine_inverse() * curr_bone_global;
+									pose->set_bone_position(bone_name, new_trf.origin);
+									if (bone_name != magnet_bone_name) {
+										pose->set_bone_rotation(bone_name, new_trf.basis.get_rotation_quaternion());
+									}
+								}
+							}
+						}
+					}
+				}
+			}
 			ImGui::EndMenu();
 		}
 		ImGui::EndMainMenuBar();
@@ -466,6 +500,34 @@ void EPASAnimationEditor::_draw_ui() {
 		if (ImGui::Begin("ToolDock", nullptr, window_flags)) {
 			ImGui::SetNextItemWidth(70);
 			ImGui::Combo("", (int *)&guizmo_mode, "Local\0Global\0\0");
+			ImGui::SameLine();
+			if (ImGui::Button("GroupVis")) {
+				ImGui::OpenPopup("GroupVisPopup");
+			}
+
+			if (ImGui::BeginPopup("GroupVisPopup")) {
+				const char *GROUP_NAMES[] = {
+					"FK Center",
+					"FK Left",
+					"FK Right",
+					"FK Fingers",
+					"IK Bones",
+					"Warp Points",
+				};
+				String eye_icon = String::utf8(FONT_REMIX_ICON_EYE_LINE " ");
+				String eye_off_icon = String::utf8(FONT_REMIX_ICON_EYE_CLOSE_LINE " ");
+				ImGui::PushItemFlag(ImGuiItemFlags_SelectableDontClosePopup, true);
+				for (int i = 0; i < ui_info.group_visibility.size(); i++) {
+					String name = ui_info.group_visibility[i] ? eye_icon : eye_off_icon;
+					name += String(GROUP_NAMES[i]);
+					if (ImGui::Selectable(name.utf8().get_data())) {
+						ui_info.group_visibility.set(i, !ui_info.group_visibility[i]);
+					}
+				}
+				ImGui::PopItemFlag();
+				ImGui::EndPopup();
+			}
+
 			ImGui::BeginDisabled(guizmo_operation == ImGuizmo::OPERATION::TRANSLATE);
 			if (ImGui::Button(FONT_REMIX_ICON_DRAG_MOVE_2_LINE)) {
 				guizmo_operation = ImGuizmo::TRANSLATE;
@@ -504,8 +566,8 @@ void EPASAnimationEditor::_draw_ui() {
 
 		ImGui::DockBuilderDockWindow("Timeline", dock_bottom);
 		ImGui::DockBuilderDockWindow("Settings", dock_up_r);
-		ImGui::DockBuilderDockWindow("PoseDBG", dock_up_r);
-		ImGui::DockBuilderDockWindow("ConstraintDBG", dock_up_r);
+		ImGui::DockBuilderDockWindow("Undo History", dock_up_r);
+		ImGui::DockBuilderDockWindow("Warp Points", dock_up_r);
 		ImGui::DockBuilderFinish(dock_id);
 	}
 	ImGui::DockSpace(dock_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
@@ -636,83 +698,158 @@ void EPASAnimationEditor::_draw_ui() {
 	if (ImGui::Begin("Settings")) {
 		EPASAnimation::InterpolationMethod interp_method = epas_animation_node->get_interpolation_method();
 		EPASAnimation::InterpolationMethod original_interp_method = interp_method;
-		const char *items[] = { "Step", "Linear", "Bicubic" };
+		const char *items[] = { "Step", "Linear", "Bicubic", "Bicublic Clamped" };
 		ImGui::SetNextItemWidth(80);
 		ImGui::Combo("Interpolation", reinterpret_cast<int *>(&interp_method), items, IM_ARRAYSIZE(items));
 		if (interp_method != original_interp_method) {
 			epas_animation_node->set_interpolation_method(interp_method);
 		}
-		ImGui::InputInt("Length", &end_frame);
 	};
 	ImGui::End();
 
 	Ref<EPASPose> current_pose = get_current_pose();
+	if (ui_info.posedbg_window_visible) {
+		if (ImGui::Begin("PoseDBG", &ui_info.posedbg_window_visible)) {
+			if (current_pose.is_valid()) {
+				EPASAnimationEditor::AnimationKeyframeCache *f = get_keyframe(current_frame);
+				ImGui::Text("%d %d", f->frame_time, f->temporary_frame_time);
+				ImGui::Text("%f", f->keyframe->get_time() * 60.0f);
+				for (int i = 0; i < current_pose->get_bone_count(); i++) {
+					StringName bone_name = current_pose->get_bone_name(i);
+					String bone_name_str = bone_name;
+					if (ImGui::CollapsingHeader(bone_name_str.utf8().get_data())) {
+						ImGui::PushID(bone_name.data_unique_pointer());
+						if (current_pose->get_bone_has_position(bone_name)) {
+							ImGui::AlignTextToFramePadding();
+							ImGui::TextUnformatted(vformat("Pos %s", current_pose->get_bone_position(bone_name)).utf8().get_data());
+							ImGui::SameLine();
+							if (ImGui::Button("X##pos")) {
+								undo_redo->create_action("Remove position from keyframe");
+								undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_position).bind(bone_name, false));
+								undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_position).bind(bone_name, true));
+								undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
+								undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
+								undo_redo->commit_action();
+							}
+						}
+						if (current_pose->get_bone_has_rotation(bone_name)) {
+							ImGui::AlignTextToFramePadding();
+							ImGui::TextUnformatted(vformat("Rot %s", current_pose->get_bone_rotation(bone_name)).utf8().ptr());
+							ImGui::SameLine();
+							if (ImGui::Button("X##rot")) {
+								undo_redo->create_action("Remove rotation from keyframe");
+								undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_rotation).bind(bone_name, false));
+								undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_rotation).bind(bone_name, true));
+								undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
+								undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
+								undo_redo->commit_action();
+							}
+						}
+						if (current_pose->get_bone_has_scale(bone_name)) {
+							ImGui::AlignTextToFramePadding();
+							ImGui::TextUnformatted(vformat("Scale %s", current_pose->get_bone_scale(bone_name)).utf8().ptr());
+							ImGui::SameLine();
+							if (ImGui::Button("X##scale")) {
+								undo_redo->create_action("Remove scale from keyframe");
+								undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_scale).bind(bone_name, false));
+								undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_scale).bind(bone_name, true));
+								undo_redo->commit_action();
+							}
+						}
+						ImGui::PopID();
+					}
+				}
+			}
+		}
+		ImGui::End();
+	}
 
-	if (ImGui::Begin("PoseDBG")) {
-		if (current_pose.is_valid()) {
-			for (int i = 0; i < current_pose->get_bone_count(); i++) {
-				StringName bone_name = current_pose->get_bone_name(i);
-				String bone_name_str = bone_name;
-				if (ImGui::CollapsingHeader(bone_name_str.utf8().get_data())) {
-					ImGui::PushID(bone_name.data_unique_pointer());
-					if (current_pose->get_bone_has_position(bone_name)) {
-						ImGui::AlignTextToFramePadding();
-						ImGui::TextUnformatted(vformat("Pos %s", current_pose->get_bone_position(bone_name)).utf8().get_data());
-						ImGui::SameLine();
-						if (ImGui::Button("X##pos")) {
-							undo_redo->create_action("Remove position from keyframe");
-							undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_position).bind(bone_name, false));
-							undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_position).bind(bone_name, true));
-							undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
-							undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
-							undo_redo->commit_action();
-						}
+	if (ui_info.constraintdbg_window_visible) {
+		if (ImGui::Begin("ConstraintDBG", &ui_info.constraintdbg_window_visible)) {
+			for (int i = 0; i < ik_constraints.size(); i++) {
+				if (editing_skeleton) {
+					if (ImGui::CollapsingHeader(vformat("Constraint %d", i).utf8().get_data(), ImGuiTreeNodeFlags_DefaultOpen)) {
+						String tip_bone_name = ik_constraints[i]->get_ik_tip_bone_name();
+						ImGui::Text("Tip bone: %s (%d)", tip_bone_name.utf8().get_data(), editing_skeleton->find_bone(tip_bone_name));
+						String target_bone_name = ik_constraints[i]->get_ik_target_bone_name();
+						ImGui::Text("Target bone: %s (%d)", target_bone_name.utf8().get_data(), editing_skeleton->find_bone(target_bone_name));
+						String magnet_bone_name = ik_constraints[i]->get_ik_magnet_bone_name();
+						ImGui::Text("Magnet bone: %s (%d)", magnet_bone_name.utf8().get_data(), editing_skeleton->find_bone(magnet_bone_name));
 					}
-					if (current_pose->get_bone_has_rotation(bone_name)) {
-						ImGui::AlignTextToFramePadding();
-						ImGui::TextUnformatted(vformat("Rot %s", current_pose->get_bone_rotation(bone_name)).utf8().ptr());
-						ImGui::SameLine();
-						if (ImGui::Button("X##rot")) {
-							undo_redo->create_action("Remove rotation from keyframe");
-							undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_rotation).bind(bone_name, false));
-							undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_rotation).bind(bone_name, true));
-							undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
-							undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
-							undo_redo->commit_action();
-						}
+				}
+			}
+		}
+		ImGui::End();
+	}
+	if (ImGui::Begin("Undo History")) {
+		ImGui::Text("Version: %lu", undo_redo->get_version());
+		ImGui::PushItemWidth(-1);
+		if (ImGui::BeginListBox("##Actions")) {
+			int current_action = undo_redo->get_current_action();
+			for (int i = 0; i < undo_redo->get_history_count(); i++) {
+				ImGui::Selectable(undo_redo->get_action_name(i).utf8().get_data(), i == current_action);
+			}
+			ImGui::EndListBox();
+		}
+	}
+	ImGui::End();
+	if (ImGui::Begin("Warp Points")) {
+		static char input[128] = {};
+		ImGui::InputText("##name", input, 128);
+		ImGui::SameLine();
+		if (ImGui::Button(FONT_REMIX_ICON_ADD)) {
+			String wp_name = String(input);
+			if (!wp_name.is_empty()) {
+				if (current_animation->has_warp_point(wp_name)) {
+					_show_error("Animation already has a warp point with that name!");
+				} else {
+					Ref<EPASWarpPoint> warp_point;
+					warp_point.instantiate();
+					warp_point->set_point_name(wp_name);
+					undo_redo->create_action("Add new warp point");
+					undo_redo->add_do_method(callable_mp(current_animation.ptr(), &EPASAnimation::add_warp_point).bind(warp_point));
+					undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_add_warp_point).bind(warp_point));
+					undo_redo->add_undo_method(callable_mp(current_animation.ptr(), &EPASAnimation::erase_warp_point).bind(warp_point));
+					undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_remove_warp_point).bind(warp_point));
+					undo_redo->commit_action();
+				}
+			}
+		}
+		if (current_animation->get_warp_point_count() > 0) {
+			int selected_warp_point_idx = CLAMP(ui_info.selected_warp_point, 0, current_animation->get_warp_point_count());
+			const char *preview_value = String(current_animation->get_warp_point(selected_warp_point_idx)->get_point_name()).utf8().get_data();
+			if (ImGui::BeginCombo("##warp points", preview_value)) {
+				for (int i = 0; i < current_animation->get_warp_point_count(); i++) {
+					Ref<EPASWarpPoint> wp = current_animation->get_warp_point(i);
+					bool selected = i == selected_warp_point_idx;
+					ImGui::Selectable(String(wp->get_point_name()).utf8().get_data());
+					if (selected) {
+						ImGui::SetItemDefaultFocus();
 					}
-					if (current_pose->get_bone_has_scale(bone_name)) {
-						ImGui::AlignTextToFramePadding();
-						ImGui::TextUnformatted(vformat("Scale %s", current_pose->get_bone_scale(bone_name)).utf8().ptr());
-						ImGui::SameLine();
-						if (ImGui::Button("X##scale")) {
-							undo_redo->create_action("Remove scale from keyframe");
-							undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_scale).bind(bone_name, false));
-							undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_has_scale).bind(bone_name, true));
-							undo_redo->commit_action();
-						}
-					}
-					ImGui::PopID();
+				}
+				ImGui::EndCombo();
+			}
+			Ref<EPASWarpPoint> wp = current_animation->get_warp_point(selected_warp_point_idx);
+			const char *WARP_PROPS[] = {
+				"facing_start", "facing_end",
+				"rotation_start", "rotation_end",
+				"translation_start", "translation_end"
+			};
+			for (int i = 0; i < 6; i += 2) {
+				int warp_prop_vals[2] = { (int)wp->get(WARP_PROPS[i]), (int)wp->get(WARP_PROPS[i + 1]) };
+				String name = String(WARP_PROPS[i]).capitalize().split(" ")[0];
+				ImGui::PushItemWidth(-100);
+				if (ImGui::InputInt2(name.utf8().get_data(), warp_prop_vals)) {
+					undo_redo->create_action(vformat("Set warp point %s", name), UndoRedo::MergeMode::MERGE_ENDS);
+					undo_redo->add_undo_property(wp.ptr(), WARP_PROPS[i], wp->get(WARP_PROPS[i]));
+					undo_redo->add_do_property(wp.ptr(), WARP_PROPS[i], warp_prop_vals[i]);
+					undo_redo->add_undo_property(wp.ptr(), WARP_PROPS[i + 1], wp->get(WARP_PROPS[i + 1]));
+					undo_redo->add_do_property(wp.ptr(), WARP_PROPS[i] + 1, warp_prop_vals[i + 1]);
+					undo_redo->commit_action();
 				}
 			}
 		}
 	}
-	ImGui::End();
-	if (ImGui::Begin("ConstraintDBG")) {
-		for (int i = 0; i < ik_constraints.size(); i++) {
-			if (editing_skeleton) {
-				if (ImGui::CollapsingHeader(vformat("Constraint %d", i).utf8().get_data(), ImGuiTreeNodeFlags_DefaultOpen)) {
-					String tip_bone_name = ik_constraints[i]->get_ik_tip_bone_name();
-					ImGui::Text("Tip bone: %s (%d)", tip_bone_name.utf8().get_data(), editing_skeleton->find_bone(tip_bone_name));
-					String target_bone_name = ik_constraints[i]->get_ik_target_bone_name();
-					ImGui::Text("Target bone: %s (%d)", target_bone_name.utf8().get_data(), editing_skeleton->find_bone(target_bone_name));
-					String magnet_bone_name = ik_constraints[i]->get_ik_magnet_bone_name();
-					ImGui::Text("Magnet bone: %s (%d)", magnet_bone_name.utf8().get_data(), editing_skeleton->find_bone(magnet_bone_name));
-				}
-			}
-		}
-	}
-	ImGui::End();
 
 	Ref<World3D> world = editor_3d_root->get_world_3d();
 
@@ -735,14 +872,10 @@ void EPASAnimationEditor::_draw_ui() {
 		if (editing_selection_handle != -1) {
 			const Ref<Selection> selection_handle = selection_handles[editing_selection_handle];
 			manipulated = ImGuizmo::Manipulate(view_matrix.ptr(), projection_matrix.ptr(), guizmo_operation, guizmo_mode, current_handle_trf_matrix.ptrw());
-			if (manipulated) {
-				// Apply handle transform, without committing it to undo_redo
-				Transform3D trf;
-				HBUtils::mat_to_trf(current_handle_trf_matrix.ptr(), trf);
-				_apply_handle_transform(editing_selection_handle, trf);
-			}
-			if (!ImGuizmo::IsUsing() && was_using_gizmo) {
-				_commit_guizmo_transform();
+			Transform3D trf;
+			HBUtils::mat_to_trf(current_handle_trf_matrix.ptr(), trf);
+			if (manipulated || ImGuizmo::IsUsing()) {
+				_apply_handle_transform();
 			}
 			was_using_gizmo = ImGuizmo::IsUsing();
 		}
@@ -763,58 +896,83 @@ void EPASAnimationEditor::_draw_ui() {
 	}
 }
 
-void EPASAnimationEditor::_commit_guizmo_transform() {
+void EPASAnimationEditor::_apply_handle_transform() {
+	// Apply the handle transform based on the user's input, after the user is done use
+	Ref<Selection> selection_handle = selection_handles[editing_selection_handle];
+	Ref<EPASPose> current_pose = get_current_pose();
+	ERR_FAIL_COND(!current_pose.is_valid());
+
 	// Commit current imguizmo transform to undo_redo
 	if (editing_selection_handle == -1) {
 		return;
 	}
-	Ref<EPASPose> current_pose = get_current_pose();
 
 	if (!current_pose.is_valid()) {
 		return;
 	}
 
-	const Ref<Selection> selection_handle = selection_handles[editing_selection_handle];
-	// No need to get fancy since both fk_bone_idx and ik_bone_idx are ints
-	int editing_bone = selection_handle->bone_idx;
-	StringName bone_name = editing_skeleton->get_bone_name(editing_bone);
-	Transform3D new_bone_trf;
-	Transform3D old_bone_trf;
-	_world_to_bone_trf(editing_bone, current_handle_trf_matrix.ptr(), new_bone_trf);
-	_world_to_bone_trf(editing_bone, prev_handle_trf_matrix.ptr(), old_bone_trf);
-	if (!current_pose->has_bone(bone_name)) {
-		current_pose->create_bone(bone_name);
+	bool created_action = false;
+	// Handle bone trf
+	if (selection_handle->type == Selection::SelectionType::IK_HANDLE || selection_handle->type == Selection::SelectionType::FK_BONE) {
+		// No need to get fancy since both fk_bone_idx and ik_bone_idx are ints
+		int editing_bone = selection_handle->bone_idx;
+		StringName bone_name = editing_skeleton->get_bone_name(editing_bone);
+		Transform3D new_bone_trf;
+		Transform3D old_bone_trf;
+		_world_to_bone_trf(editing_bone, current_handle_trf_matrix.ptr(), new_bone_trf);
+		_world_to_bone_trf(editing_bone, prev_handle_trf_matrix.ptr(), old_bone_trf);
+		if (!current_pose->has_bone(bone_name)) {
+			current_pose->create_bone(bone_name);
+		}
+		String action_template = "%s bone %s";
+		switch (guizmo_operation) {
+			case ImGuizmo::TRANSLATE: {
+				created_action = true;
+				undo_redo->create_action(vformat(action_template, "Translate", bone_name), UndoRedo::MERGE_ENDS);
+				undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_position).bind(bone_name, new_bone_trf.origin));
+				undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_position).bind(bone_name, old_bone_trf.origin));
+			} break;
+			case ImGuizmo::ROTATE: {
+				created_action = true;
+				undo_redo->create_action(vformat(action_template, "Rotate", bone_name), UndoRedo::MERGE_ENDS);
+				undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_rotation).bind(bone_name, new_bone_trf.basis.get_rotation_quaternion()));
+				undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_rotation).bind(bone_name, old_bone_trf.basis.get_rotation_quaternion()));
+
+			} break;
+			case ImGuizmo::SCALE: {
+				created_action = true;
+				undo_redo->create_action(vformat(action_template, "Scale", bone_name), UndoRedo::MERGE_ENDS);
+				undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_scale).bind(bone_name, new_bone_trf.get_basis().get_scale()));
+				undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_scale).bind(bone_name, old_bone_trf.basis.get_scale()));
+			} break;
+			default: {
+			};
+		}
+	} else if (selection_handle->type == Selection::SelectionType::WARP_POINT) {
+		created_action = true;
+		Transform3D new_trf;
+		Transform3D prev_trf;
+		HBUtils::mat_to_trf(current_handle_trf_matrix.ptr(), new_trf);
+		HBUtils::mat_to_trf(prev_handle_trf_matrix.ptr(), prev_trf);
+		undo_redo->create_action("Change warp point transform", UndoRedo::MERGE_ENDS);
+		Ref<EPASWarpPoint> warp_point = selection_handle->warp_point;
+		undo_redo->add_do_method(callable_mp(warp_point.ptr(), &EPASWarpPoint::set_transform).bind(new_trf));
+		undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::queue_warp_point_sphere_update));
+		undo_redo->add_undo_method(callable_mp(warp_point.ptr(), &EPASWarpPoint::set_transform).bind(prev_trf));
+		undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::queue_warp_point_sphere_update));
 	}
-	switch (guizmo_operation) {
-		case ImGuizmo::TRANSLATE: {
-			undo_redo->create_action("Translate bone");
-			undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_position).bind(bone_name, current_pose->get_bone_position(bone_name)));
-			undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_position).bind(bone_name, old_bone_trf.origin));
-		} break;
-		case ImGuizmo::ROTATE: {
-			undo_redo->create_action("Rotate bone");
-			undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_rotation).bind(bone_name, current_pose->get_bone_rotation(bone_name)));
-			undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_rotation).bind(bone_name, old_bone_trf.basis.get_rotation_quaternion()));
+	if (created_action) {
+		undo_redo->add_do_method(callable_mp(epas_controller, &EPASController::advance).bind(0.0f));
+		undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
 
-		} break;
-		case ImGuizmo::SCALE: {
-			undo_redo->create_action("Scale bone");
-			undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_scale).bind(bone_name, current_pose->get_bone_scale(bone_name)));
-			undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_scale).bind(bone_name, old_bone_trf.basis.get_scale()));
-		} break;
-		default: {
-		};
+		undo_redo->add_undo_method(callable_mp(epas_controller, &EPASController::advance).bind(0.0f));
+		undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
+
+		undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_update_editing_handle_trf));
+		undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_update_editing_handle_trf));
+
+		undo_redo->commit_action();
 	}
-	undo_redo->add_do_method(callable_mp(epas_controller, &EPASController::advance).bind(0.0f));
-	undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
-
-	undo_redo->add_undo_method(callable_mp(epas_controller, &EPASController::advance).bind(0.0f));
-	undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
-
-	undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_update_editing_handle_trf));
-	undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_update_editing_handle_trf));
-
-	undo_redo->commit_action();
 }
 
 bool EPASAnimationEditor::_is_playing() {
@@ -823,6 +981,51 @@ bool EPASAnimationEditor::_is_playing() {
 
 void EPASAnimationEditor::_show_error(const String &error) {
 	current_error = error;
+}
+
+void EPASAnimationEditor::_add_warp_point(Ref<EPASWarpPoint> p_warp_point) {
+	ERR_FAIL_COND(!p_warp_point.is_valid());
+	Ref<Selection> handle;
+	handle.instantiate();
+	handle->warp_point = p_warp_point;
+	handle->type = Selection::SelectionType::WARP_POINT;
+	handle->group = Selection::SelectionGroup::WARP_POINT_GROUP;
+	selection_handles.push_back(handle);
+	queue_warp_point_sphere_update();
+}
+
+void EPASAnimationEditor::_remove_warp_point(Ref<EPASWarpPoint> p_warp_point) {
+	for (int i = 0; i < selection_handles.size(); i++) {
+		if (selection_handles[i]->type == Selection::WARP_POINT) {
+			if (selection_handles[i]->warp_point == p_warp_point) {
+				selection_handles.remove_at(i);
+				break;
+			}
+		}
+	}
+	queue_warp_point_sphere_update();
+}
+
+void EPASAnimationEditor::queue_warp_point_sphere_update() {
+	warp_point_sphere_update_queued = true;
+}
+
+void EPASAnimationEditor::_load_placeholder_scene(const String &p_path) {
+	Ref<PackedScene> ps = ResourceLoader::load(p_path);
+	if (ps.is_valid()) {
+		Node *node_c = ps->instantiate();
+		if (!node_c) {
+			return;
+		}
+		Node3D *node = Object::cast_to<Node3D>(node_c);
+		if (node) {
+			add_child(node);
+			placeholder_scene = node;
+		} else {
+			_show_error("Scene was not a 3D scene, are you sure you are doing this right?");
+			node_c->queue_free();
+		}
+	}
 }
 
 void EPASAnimationEditor::open_file(const String &p_path) {
@@ -838,6 +1041,14 @@ void EPASAnimationEditor::open_file(const String &p_path) {
 			set_animation(animation);
 			if (animation->get_meta("__editor_humanoid_ik", false)) {
 				_create_eirteam_humanoid_ik();
+			}
+			if (animation->has_meta("__editor_group_visibility")) {
+				Array group_vis = animation->get_meta("__editor_group_visibility");
+				if (group_vis.size() <= ui_info.group_visibility.size()) {
+					for (int i = 0; i < group_vis.size(); i++) {
+						ui_info.group_visibility.set(i, group_vis[i]);
+					}
+				}
 			}
 		} else {
 			_show_error("Selected file was not an EPAS animation file.");
@@ -891,8 +1102,18 @@ void EPASAnimationEditor::load_model(const String &path) {
 	selection_handles.clear();
 	for (int i = 0; i < skel->get_bone_count(); i++) {
 		Ref<Selection> selection_handle;
+		String bone_name = skel->get_bone_name(i);
 		selection_handle.instantiate();
 		selection_handle->bone_idx = i;
+		if (bone_name.begins_with("palm") || bone_name.begins_with("f_")) {
+			selection_handle->group = Selection::SelectionGroup::FK_FINGER_GROUP;
+		} else if (bone_name.ends_with(".L")) {
+			selection_handle->group = Selection::SelectionGroup::FK_LEFT_GROUP;
+		} else if (bone_name.ends_with(".R")) {
+			selection_handle->group = Selection::SelectionGroup::FK_RIGHT_GROUP;
+		} else {
+			selection_handle->group = Selection::SelectionGroup::FK_CENTER_GROUP;
+		}
 		selection_handles.push_back(selection_handle);
 	}
 }
@@ -901,8 +1122,18 @@ void EPASAnimationEditor::_update_editing_handle_trf() {
 	if (editing_selection_handle != -1) {
 		Transform3D handle_trf;
 		const Ref<Selection> handle = selection_handles[editing_selection_handle];
-		handle_trf = editing_skeleton->get_bone_global_pose(handle->bone_idx);
-		handle_trf = editing_skeleton->get_global_transform() * handle_trf;
+		switch (handle->type) {
+			case (Selection::SelectionType::IK_HANDLE):
+			case (Selection::SelectionType::FK_BONE): {
+				Ref<EPASPose> pose = get_current_pose();
+				handle_trf = editing_skeleton->get_bone_global_pose(handle->bone_idx);
+				handle_trf = editing_skeleton->get_global_transform() * handle_trf;
+			} break;
+			case (Selection::SelectionType::WARP_POINT): {
+				handle_trf = handle->warp_point->get_transform();
+			} break;
+		}
+
 		HBUtils::trf_to_mat(handle_trf, current_handle_trf_matrix.ptrw());
 		prev_handle_trf_matrix = current_handle_trf_matrix.duplicate();
 		queue_redraw();
@@ -911,13 +1142,17 @@ void EPASAnimationEditor::_update_editing_handle_trf() {
 
 void EPASAnimationEditor::unhandled_input(const Ref<InputEvent> &p_event) {
 	const Ref<InputEventKey> &kev = p_event;
-	if (kev.is_valid()) {
-		if (kev->is_pressed() && !kev->is_echo() && kev->get_modifiers_mask().has_flag(KeyModifierMask::CTRL)) {
+	if (kev.is_valid() && kev->is_pressed() && !kev->is_echo()) {
+		if (kev->get_modifiers_mask().has_flag(KeyModifierMask::CTRL)) {
 			if (kev->get_keycode() == Key::Z) {
 				undo_redo->undo();
 			} else if (kev->get_keycode() == Key::Y) {
 				undo_redo->redo();
 			}
+		} else if (kev->get_keycode() == Key::W) {
+			guizmo_operation = ImGuizmo::OPERATION::TRANSLATE;
+		} else if (kev->get_keycode() == Key::R) {
+			guizmo_operation = ImGuizmo::OPERATION::ROTATE;
 		}
 	}
 	const Ref<InputEventMouseMotion> &mev = p_event;
@@ -947,6 +1182,9 @@ void EPASAnimationEditor::set_animation(const Ref<EPASAnimation> &p_animation) {
 	current_animation = p_animation;
 	epas_animation_node->set_animation(p_animation);
 	_rebuild_keyframe_cache();
+	for (int i = 0; i < p_animation->get_warp_point_count(); i++) {
+		_add_warp_point(p_animation->get_warp_point(i));
+	}
 }
 
 Ref<EPASAnimation> EPASAnimationEditor::get_animation() const {
@@ -961,12 +1199,64 @@ void EPASAnimationEditor::save_to_path(const String &p_path) {
 	if (ik_constraints.size() > 0) {
 		current_animation->set_meta("__editor_humanoid_ik", true);
 	}
+	Array group_vis;
+	for (int i = 0; i < ui_info.group_visibility.size(); i++) {
+		group_vis.push_back(ui_info.group_visibility[i]);
+	}
+	current_animation->set_meta("__editor_group_visibility", group_vis);
 	int err_code = ResourceSaver::save(current_animation, p_path, ResourceSaver::FLAG_CHANGE_PATH);
 	ERR_FAIL_COND_MSG(err_code != OK, vformat("Error saving animation, %s", error_names[err_code]));
 }
 
 EPASAnimationEditor::EPASAnimationEditor() {
 	if (!Engine::get_singleton()->is_editor_hint()) {
+		{
+			// Generate the multi mesh used for warp point spheres
+			warp_point_spheres = memnew(MultiMeshInstance3D);
+			const float SPHERE_RADIUS = 0.1f;
+			add_child(warp_point_spheres);
+
+			// Make a sphere with a line pointing forward
+			Ref<SphereMesh> sphere;
+			sphere.instantiate();
+			sphere->set_height(SPHERE_RADIUS * 2.0f);
+			sphere->set_radius(SPHERE_RADIUS);
+			Array sphere_arrays = sphere->get_mesh_arrays();
+			Ref<ArrayMesh> actual_mesh;
+			actual_mesh.instantiate();
+			actual_mesh->add_surface_from_arrays(sphere->surface_get_primitive_type(0), sphere_arrays);
+
+			Array line_arrays;
+			line_arrays.resize(ArrayMesh::ARRAY_MAX);
+			PackedVector3Array vertices;
+			vertices.push_back(Vector3());
+			vertices.push_back(Vector3(0.0, 0.0, -SPHERE_RADIUS));
+			line_arrays.set(ArrayMesh::ARRAY_VERTEX, vertices);
+			actual_mesh->add_surface_from_arrays(Mesh::PRIMITIVE_LINES, line_arrays);
+
+			Ref<StandardMaterial3D> mat;
+			mat.instantiate();
+			Color col = Color::named("Blue");
+			col.a = 0.25f;
+			mat->set_albedo(col);
+			mat->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
+			mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+			actual_mesh->surface_set_material(0, mat);
+
+			Ref<StandardMaterial3D> mat2;
+			mat2.instantiate();
+			mat2->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+			actual_mesh->surface_set_material(1, mat2);
+			Ref<MultiMesh> mm;
+			mm.instantiate();
+			mm->set_transform_format(MultiMesh::TRANSFORM_3D);
+			mm->set_mesh(actual_mesh);
+			warp_point_spheres->set_multimesh(mm);
+		}
+
+		ui_info.group_visibility.resize(Selection::SelectionGroup::GROUP_MAX);
+		ui_info.group_visibility.fill(true);
+
 		solid_ground = memnew(MeshInstance3D);
 		add_child(solid_ground);
 		solid_ground->set_position(Vector3(0, -0.001, 0));
@@ -1020,6 +1310,17 @@ EPASAnimationEditor::EPASAnimationEditor() {
 			add_child(model_load_dialog);
 			model_load_dialog->set_file_mode(FileDialog::FileMode::FILE_MODE_OPEN_FILE);
 			model_load_dialog->connect("file_selected", callable_mp(this, &EPASAnimationEditor::load_model));
+		}
+		{
+			placeholder_load_dialog = memnew(FileDialog);
+			PackedStringArray filters;
+			filters.push_back("*.gltf ; GLTF model");
+			filters.push_back("*.blend ; Blender file");
+			filters.push_back("*.tscn ; Godot scene file");
+			placeholder_load_dialog->set_filters(filters);
+			add_child(placeholder_load_dialog);
+			placeholder_load_dialog->set_file_mode(FileDialog::FileMode::FILE_MODE_OPEN_FILE);
+			placeholder_load_dialog->connect("file_selected", callable_mp(this, &EPASAnimationEditor::_load_placeholder_scene));
 		}
 		{
 			save_file_dialog = memnew(FileDialog);

@@ -25,7 +25,45 @@ public:
 struct EPASKeyframeComparator {
 	_FORCE_INLINE_ bool operator()(const Ref<EPASKeyframe> &a, const Ref<EPASKeyframe> &b) const { return (a->get_time() < b->get_time()); }
 };
+class EPASWarpPoint : public Resource {
+	GDCLASS(EPASWarpPoint, Resource);
+	StringName point_name;
+	Transform3D transform;
+	int facing_start = -1;
+	int facing_end = -1;
+	int rotation_start = -1;
+	int rotation_end = -1;
+	int translation_start = -1;
+	int translation_end = -1;
 
+protected:
+	static void _bind_methods();
+
+public:
+	Transform3D get_transform() const;
+	void set_transform(const Transform3D &p_transform);
+
+	StringName get_point_name() const;
+	void set_point_name(const StringName &p_point_name);
+
+	int get_facing_start() const;
+	void set_facing_start(int p_facing_start);
+
+	int get_facing_end() const;
+	void set_facing_end(int p_facing_end);
+
+	int get_rotation_start() const;
+	void set_rotation_start(int p_rotation_start);
+
+	int get_rotation_end() const;
+	void set_rotation_end(int p_rotation_end);
+
+	int get_translation_start() const;
+	void set_translation_start(int p_translation_start);
+
+	int get_translation_end() const;
+	void set_translation_end(int p_translation_end);
+};
 class EPASAnimation : public Resource {
 	GDCLASS(EPASAnimation, Resource);
 
@@ -39,7 +77,11 @@ class EPASAnimation : public Resource {
 	void _update_length_cache();
 	void _set_keyframes(const Array &p_keyframes);
 	Array _get_keyframes() const;
+	void _set_warp_points(const Array &p_warp_points);
+	Array _get_warp_points() const;
 	void _keyframe_time_changed();
+
+	Vector<Ref<EPASWarpPoint>> warp_points;
 
 protected:
 	static void _bind_methods();
@@ -48,7 +90,8 @@ public:
 	enum InterpolationMethod {
 		STEP = 0,
 		LINEAR,
-		BICUBIC_SPLINE // Loop only, might break on other things?
+		BICUBIC_SPLINE, // Loop only, might break on other things?
+		BICUBIC_SPLINE_CLAMPED // Used outside loops
 	};
 
 	void add_keyframe(Ref<EPASKeyframe> p_keyframe);
@@ -57,7 +100,12 @@ public:
 	Ref<EPASKeyframe> get_keyframe(int p_idx) const;
 	void interpolate(float p_time, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, InterpolationMethod p_interp_method) const;
 	float get_length() const;
-	void clear();
+	bool has_warp_point(const StringName &p_name) const;
+	void add_warp_point(Ref<EPASWarpPoint> p_warp_point);
+	void erase_warp_point(Ref<EPASWarpPoint> p_warp_point);
+	int get_warp_point_count() const;
+	Ref<EPASWarpPoint> get_warp_point(int p_idx) const;
+	void clear_keyframes();
 };
 
 VARIANT_ENUM_CAST(EPASAnimation::InterpolationMethod);

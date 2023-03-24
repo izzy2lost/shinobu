@@ -13,6 +13,7 @@
 #include "epas_pose.h"
 #include "modules/imgui/godot_imgui.h"
 #include "scene/2d/multimesh_instance_2d.h"
+#include "scene/3d/multimesh_instance_3d.h"
 #include "scene/3d/node_3d.h"
 #include "scene/3d/skeleton_3d.h"
 #include "scene/gui/file_dialog.h"
@@ -47,14 +48,27 @@ private:
 	public:
 		enum SelectionType {
 			FK_BONE,
-			IK_HANDLE
+			IK_HANDLE,
+			WARP_POINT
+		};
+
+		enum SelectionGroup {
+			FK_CENTER_GROUP,
+			FK_LEFT_GROUP,
+			FK_RIGHT_GROUP,
+			FK_FINGER_GROUP,
+			IK_GROUP,
+			WARP_POINT_GROUP,
+			GROUP_MAX
 		};
 
 		SelectionType type = SelectionType::FK_BONE;
+		SelectionGroup group = SelectionGroup::FK_CENTER_GROUP;
 		int bone_idx;
 		bool hidden = false;
 		bool is_ik_magnet = false;
 		Ref<EPASAnimationEditorIKJoint> ik_joint;
+		Ref<EPASWarpPoint> warp_point;
 	};
 
 	static const int FPS = 60; // harcoded to 60... for now
@@ -67,7 +81,7 @@ private:
 		int32_t temporary_frame_time = 0;
 		AnimationKeyframeCache(Ref<EPASKeyframe> p_keyframe) {
 			keyframe = p_keyframe;
-			frame_time = keyframe->get_time() * FPS;
+			frame_time = Math::round(keyframe->get_time() * FPS);
 			temporary_frame_time = frame_time;
 		}
 		void apply_temp_frame_time() {
@@ -96,6 +110,7 @@ private:
 
 	FileDialog *file_open_dialog;
 	FileDialog *model_load_dialog;
+	FileDialog *placeholder_load_dialog;
 	FileDialog *save_file_dialog;
 
 	EPASEditorCamera *camera;
@@ -109,6 +124,9 @@ private:
 	Ref<EPASAnimation> current_animation;
 	Vector<Ref<Selection>> selection_handles;
 	MultiMeshInstance2D *selection_handle_dots;
+	// Spheres that show the location of warp points
+	MultiMeshInstance3D *warp_point_spheres;
+	Node3D *placeholder_scene;
 
 	Vector<ImGui::FrameIndexType> kf_selection;
 
@@ -119,7 +137,12 @@ private:
 	Ref<Font> label_font;
 	int currently_hovered_selection_handle = -1;
 
-	bool control = false;
+	struct ui_info_t {
+		bool posedbg_window_visible = false;
+		bool constraintdbg_window_visible = false;
+		int selected_warp_point = -1;
+		Vector<bool> group_visibility;
+	} ui_info;
 
 	UndoRedo *undo_redo = nullptr;
 
@@ -132,11 +155,15 @@ private:
 	void _world_to_bone_trf(int p_bone_idx, const float *p_world_trf, Transform3D &p_out);
 	void _set_frame_time(int p_frame_idx, int32_t p_frame_time);
 	void _create_eirteam_humanoid_ik();
-	void _apply_handle_transform(int p_handle, const Transform3D &p_trf);
+	void _apply_handle_transform();
 	void _apply_constraints();
-	void _commit_guizmo_transform();
 	bool _is_playing();
 	void _show_error(const String &error);
+	void _add_warp_point(Ref<EPASWarpPoint> p_warp_point);
+	void _remove_warp_point(Ref<EPASWarpPoint> p_warp_point);
+	bool warp_point_sphere_update_queued = false;
+	void queue_warp_point_sphere_update();
+	void _load_placeholder_scene(const String &p_path);
 
 	Ref<EPASPose> get_current_pose() const;
 	AnimationKeyframeCache *get_keyframe(int p_frame_time) const;
