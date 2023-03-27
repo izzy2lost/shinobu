@@ -38,17 +38,13 @@ void ProcessTinyProcessLibrary::make_default() {
 void ProcessTinyProcessLibrary::_on_stdout(const char *bytes, size_t size) {
 	String line;
 	line.parse_utf8(bytes, size);
-	mutex.lock();
-	stdout_lines.push_back(line);
-	mutex.unlock();
+	_push_stdout_line(line);
 }
 
 void ProcessTinyProcessLibrary::_on_stderr(const char *bytes, size_t size) {
 	String line;
 	line.parse_utf8(bytes, size);
-	mutex.lock();
-	stderr_lines.push_back(line);
-	mutex.unlock();
+	_push_stderr_line(line);
 }
 
 Ref<Process> ProcessTinyProcessLibrary::create_tpl(const String &p_path, const Vector<String> &p_arguments, const String &p_working_dir, bool p_open_stdin) {
@@ -98,7 +94,7 @@ ProcessTinyProcessLibrary::ProcessTinyProcessLibrary(const String &m_path, const
 			std::bind(&ProcessTinyProcessLibrary::_on_stdout, this, std::placeholders::_1, std::placeholders::_2),
 			std::bind(&ProcessTinyProcessLibrary::_on_stderr, this, std::placeholders::_1, std::placeholders::_2),
 			p_open_stdin));
-	p_id = process->get_id();
+	process->get_id();
 }
 
 ProcessTinyProcessLibrary::~ProcessTinyProcessLibrary() {

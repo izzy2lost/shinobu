@@ -44,7 +44,6 @@ protected:
 	void _on_stderr(const char *m_bytes, size_t m_size);
 
 	bool has_open_stdin;
-	Mutex mutex;
 
 public:
 	static void make_default();

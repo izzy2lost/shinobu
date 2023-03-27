@@ -37,14 +37,17 @@
 class Process : public Reference {
 	GDCLASS(Process, Reference);
 
+private:
+	Mutex mutex;
+	Vector<String> stdout_lines;
+	Vector<String> stderr_lines;
+
 protected:
 	static Ref<Process> (*_create)(const String &p_path, const Vector<String> &p_arguments, const String &p_working_dir, bool p_open_stdin);
 	static void _bind_methods();
 
-	Mutex mutex;
-	Vector<String> stdout_lines;
-	Vector<String> stderr_lines;
-	int p_id = 0;
+	void _push_stdout_line(const String &p_stdout_line);
+	void _push_stderr_line(const String &p_stderr_line);
 
 public:
 	static Ref<Process> create(const String &p_path, const Vector<String> &p_arguments = Vector<String>(), const String &p_working_dir = "", bool p_open_stdin = false);

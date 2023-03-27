@@ -46,6 +46,18 @@ void Process::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("close_stdin"), &Process::close_stdin);
 }
 
+void Process::_push_stdout_line(const String &p_stdout_line) {
+	mutex.lock();
+	stdout_lines.push_back(p_stdout_line);
+	mutex.unlock();
+}
+
+void Process::_push_stderr_line(const String &p_stderr_line) {
+	mutex.lock();
+	stderr_lines.push_back(p_stderr_line);
+	mutex.unlock();
+}
+
 Ref<Process> Process::create(const String &p_path, const Vector<String> &p_arguments, const String &p_working_dir, bool p_open_stdin) {
 	Ref<Process> out_proc;
 
