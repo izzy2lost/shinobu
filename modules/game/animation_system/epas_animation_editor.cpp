@@ -637,10 +637,14 @@ void EPASAnimationEditor::_draw_ui() {
 		if (_is_playing()) {
 			if (ImGui::Button(FONT_REMIX_ICON_PAUSE_LINE)) {
 				epas_animation_node->set_playback_mode(EPASAnimationNode::MANUAL);
+				epas_animation_node->set_looping_enabled(false);
 			}
 		} else if (ImGui::Button(FONT_REMIX_ICON_PLAY_LINE)) {
 			epas_animation_node->set_playback_mode(EPASAnimationNode::AUTOMATIC);
+			epas_animation_node->set_looping_enabled(true);
 		}
+		ImGui::SameLine();
+		ImGui::Text("%d/%d", current_frame, end_frame);
 
 		ImGuiNeoSequencerFlags sequencer_flags = ImGuiNeoSequencerFlags_EnableSelection;
 		sequencer_flags |= ImGuiNeoSequencerFlags_Selection_EnableDragging;
@@ -822,7 +826,9 @@ void EPASAnimationEditor::_draw_ui() {
 				for (int i = 0; i < current_animation->get_warp_point_count(); i++) {
 					Ref<EPASWarpPoint> wp = current_animation->get_warp_point(i);
 					bool selected = i == selected_warp_point_idx;
-					ImGui::Selectable(String(wp->get_point_name()).utf8().get_data());
+					if (ImGui::Selectable(String(wp->get_point_name()).utf8().get_data())) {
+						ui_info.selected_warp_point = i;
+					}
 					if (selected) {
 						ImGui::SetItemDefaultFocus();
 					}
@@ -841,10 +847,12 @@ void EPASAnimationEditor::_draw_ui() {
 				ImGui::PushItemWidth(-100);
 				if (ImGui::InputInt2(name.utf8().get_data(), warp_prop_vals)) {
 					undo_redo->create_action(vformat("Set warp point %s", name), UndoRedo::MergeMode::MERGE_ENDS);
-					undo_redo->add_undo_property(wp.ptr(), WARP_PROPS[i], wp->get(WARP_PROPS[i]));
-					undo_redo->add_do_property(wp.ptr(), WARP_PROPS[i], warp_prop_vals[i]);
-					undo_redo->add_undo_property(wp.ptr(), WARP_PROPS[i + 1], wp->get(WARP_PROPS[i + 1]));
-					undo_redo->add_do_property(wp.ptr(), WARP_PROPS[i] + 1, warp_prop_vals[i + 1]);
+					String start_prop_name = WARP_PROPS[i];
+					String end_prop_name = WARP_PROPS[i + 1];
+					undo_redo->add_undo_property(wp.ptr(), start_prop_name, wp->get(start_prop_name));
+					undo_redo->add_do_property(wp.ptr(), start_prop_name, warp_prop_vals[0]);
+					undo_redo->add_undo_property(wp.ptr(), end_prop_name, wp->get(end_prop_name));
+					undo_redo->add_do_property(wp.ptr(), end_prop_name, warp_prop_vals[1]);
 					undo_redo->commit_action();
 				}
 			}
@@ -1379,6 +1387,7 @@ EPASAnimationEditor::EPASAnimationEditor() {
 
 		epas_animation_node = Ref<EPASAnimationNode>(memnew(EPASAnimationNode));
 		epas_animation_node->set_playback_mode(EPASAnimationNode::PlaybackMode::MANUAL);
+		epas_animation_node->set_looping_enabled(false);
 		epas_controller->connect_node_to_root(epas_animation_node, "Animation");
 
 		undo_redo = memnew(UndoRedo);

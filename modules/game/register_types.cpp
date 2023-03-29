@@ -40,6 +40,7 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(HBPlayerAgentController);
 		GDREGISTER_CLASS(HBPlayerCameraArm);
 		GDREGISTER_CLASS(HBGameMainLoop);
+		// EPAS
 		GDREGISTER_CLASS(EPASPose);
 		GDREGISTER_ABSTRACT_CLASS(EPASNode);
 		GDREGISTER_CLASS(EPASBlendNode);
@@ -51,8 +52,11 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(EPASWheelVisualizer);
 		GDREGISTER_CLASS(EPASController);
 		GDREGISTER_CLASS(EPASAnimation);
+		GDREGISTER_CLASS(EPASWarpPoint);
 		GDREGISTER_CLASS(EPASKeyframe);
 		GDREGISTER_CLASS(EPASAnimationNode);
+		GDREGISTER_CLASS(EPASOneshotAnimationNode);
+		GDREGISTER_CLASS(EPASOneshotAnimationNodeDebug);
 		GDREGISTER_CLASS(EPASIKNode);
 		GDREGISTER_CLASS(HBUtils);
 #ifdef DEBUG_ENABLED

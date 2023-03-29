@@ -22,6 +22,16 @@ public:
 	void set_time(float p_time);
 };
 
+struct EPASAnimationPlaybackInfo {
+public:
+	bool use_root_motion = false;
+	StringName root_bone;
+	Transform3D root_motion_trf; // output trf
+	Transform3D starting_global_trf; // the starting trf of the skeleton
+	HashMap<StringName, Transform3D> warp_point_transforms;
+	Vector3 forward = Vector3(0, 0, -1.0f);
+};
+
 struct EPASKeyframeComparator {
 	_FORCE_INLINE_ bool operator()(const Ref<EPASKeyframe> &a, const Ref<EPASKeyframe> &b) const { return (a->get_time() < b->get_time()); }
 };
@@ -63,6 +73,10 @@ public:
 
 	int get_translation_end() const;
 	void set_translation_end(int p_translation_end);
+
+	bool has_facing() const;
+	bool has_rotation() const;
+	bool has_translation() const;
 };
 class EPASAnimation : public Resource {
 	GDCLASS(EPASAnimation, Resource);
@@ -93,12 +107,11 @@ public:
 		BICUBIC_SPLINE, // Loop only, might break on other things?
 		BICUBIC_SPLINE_CLAMPED // Used outside loops
 	};
-
 	void add_keyframe(Ref<EPASKeyframe> p_keyframe);
 	void erase_keyframe(Ref<EPASKeyframe> p_keyframe);
 	int get_keyframe_count() const;
 	Ref<EPASKeyframe> get_keyframe(int p_idx) const;
-	void interpolate(float p_time, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, InterpolationMethod p_interp_method) const;
+	void interpolate(float p_time, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, InterpolationMethod p_interp_method, EPASAnimationPlaybackInfo *p_playback_info = nullptr) const;
 	float get_length() const;
 	bool has_warp_point(const StringName &p_name) const;
 	void add_warp_point(Ref<EPASWarpPoint> p_warp_point);

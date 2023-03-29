@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EPASOneshotAnimationNode" inherits="EPASNode" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		Animation node that doesn't support looping, but allows for fancy motion warping and root motion magic.
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="get_root_motion_transform" qualifiers="const">
+			<return type="Transform3D" />
+			<description>
+				Returns the offset that should be applied to [member root_motion_starting_transform] to make the [Skeleton3D] match the root motion.
+			</description>
+		</method>
+		<method name="is_playing" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns [code]true[/code] if the animation is currently being played.
+			</description>
+		</method>
+		<method name="play">
+			<return type="void" />
+			<description>
+				Starts playback of the animation from 0.
+			</description>
+		</method>
+		<method name="set_warp_point_transform">
+			<return type="void" />
+			<param index="0" name="name" type="StringName" />
+			<param index="1" name="transform" type="Transform3D" />
+			<description>
+				Sets the transform of a given warp point.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="animation" type="EPASAnimation" setter="set_animation" getter="get_animation">
+			The animation to play back.
+		</member>
+		<member name="root_bone" type="StringName" setter="set_root_bone" getter="get_root_bone" default="&amp;&quot;&quot;">
+			The root bone that is used for root motion.
+		</member>
+		<member name="root_motion_forward" type="Vector3" setter="set_root_motion_forward" getter="get_root_motion_forward" default="Vector3(0, 0, -1)">
+			The forward vector of the animation, this is used for cases where the forward of the authored model doesn't match godot's -Z forward, such as when using blender models.
+		</member>
+		<member name="root_motion_starting_transform" type="Transform3D" setter="set_root_motion_starting_transform" getter="get_root_motion_starting_transform" default="Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)">
+			The starting transform of the [Skeleton3D] at the time the animation was started.
+		</member>
+		<member name="use_root_motion" type="bool" setter="set_use_root_motion" getter="get_use_root_motion" default="false">
+			If [code]true[/code] makes the animation use root motion.
+		</member>
+	</members>
+	<signals>
+		<signal name="playback_finished">
+			<description>
+				Emitted when the animation has finished playing.
+			</description>
+		</signal>
+	</signals>
+</class>

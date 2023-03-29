@@ -16,10 +16,16 @@ void EPASAnimationNode::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_interpolation_method", "interpolation_method"), &EPASAnimationNode::set_interpolation_method);
 	ClassDB::bind_method(D_METHOD("get_interpolation_method"), &EPASAnimationNode::get_interpolation_method);
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "interpolation_method", PROPERTY_HINT_ENUM, "Step,Linear,Bicubic"), "set_playback_mode", "get_playback_mode");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "interpolation_method", PROPERTY_HINT_ENUM, "Step,Linear,Bicubic,Bicubic Clamped"), "set_interpolation_method", "get_interpolation_method");
+
+	ClassDB::bind_method(D_METHOD("set_looping_enabled", "looping_enabled"), &EPASAnimationNode::set_looping_enabled);
+	ClassDB::bind_method(D_METHOD("get_looping_enabled"), &EPASAnimationNode::get_looping_enabled);
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "looping_enabled"), "set_looping_enabled", "get_looping_enabled");
 
 	BIND_ENUM_CONSTANT(EPASAnimationNode::AUTOMATIC);
 	BIND_ENUM_CONSTANT(EPASAnimationNode::MANUAL);
+
+	ADD_SIGNAL(MethodInfo("playback_finished"));
 }
 
 #ifdef DEBUG_ENABLED
@@ -41,7 +47,9 @@ void EPASAnimationNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASP
 	if (animation.is_valid()) {
 		if (playback_mode == PlaybackMode::AUTOMATIC) {
 			time += p_delta;
-			time = Math::fposmod(time + p_delta, animation->get_length());
+		}
+		if (looping_enabled) {
+			time = Math::fposmod(time, animation->get_length());
 		} else {
 			time = MIN(time, animation->get_length());
 		}
@@ -79,4 +87,12 @@ void EPASAnimationNode::seek(float p_time) {
 
 float EPASAnimationNode::get_time() {
 	return time;
+}
+
+bool EPASAnimationNode::get_looping_enabled() const {
+	return looping_enabled;
+}
+
+void EPASAnimationNode::set_looping_enabled(bool p_looping_enabled) {
+	looping_enabled = p_looping_enabled;
 }

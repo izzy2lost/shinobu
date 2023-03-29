@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="EPASAnimationNode" inherits="EPASNode" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		Plays back a given animation and outputs it.
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="animation" type="EPASAnimation" setter="set_animation" getter="get_animation">
+			The animation to play.
+		</member>
+		<member name="interpolation_method" type="int" setter="set_interpolation_method" getter="get_interpolation_method" enum="EPASAnimation.InterpolationMethod" default="1">
+			Selects which interpolation method to use.
+		</member>
+		<member name="looping_enabled" type="bool" setter="set_looping_enabled" getter="get_looping_enabled" default="false">
+			If true, the animation node can loop.
+		</member>
+		<member name="playback_mode" type="int" setter="set_playback_mode" getter="get_playback_mode" enum="EPASAnimationNode.PlaybackMode" default="0">
+			How the animation should advance.
+		</member>
+	</members>
+	<signals>
+		<signal name="playback_finished">
+			<description>
+				Triggers when the animation playback has finished.
+				[b]Note:[/b] This only works if [member looping_enabled] is [code]true[/code].
+			</description>
+		</signal>
+	</signals>
+	<constants>
+		<constant name="EPASAnimationNode::AUTOMATIC" value="0" enum="PlaybackMode">
+			Changes time together with the parent [EPASController].
+		</constant>
+		<constant name="EPASAnimationNode::MANUAL" value="1" enum="PlaybackMode">
+			Requires manually advancing the animation.
+			[b]TODO:[/b]: Add an [code]advance[/code] method.
+		</constant>
+	</constants>
+</class>

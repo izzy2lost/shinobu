@@ -20,6 +20,7 @@ private:
 	EPASAnimation::InterpolationMethod interpolation_method = EPASAnimation::InterpolationMethod::LINEAR;
 
 	float time = 0.0f;
+	bool looping_enabled = false;
 
 protected:
 	static void _bind_methods();
@@ -37,6 +38,9 @@ public:
 	EPASAnimation::InterpolationMethod get_interpolation_method() const;
 	void seek(float p_time);
 	float get_time();
+
+	bool get_looping_enabled() const;
+	void set_looping_enabled(bool p_looping_enabled);
 };
 
 VARIANT_ENUM_CAST(EPASAnimationNode::PlaybackMode);

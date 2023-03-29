@@ -136,7 +136,19 @@ Ref<EPASKeyframe> EPASAnimation::get_keyframe(int p_idx) const {
 	return keyframes[p_idx];
 }
 
-void EPASAnimation::interpolate(float p_time, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, InterpolationMethod p_interp_method) const {
+struct EPASWPComparator {
+	_FORCE_INLINE_ bool operator()(const Ref<EPASWarpPoint> &a, const Ref<EPASWarpPoint> &b) const {
+		int min_a = a->get_translation_start() < 0 ? INT_MAX : a->get_translation_start();
+		min_a = MIN(min_a, a->get_rotation_start() < 0 ? INT_MAX : a->get_rotation_start());
+		min_a = MIN(min_a, a->get_facing_start() < 0 ? INT_MAX : a->get_facing_start());
+		int min_b = b->get_translation_start() < 0 ? INT_MAX : b->get_translation_start();
+		min_b = MIN(min_b, b->get_rotation_start() < 0 ? INT_MAX : b->get_rotation_start());
+		min_b = MIN(min_b, b->get_facing_start() < 0 ? INT_MAX : b->get_facing_start());
+		return (min_a < min_b);
+	}
+};
+
+void EPASAnimation::interpolate(float p_time, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, InterpolationMethod p_interp_method, EPASAnimationPlaybackInfo *p_playback_info) const {
 	if (keyframes.size() == 0) {
 		// do nothing
 		return;
@@ -206,6 +218,90 @@ void EPASAnimation::interpolate(float p_time, const Ref<EPASPose> &p_base_pose, 
 			}
 		} break;
 	};
+
+	if (p_playback_info) {
+		if (p_playback_info->use_root_motion) {
+			StringName root_bone_name = p_playback_info->root_bone;
+			if (p_target_pose->has_bone(root_bone_name)) {
+				int frame = p_time * 60.0; // TODO: make this framerate configurable? Animation editor only supports 60 fps r/n
+				Transform3D base_root_trf = p_base_pose->get_bone_transform(root_bone_name);
+				Vector<Ref<EPASWarpPoint>> sorted_wps;
+				sorted_wps.resize(get_warp_point_count());
+				for (int i = 0; i < get_warp_point_count(); i++) {
+					sorted_wps.set(i, get_warp_point(i));
+				}
+				sorted_wps.sort_custom<EPASWPComparator>();
+
+				Vector3 translation_offset;
+				Quaternion rotation_offset;
+				Quaternion facing_rotation;
+				for (int i = 0; i < get_warp_point_count(); i++) {
+					Ref<EPASWarpPoint> wp = sorted_wps[i];
+					StringName wp_name = wp->get_point_name();
+					if (!p_playback_info->warp_point_transforms.has(wp_name)) {
+						continue;
+					}
+					Transform3D local_new_wp_trf = p_playback_info->starting_global_trf.affine_inverse() * p_playback_info->warp_point_transforms[wp_name];
+					if (wp->get_facing_start() <= frame && wp->has_facing()) {
+						// Process facing rotation
+						int start_frame = wp->get_facing_start();
+						int end_frame = wp->get_facing_end();
+
+						float start_time = start_frame / 60.0f;
+						float end_time = end_frame / 60.0f;
+
+						float offset_blend = Math::inverse_lerp(start_time, end_time, p_time);
+						// Perhaps we need to rotate from the actual root position instead of the base one and keep an accumulator that
+						// persists between frames? who knows, I'm not being paid enough for this
+						Transform3D transformed_root_trf = base_root_trf;
+						transformed_root_trf.origin += translation_offset;
+						Quaternion new_lookat = transformed_root_trf.looking_at(local_new_wp_trf.origin).basis.get_rotation_quaternion();
+						if (p_playback_info->forward != Vector3(0.0f, 0.0f, -1.0f)) {
+							ERR_FAIL_COND(!p_playback_info->forward.is_normalized());
+							Quaternion forward_offset = Basis().looking_at(p_playback_info->forward).get_rotation_quaternion();
+							new_lookat = forward_offset * new_lookat;
+						}
+						// Not particularly elegant way of not needing to recalculate facing for older warp points by storing it in playback_info
+						facing_rotation = facing_rotation.slerp(new_lookat, CLAMP(offset_blend, 0.0f, 1.0f));
+					}
+					if (wp->get_rotation_start() <= frame && wp->has_rotation()) {
+						// Do rotation
+						int start_frame = wp->get_rotation_start();
+						int end_frame = wp->get_rotation_end();
+
+						float start_time = start_frame / 60.0f;
+						float end_time = end_frame / 60.0f;
+
+						float offset_blend = Math::inverse_lerp(start_time, end_time, p_time);
+						Quaternion local_new_wp_rot = facing_rotation.inverse() * local_new_wp_trf.basis.get_rotation_quaternion();
+						rotation_offset = rotation_offset.slerp(local_new_wp_rot, CLAMP(offset_blend, 0.0f, 1.0f));
+					}
+					if (wp->get_translation_start() <= frame && wp->has_translation()) {
+						// Do translation
+						int start_frame = wp->get_translation_start();
+						int end_frame = wp->get_translation_end();
+
+						float start_time = start_frame / 60.0f;
+						float end_time = end_frame / 60.0f;
+
+						float offset_blend = Math::inverse_lerp(start_time, end_time, p_time);
+						// Convert to local warp point transform
+						Vector3 wp_origin = (facing_rotation * rotation_offset).xform(wp->get_transform().origin);
+						Vector3 wp_off = local_new_wp_trf.origin - wp_origin;
+						translation_offset = translation_offset.lerp(wp_off, CLAMP(offset_blend, 0.0f, 1.0f));
+					}
+				}
+				// We also rotate the root position based on the facing + rotation offsets
+				p_target_pose->set_bone_position(root_bone_name, (facing_rotation * rotation_offset).xform(p_target_pose->get_bone_position(root_bone_name, p_base_pose)) + translation_offset);
+				p_target_pose->set_bone_rotation(root_bone_name, facing_rotation * rotation_offset * p_target_pose->get_bone_rotation(root_bone_name, p_base_pose));
+				p_playback_info->root_motion_trf = p_target_pose->get_bone_transform(root_bone_name, p_base_pose);
+
+				p_target_pose->set_bone_position(root_bone_name, p_base_pose->get_bone_position(root_bone_name));
+				p_target_pose->set_bone_rotation(root_bone_name, p_base_pose->get_bone_rotation(root_bone_name));
+				p_target_pose->set_bone_scale(root_bone_name, p_base_pose->get_bone_scale(root_bone_name));
+			}
+		}
+	}
 }
 
 float EPASAnimation::get_length() const {
@@ -350,4 +446,16 @@ int EPASWarpPoint::get_translation_end() const {
 
 void EPASWarpPoint::set_translation_end(int p_translation_end) {
 	translation_end = p_translation_end;
+}
+
+bool EPASWarpPoint::has_facing() const {
+	return facing_start > -1 && facing_end > -1;
+}
+
+bool EPASWarpPoint::has_rotation() const {
+	return rotation_start > -1 && rotation_end > -1;
+}
+
+bool EPASWarpPoint::has_translation() const {
+	return translation_start > -1 && translation_end > -1;
 }
