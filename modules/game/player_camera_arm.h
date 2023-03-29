@@ -11,6 +11,11 @@ class HBPlayerCameraArm : public SpringArm3D {
 
 private:
 	Vector2 velocity;
+	Vector2 acceleration;
+	const float max_velocity = 120.0f;
+	const float acceleration_degrees = 45.0f;
+	const float max_pitch_degrees = 45.0f;
+	const float min_pitch_degrees = -65.0f;
 
 	// Mouse moves outside of the velocity system
 	Vector2 mouse_target;

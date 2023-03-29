@@ -43,6 +43,16 @@ public:
 		*a = eydt * (*a - j1 * y * dt);
 	}
 
+	static void velocity_spring_vector2(
+			Vector2 &v,
+			Vector2 &a,
+			const Vector2 &v_goal,
+			float halflife,
+			float dt) {
+		velocity_spring(&(v.x), &(a.x), v_goal.x, halflife, dt);
+		velocity_spring(&(v.y), &(a.y), v_goal.y, halflife, dt);
+	}
+
 	static void velocity_spring_vector3(
 			Vector3 &v,
 			Vector3 &a,
