@@ -422,7 +422,6 @@ void EPASAnimationEditor::_draw_ui() {
 				file_open_dialog->popup_centered_ratio(0.75);
 			}
 			if (ImGui::MenuItem("Save", "CTRL+S", false, !current_animation->get_path().is_empty())) {
-				print_line("SAVING TO!", current_animation->get_path());
 				save_to_path(current_animation->get_path());
 			}
 			if (ImGui::MenuItem("Save as...", "CTRL+S", false)) {
@@ -1214,6 +1213,7 @@ void EPASAnimationEditor::save_to_path(const String &p_path) {
 	current_animation->set_meta("__editor_group_visibility", group_vis);
 	int err_code = ResourceSaver::save(current_animation, p_path, ResourceSaver::FLAG_CHANGE_PATH);
 	ERR_FAIL_COND_MSG(err_code != OK, vformat("Error saving animation, %s", error_names[err_code]));
+	current_animation->set_path(p_path);
 }
 
 EPASAnimationEditor::EPASAnimationEditor() {
