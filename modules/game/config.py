@@ -35,4 +35,5 @@ def get_doc_classes():
         "EPASIKNode",
         "HBGameMainLoop",
         "HBAgentConstants",
+        "HBStateMachine",
     ]

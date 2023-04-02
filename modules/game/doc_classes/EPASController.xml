@@ -35,6 +35,13 @@
 				Additionally, a [code]unique_name[/code] must be given, one that doesn't exist in this controller.
 			</description>
 		</method>
+		<method name="get_epas_node" qualifiers="const">
+			<return type="EPASNode" />
+			<param index="0" name="node_name" type="StringName" />
+			<description>
+				Returns the node with the given [StringName].
+			</description>
+		</method>
 	</methods>
 	<members>
 		<member name="playback_process_mode" type="int" setter="set_playback_process_mode" getter="get_playback_process_mode" enum="EPASController.PlaybackProcessMode" default="0">

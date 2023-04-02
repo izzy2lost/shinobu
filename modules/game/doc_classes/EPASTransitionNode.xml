@@ -1,24 +1,30 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <class name="EPASTransitionNode" inherits="EPASNode" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
 	<brief_description>
+		Node that only processes a specific child.
 	</brief_description>
 	<description>
 	</description>
 	<tutorials>
 	</tutorials>
 	<methods>
-		<method name="set_input_count">
-			<return type="void" />
-			<param index="0" name="input_count" type="int" />
-			<description>
-			</description>
-		</method>
 		<method name="transition_to">
 			<return type="void" />
-			<param index="0" name="desired_input" type="int" />
-			<param index="1" name="transition_duration" type="float" default="0.25" />
+			<param index="0" name="target" type="int" />
 			<description>
+				Transitions to the given input number.
 			</description>
 		</method>
 	</methods>
+	<members>
+		<member name="transition_count" type="int" setter="set_transition_count" getter="get_transition_count" default="0">
+		</member>
+	</members>
+	<signals>
+		<signal name="transitioned">
+			<description>
+				Fired when changing inputs.
+			</description>
+		</signal>
+	</signals>
 </class>

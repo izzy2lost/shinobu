@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="HBStateMachine" inherits="Node" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="transition_to">
+			<return type="void" />
+			<param index="0" name="state" type="StringName" />
+			<param index="1" name="args" type="Dictionary" />
+			<description>
+				Transitions to the given state.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="agent_node" type="NodePath" setter="set_agent_node" getter="get_agent_node" default="NodePath(&quot;&quot;)">
+			The node the state machine acts upon.
+		</member>
+		<member name="default_state" type="String" setter="set_default_state" getter="get_default_state" default="&quot;&quot;">
+			The name of the default state.
+		</member>
+	</members>
+</class>
