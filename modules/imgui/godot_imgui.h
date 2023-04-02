@@ -18,6 +18,7 @@
 #include "imgui_neo_sequencer.h"
 #include "scene/gui/subviewport_container.h"
 #include "scene/main/viewport.h"
+#include "scene/resources/texture.h"
 #include "thirdparty/fonts/imgui_fonts.h"
 #include <cstdint>
 
@@ -76,6 +77,8 @@ public:
 	bool is_debug_enabled(const Object *p_object) const;
 
 	void set_enable_overlay(bool p_enable);
+
+	static void ImImage(const Ref<Texture2D> &p_texture);
 
 	GodotImGui();
 	~GodotImGui();

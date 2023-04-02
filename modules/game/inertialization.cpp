@@ -1,10 +1,13 @@
 #include "inertialization.h"
+#include "animation_system/epas_animation.h"
 #include "utils.h"
+
+static String rot = "";
 
 Quaternion RotationInertializer::advance(float p_delta) {
 	current_transition_time += p_delta;
-	float rot_x = HBUtils::inertialize(rotation_offset.get_angle(), rotation_velocity, transition_duration, current_transition_time);
-	Quaternion rot_off = Quaternion(rotation_offset.get_axis().normalized(), rot_x);
+	float rot_x = HBUtils::inertialize(rotation_offset_angle, rotation_velocity, transition_duration, current_transition_time);
+	Quaternion rot_off = Quaternion(rotation_offset_axis, rot_x);
 	return rot_off;
 }
 
@@ -12,34 +15,43 @@ bool RotationInertializer::is_done() const {
 	return current_transition_time >= transition_duration;
 }
 
-Quaternion RotationInertializer::get_offset() const {
-	return rotation_offset;
+float RotationInertializer::get_offset_angle() const {
+	return rotation_offset_angle;
+}
+
+Vector3 RotationInertializer::get_offset_axis() const {
+	return rotation_offset_axis;
 }
 
 Ref<RotationInertializer> RotationInertializer::create(const Quaternion &p_prev_prev, const Quaternion &p_prev, const Quaternion &p_target, float p_duration, float p_delta) {
 	Ref<RotationInertializer> in;
 	in.instantiate();
 
-	Quaternion q_prev = p_prev * p_target.inverse();
-	Quaternion q_prev_prev = p_prev_prev * p_target.inverse();
-	Vector3 x0_axis;
-	float x0_angle;
+	Quaternion q_prev = p_target.inverse() * p_prev;
+	Quaternion q_prev_prev = p_target.inverse() * p_prev_prev;
+	Vector3 x0_axis = q_prev.get_axis();
+	float x0_angle = q_prev.get_angle();
 
-	q_prev.get_axis_angle(x0_axis, x0_angle);
 	x0_axis.normalize();
+
+	// Ensure that rotations are the shortest possible
+	if (x0_angle > Math_PI) {
+		x0_angle = 2.0f * Math_PI - x0_angle;
+		x0_axis = -x0_axis;
+	}
 
 	if (x0_axis.is_normalized()) {
 		Vector3 q_x_y_z = Vector3(q_prev_prev.x, q_prev_prev.y, q_prev_prev.z);
 		float q_x_m_1 = 2.0f * Math::atan(q_x_y_z.dot(x0_axis) / q_prev_prev.w);
 		in->rotation_velocity = MIN((x0_angle - q_x_m_1) / p_delta, 0.0f);
-		in->rotation_offset = q_prev;
+		in->rotation_offset_angle = x0_angle;
+		in->rotation_offset_axis = x0_axis;
 		in->transition_duration = p_duration;
+		in->qpr = q_prev;
 		if (in->rotation_velocity != 0.0f) {
 			in->transition_duration = MIN(p_duration, -5.0f * x0_angle / in->rotation_velocity);
 		}
 	}
-
-	print_line(in->transition_duration);
 
 	return in;
 }
@@ -82,6 +94,7 @@ float EPASPoseInertializer::get_current_transition_time() const {
 
 bool EPASPoseInertializer::advance(Ref<EPASPose> p_target_pose, const Ref<EPASPose> &p_base_pose, float p_delta) {
 	bool done = true;
+	current_transition_time += p_delta;
 	for (int i = 0; i < transition_infos.size(); i++) {
 		StringName bone_name = transition_infos[i].bone_name;
 
@@ -97,7 +110,7 @@ bool EPASPoseInertializer::advance(Ref<EPASPose> p_target_pose, const Ref<EPASPo
 		}
 		if (transition_infos[i].rotation_inertializer.is_valid() && !transition_infos[i].rotation_inertializer->is_done()) {
 			Ref<RotationInertializer> rot_inertializer = transition_infos[i].rotation_inertializer;
-			Quaternion bone_rot = rot_inertializer->advance(p_delta) * p_target_pose->get_bone_rotation(bone_name, p_base_pose);
+			Quaternion bone_rot = p_target_pose->get_bone_rotation(bone_name, p_base_pose) * rot_inertializer->advance(p_delta);
 			p_target_pose->set_bone_rotation(bone_name, bone_rot);
 			done = !rot_inertializer->is_done() ? false : done;
 		}
@@ -138,7 +151,7 @@ Ref<EPASPoseInertializer> EPASPoseInertializer::create(const Ref<EPASPose> p_pos
 		Quaternion prev_bone_rot = prev_pose->get_bone_rotation(bone_name, p_base_pose);
 		Quaternion target_bone_rot = target_pose->get_bone_rotation(bone_name, p_base_pose);
 		Ref<RotationInertializer> rot_inertializer = RotationInertializer::create(prev_prev_bone_rot, prev_bone_rot, target_bone_rot, p_transition_duration, p_delta);
-		if (!Math::is_zero_approx(rot_inertializer->get_offset().get_angle())) {
+		if (!Math::is_zero_approx(rot_inertializer->get_offset_angle())) {
 			ti.rotation_inertializer = rot_inertializer;
 		}
 
@@ -146,6 +159,7 @@ Ref<EPASPoseInertializer> EPASPoseInertializer::create(const Ref<EPASPose> p_pos
 			transition_infos.push_back(ti);
 		}
 	}
+
 	in->transition_infos = transition_infos;
 	return in;
 }

@@ -39,6 +39,28 @@ void HBAgent::set_agent_constants(const Ref<HBAgentConstants> &p_agent_constants
 	agent_constants = p_agent_constants;
 }
 
+void HBAgent::apply_root_motion(const Ref<EPASOneshotAnimationNode> &p_animation_node) {
+	ERR_FAIL_COND(!p_animation_node.is_valid());
+	// os_node.root_motion_starting_transform * os_node.get_root_motion_transform()
+	Transform3D root_trf = p_animation_node->get_root_motion_starting_transform() * p_animation_node->get_root_motion_transform();
+	Node3D *gn = _get_graphics_node();
+	if (gn != nullptr) {
+		Transform3D trf = gn->get_global_transform();
+		trf.basis = root_trf.basis;
+		trf.basis.rotate(Vector3(0.0, 1.0, 0.0), Math::deg_to_rad(180.0f));
+		gn->set_global_transform(trf);
+	}
+	set_global_position(root_trf.origin);
+}
+
+float HBAgent::get_height() const {
+	return 1.40f;
+}
+
+float HBAgent::get_radius() const {
+	return 0.2f;
+}
+
 void HBAgent::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_graphics_node", "path"), &HBAgent::set_graphics_node);
 	ClassDB::bind_method(D_METHOD("get_graphics_node"), &HBAgent::get_graphics_node);
@@ -50,6 +72,10 @@ void HBAgent::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_agent_constants"), &HBAgent::get_agent_constants);
 	ClassDB::bind_method(D_METHOD("set_agent_constants", "agent_constants"), &HBAgent::set_agent_constants);
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "agent_constants", PROPERTY_HINT_RESOURCE_TYPE, "HBAgentConstants"), "set_agent_constants", "get_agent_constants");
+
+	ClassDB::bind_method(D_METHOD("set_epas_controller_node", "epas_controller_node"), &HBAgent::set_epas_controller_node);
+	ClassDB::bind_method(D_METHOD("get_epas_controller_node"), &HBAgent::get_epas_controller_node);
+	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "epas_controller_node", PROPERTY_HINT_NODE_PATH_VALID_TYPES, "EPASController"), "set_epas_controller_node", "get_epas_controller_node");
 
 	ClassDB::bind_method(D_METHOD("set_input_action_state", "event", "state"), &HBAgent::set_input_action_state);
 
@@ -93,9 +119,14 @@ void HBAgent::_rotate_towards_velocity(float p_delta) {
 
 void HBAgent::_tilt_towards_acceleration(float p_delta) {
 	Node3D *tn = _get_tilt_node();
+
 	if (tn && agent_constants.is_valid()) {
 		// Handle acceleration tilting of the actor
 		Vector3 accel = velocity_spring_acceleration;
+		float alpha = 0.2;
+		// Smooth accel using a low pass filter
+		smoothed_accel = smoothed_accel * (1 - alpha) + accel * alpha;
+		accel = smoothed_accel;
 		accel.y = 0.0f;
 		Vector3 tilt_axis = accel.cross(Vector3(0.0f, 1.0f, 0.0));
 		tilt_axis.normalize();
@@ -135,7 +166,7 @@ void HBAgent::_physics_process(float p_delta) {
 					p_delta);
 		} break;
 		case MovementMode::MOVE_MANUAL: {
-			// TODO?
+			velocity_spring_acceleration = Vector3();
 		} break;
 	}
 
@@ -192,6 +223,21 @@ void HBAgent::_update_tilt_node_cache() {
 	}
 }
 
+void HBAgent::_update_epas_controller_cache() {
+	epas_controller_cache = ObjectID();
+
+	if (has_node(epas_controller_node)) {
+		Node *node = get_node(epas_controller_node);
+		ERR_FAIL_COND_MSG(!node, "Cannot update actor tilt node cache: Node cannot be found!");
+
+		// Ensure its an EPASController node
+		EPASController *nd = Object::cast_to<EPASController>(node);
+		ERR_FAIL_COND_MSG(!nd, "Cannot update actor tilt node cache: Nodepath does not point to a EPASController node!");
+
+		epas_controller_cache = nd->get_instance_id();
+	}
+}
+
 void HBAgent::set_graphics_node(NodePath p_path) {
 	graphics_node = p_path;
 	_update_graphics_node_cache();
@@ -236,12 +282,34 @@ Node3D *HBAgent::_get_tilt_node() {
 	return nullptr;
 }
 
+EPASController *HBAgent::_get_epas_controller() {
+	if (epas_controller_cache.is_valid()) {
+		return Object::cast_to<EPASController>(ObjectDB::get_instance(epas_controller_cache));
+	} else {
+		_update_epas_controller_cache();
+		if (epas_controller_cache.is_valid()) {
+			return Object::cast_to<EPASController>(ObjectDB::get_instance(epas_controller_cache));
+		}
+	}
+
+	return nullptr;
+}
+
 void HBAgent::set_movement_mode(MovementMode p_movement_mode) {
 	movement_mode = p_movement_mode;
 }
 
 HBAgent::MovementMode HBAgent::get_movement_mode() const {
 	return movement_mode;
+}
+
+NodePath HBAgent::get_epas_controller_node() const {
+	return epas_controller_node;
+}
+
+void HBAgent::set_epas_controller_node(const NodePath &p_epas_controller_node) {
+	epas_controller_node = p_epas_controller_node;
+	_update_epas_controller_cache();
 }
 
 void HBAgent::_notification(int p_what) {

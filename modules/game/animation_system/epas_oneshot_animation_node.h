@@ -87,7 +87,21 @@ public:
 		sm.instantiate();
 		sm->set_radius(0.05);
 		sm->set_height(0.1);
-		mm->set_mesh(sm);
+
+		// Forward line
+		Array arrays;
+		arrays.resize(Mesh::ARRAY_MAX);
+		PackedVector3Array vertices;
+		vertices.push_back(Vector3());
+		vertices.push_back(Vector3(0, 0, -1));
+		arrays[Mesh::ARRAY_VERTEX] = vertices;
+
+		Ref<ArrayMesh> am;
+		am.instantiate();
+		am->add_surface_from_arrays(sm->surface_get_primitive_type(0), sm->get_mesh_arrays());
+		am->add_surface_from_arrays(Mesh::PRIMITIVE_LINES, arrays);
+
+		mm->set_mesh(am);
 		mmi->set_multimesh(mm);
 		add_child(mmi);
 		set_as_top_level(true);
@@ -98,6 +112,8 @@ public:
 		mat->set_transparency(BaseMaterial3D::TRANSPARENCY_ALPHA);
 		mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
 		sm->set_material(mat);
+		am->surface_set_material(0, mat);
+		am->surface_set_material(1, mat);
 	};
 };
 

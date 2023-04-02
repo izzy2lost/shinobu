@@ -20,6 +20,14 @@ void HBAgentConstants::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_tilt_max_angle_degrees"), &HBAgentConstants::get_tilt_max_angle_degrees);
 	ClassDB::bind_method(D_METHOD("set_tilt_max_angle_degrees", "tilt_max_angle_degrees"), &HBAgentConstants::set_tilt_max_angle_degrees);
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tilt_max_angle_degrees", PROPERTY_HINT_RANGE, "0,180,degrees"), "set_tilt_max_angle_degrees", "get_tilt_max_angle_degrees");
+
+	ClassDB::bind_method(D_METHOD("get_vault_max_wall_angle_degrees"), &HBAgentConstants::get_vault_max_wall_angle_degrees);
+	ClassDB::bind_method(D_METHOD("set_vault_max_wall_angle_degrees", "vault_max_wall_angle_degrees"), &HBAgentConstants::set_vault_max_wall_angle_degrees);
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "vault_max_wall_angle_degrees"), "set_vault_max_wall_angle_degrees", "get_vault_max_wall_angle_degrees");
+
+	ClassDB::bind_method(D_METHOD("get_vault_max_obstacle_width"), &HBAgentConstants::get_vault_max_obstacle_width);
+	ClassDB::bind_method(D_METHOD("set_vault_max_obstacle_width", "vault_max_obstacle_width"), &HBAgentConstants::set_vault_max_obstacle_width);
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "vault_max_obstacle_width"), "set_vault_max_obstacle_width", "get_vault_max_obstacle_width");
 }
 
 float HBAgentConstants::get_max_move_velocity() const {
@@ -60,4 +68,28 @@ float HBAgentConstants::get_tilt_max_angle_degrees() const {
 
 void HBAgentConstants::set_tilt_max_angle_degrees(float p_tilt_max_angle_degrees) {
 	tilt_max_angle_degrees = p_tilt_max_angle_degrees;
+}
+
+float HBAgentConstants::get_vault_max_wall_angle_degrees() const {
+	return vault_max_wall_angle_degrees;
+}
+
+void HBAgentConstants::set_vault_max_wall_angle_degrees(float p_vault_max_wall_angle_degrees) {
+	vault_max_wall_angle_degrees = p_vault_max_wall_angle_degrees;
+}
+
+float HBAgentConstants::get_vault_max_obstacle_width() const {
+	return vault_max_obstacle_width;
+}
+
+void HBAgentConstants::set_vault_max_obstacle_width(float p_vault_max_obstacle_width) {
+	vault_max_obstacle_width = p_vault_max_obstacle_width;
+}
+
+float HBAgentConstants::get_vault_check_distance() const {
+	return vault_check_distance;
+}
+
+void HBAgentConstants::set_vault_check_distance(float p_vault_check_distance) {
+	vault_check_distance = p_vault_check_distance;
 }

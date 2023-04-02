@@ -42,7 +42,6 @@ private:
 	ObjectID skeleton_node_cache;
 	NodePath skeleton_path;
 	void _update_skeleton_node_cache();
-	Skeleton3D *get_skeleton();
 
 	Ref<EPASRootNode> root;
 	HashMap<StringName, Ref<EPASNode>> node_name_map;
@@ -72,6 +71,7 @@ protected:
 	static void _bind_methods();
 
 public:
+	Skeleton3D *get_skeleton();
 	Ref<EPASPose> get_base_pose();
 	void set_playback_process_mode(PlaybackProcessMode p_playback_process_mode);
 	PlaybackProcessMode get_playback_process_mode() const;
@@ -80,6 +80,7 @@ public:
 	void advance(float p_amount);
 	void connect_node_to_root(Ref<EPASNode> p_from, StringName p_unique_name);
 	void connect_node(Ref<EPASNode> p_from, Ref<EPASNode> p_to, StringName p_unique_name, int p_input);
+	Ref<EPASNode> get_epas_node(const StringName &p_node_name) const;
 
 	Ref<EPASPose> get_output_pose() const;
 

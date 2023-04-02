@@ -3,17 +3,22 @@
 #include "animation_system/epas_pose.h"
 #include "core/object/ref_counted.h"
 
+class EPASPoseInertializer;
 class RotationInertializer : public RefCounted {
 	float current_transition_time = 0.0f;
-	Quaternion rotation_offset;
+	Vector3 rotation_offset_axis;
+	float rotation_offset_angle = 0.0f;
 	float rotation_velocity = 0.0f;
 	float transition_duration = 0.0f;
+	Quaternion qpr;
 
 public:
 	Quaternion advance(float p_delta);
 	bool is_done() const;
-	Quaternion get_offset() const;
+	float get_offset_angle() const;
+	Vector3 get_offset_axis() const;
 	static Ref<RotationInertializer> create(const Quaternion &p_prev_prev, const Quaternion &p_prev, const Quaternion &p_target, float p_duration, float p_delta);
+	friend class EPASPoseInertializer;
 };
 
 class PositionInertializer : public RefCounted {

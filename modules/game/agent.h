@@ -3,7 +3,10 @@
 #define AGENT_H
 
 #include "agent_constants.h"
+#include "animation_system/epas_controller.h"
+#include "animation_system/epas_oneshot_animation_node.h"
 #include "inertialization.h"
+#include "scene/3d/navigation_agent_3d.h"
 #include "scene/3d/physics_body_3d.h"
 
 class HBAgent : public CharacterBody3D {
@@ -17,6 +20,7 @@ public:
 
 	enum AgentInputAction {
 		INPUT_ACTION_RUN,
+		INPUT_ACTION_PARKOUR_DOWN,
 		INPUT_ACTION_MAX
 	};
 
@@ -29,6 +33,9 @@ public:
 	InputState prev_input_state;
 
 private:
+	Vector3 smoothed_accel = Vector3(0.0, 0.0, 0.0);
+
+	NavigationAgent3D *navigation_agent;
 	MovementMode movement_mode = MovementMode::MOVE_GROUNDED;
 
 	Vector3 velocity_spring_acceleration;
@@ -42,6 +49,9 @@ private:
 	ObjectID graphics_node_cache;
 	Ref<HBAgentConstants> agent_constants;
 
+	NodePath epas_controller_node;
+	ObjectID epas_controller_cache;
+
 	Quaternion last_rotation;
 	Quaternion last_last_rotation;
 	Ref<RotationInertializer> look_at_rot_inertializer;
@@ -50,17 +60,14 @@ private:
 
 	void _update_graphics_node_cache();
 	void _update_tilt_node_cache();
+	void _update_epas_controller_cache();
 	Node3D *_get_graphics_node();
 	Node3D *_get_tilt_node();
+	EPASController *_get_epas_controller();
 	void _rotate_towards_velocity(float p_delta);
 	void _tilt_towards_acceleration(float p_delta);
 
 	void _physics_process(float p_delta);
-
-	// Input handling
-	bool is_action_pressed(AgentInputAction p_action) const;
-	bool is_action_just_pressed(AgentInputAction p_action) const;
-	bool is_action_just_released(AgentInputAction p_action) const;
 
 protected:
 	static void _bind_methods();
@@ -69,6 +76,11 @@ protected:
 	Vector3 _get_desired_velocity() const;
 
 public:
+	// Input handling
+	bool is_action_pressed(AgentInputAction p_action) const;
+	bool is_action_just_pressed(AgentInputAction p_action) const;
+	bool is_action_just_released(AgentInputAction p_action) const;
+
 	void set_input_action_state(AgentInputAction p_event, bool p_state);
 	Vector3 get_desired_movement_input() const;
 	void set_movement_input(Vector3 p_movement_input);
@@ -78,9 +90,14 @@ public:
 	NodePath get_tilt_node() const;
 	void set_movement_mode(MovementMode p_movement_mode);
 	MovementMode get_movement_mode() const;
+	NodePath get_epas_controller_node() const;
+	void set_epas_controller_node(const NodePath &p_epas_controller_node);
 
 	Ref<HBAgentConstants> get_agent_constants() const;
 	void set_agent_constants(const Ref<HBAgentConstants> &p_agent_constants);
+	void apply_root_motion(const Ref<EPASOneshotAnimationNode> &p_animation_node);
+	float get_height() const;
+	float get_radius() const;
 
 #ifdef DEBUG_ENABLED
 	const int VELOCITY_PLOT_SIZE = 90;
@@ -94,6 +111,8 @@ public:
 
 	HBAgent();
 	virtual ~HBAgent();
+
+	friend class HBAgentState;
 };
 
 VARIANT_ENUM_CAST(HBAgent::AgentInputAction);

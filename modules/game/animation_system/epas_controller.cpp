@@ -258,6 +258,11 @@ void EPASController::connect_node(Ref<EPASNode> p_from, Ref<EPASNode> p_to, Stri
 #endif
 }
 
+Ref<EPASNode> EPASController::get_epas_node(const StringName &p_node_name) const {
+	ERR_FAIL_COND_V_MSG(!node_name_map.has(p_node_name), Ref<EPASNode>(), vformat("EPAS node %s not found", p_node_name));
+	return node_name_map[p_node_name];
+}
+
 Ref<EPASPose> EPASController::get_output_pose() const {
 	return output_pose;
 }
@@ -274,6 +279,7 @@ void EPASController::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("advance", "amount"), &EPASController::advance);
 	ClassDB::bind_method(D_METHOD("connect_node_to_root", "from", "unique_name"), &EPASController::connect_node_to_root);
 	ClassDB::bind_method(D_METHOD("connect_node", "from", "to", "unique_name", "input"), &EPASController::connect_node);
+	ClassDB::bind_method(D_METHOD("get_epas_node", "node_name"), &EPASController::get_epas_node);
 
 	BIND_ENUM_CONSTANT(IDLE);
 	BIND_ENUM_CONSTANT(PHYSICS_PROCESS);

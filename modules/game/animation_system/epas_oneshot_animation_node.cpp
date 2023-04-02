@@ -46,6 +46,7 @@ void EPASOneshotAnimationNode::process_node(const Ref<EPASPose> &p_base_pose, Re
 void EPASOneshotAnimationNode::play() {
 	time = 0.0f;
 	playing = true;
+	playback_info.root_motion_trf = Transform3D();
 }
 
 bool EPASOneshotAnimationNode::is_playing() const {

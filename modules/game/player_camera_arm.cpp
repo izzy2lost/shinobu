@@ -37,6 +37,14 @@ void HBPlayerCameraArm::_notification(int p_what) {
 			rotation.y = rotation.y - velocity.x * delta;
 			rotation.x = CLAMP(rotation.x + velocity.y * delta, Math::deg_to_rad(min_pitch_degrees), Math::deg_to_rad(max_pitch_degrees));
 			set_rotation(rotation);
+
+			Node3D *parent = Object::cast_to<Node3D>(get_parent());
+			if (parent) {
+				Vector3 pos = get_global_position();
+				HBUtils::critical_spring_damper_exact_vector3(pos, position_spring_velocity, parent->get_global_position() + Vector3(0.0f, 0.75f, 0.0f), .15, get_process_delta_time());
+				set_global_position(pos);
+			}
+
 		} break;
 	}
 }
@@ -47,5 +55,6 @@ HBPlayerCameraArm::HBPlayerCameraArm() :
 		set_physics_process_internal(true);
 		set_process_unhandled_input(true);
 		set_process_internal(true);
+		set_as_top_level(true);
 	}
 }

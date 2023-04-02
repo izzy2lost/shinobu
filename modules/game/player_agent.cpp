@@ -52,7 +52,8 @@ void HBPlayerAgentController::_notification(int p_what) {
 			HBAgent *agent = _get_agent();
 			if (agent) {
 				Input *input = Input::get_singleton();
-				agent->set_input_action_state(HBAgent::AgentInputAction::INPUT_ACTION_RUN, input->is_action_pressed("move_run"));
+				agent->set_input_action_state(HBAgent::AgentInputAction::INPUT_ACTION_RUN, input->is_action_pressed(SNAME("move_run")));
+				agent->set_input_action_state(HBAgent::AgentInputAction::INPUT_ACTION_PARKOUR_DOWN, input->is_action_pressed(SNAME("move_parkour_down")));
 
 				// Movement input
 				Vector2 movement_input = Input::get_singleton()->get_vector("move_left", "move_right", "move_forward", "move_backward");

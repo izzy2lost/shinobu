@@ -810,6 +810,14 @@ void GodotImGui::set_enable_overlay(bool p_enable) {
 	show_overlay = p_enable;
 }
 
+void GodotImGui::ImImage(const Ref<Texture2D> &p_texture) {
+	uint64_t rid = p_texture->get_rid().get_id();
+	ImVec2 size;
+	size.x = p_texture->get_width();
+	size.y = p_texture->get_height();
+	ImGui::Image((void *)rid, size);
+}
+
 ImGuiKey GodotImGui::_map_to_imgui_key(const Key &p_key) {
 	ImGuiKey imgui_key = ImGuiKey_None;
 	if (p_key >= Key::A && p_key <= Key::Z) {

@@ -27,7 +27,7 @@ void EPASInertializationNode::process_input_pose_inertialized(int p_input, const
 #include "modules/imgui/godot_imgui.h"
 void EPASInertializationNode::_debug_node_draw() const {
 	if (pose_inertializer.is_valid()) {
-		ImGui::Text("%.2f", pose_inertializer->get_current_transition_time());
+		ImGui::Text("%f", pose_inertializer->get_current_transition_time());
 	} else {
 		ImGui::TextUnformatted("Idle");
 	}
@@ -52,7 +52,6 @@ void EPASInertializationNode::inertialize(float p_transition_duration, TypedArra
 	inertialization_queued = true;
 	desired_blend_time = p_transition_duration;
 	bone_filter = p_bone_filter;
-	pose_inertializer = Ref<EPASPoseInertializer>();
 }
 
 EPASInertializationNode::EPASInertializationNode() {

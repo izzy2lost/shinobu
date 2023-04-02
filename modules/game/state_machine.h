@@ -20,6 +20,15 @@ protected:
 	virtual void physics_process(float p_delta){};
 	virtual void process(float p_delta){};
 
+	static void _bind_methods();
+
+	GDVIRTUAL1(_enter, Dictionary);
+	GDVIRTUAL1(_physics_process, float);
+	GDVIRTUAL1(_process, float);
+	GDVIRTUAL0(_exit);
+
+	virtual void debug_draw() const {};
+
 	Node *get_actor() const;
 
 	friend class HBStateMachine;
@@ -29,10 +38,15 @@ class HBStateMachine : public Node {
 	GDCLASS(HBStateMachine, Node);
 
 	ObjectID current_state_cache;
-	NodePath actor_node;
-	ObjectID actor_node_cache;
+	NodePath agent_node;
+	ObjectID agent_node_cache;
+	String default_state;
 
-	void _update_actor_node_cache();
+	void _update_agent_node_cache();
+
+#ifdef DEBUG_ENABLED
+	int selected_state = 0;
+#endif
 
 private:
 	HBStateMachineState *_get_current_state();
@@ -40,14 +54,19 @@ private:
 protected:
 	void _notification(int p_what);
 	Node *_get_actor();
+	static void _bind_methods();
 
 public:
 	void transition_to(const StringName &p_name, const Dictionary &p_args = {});
 
-	HBStateMachine();
+	NodePath get_agent_node() const;
+	void set_agent_node(const NodePath &p_actor_node);
+	String get_default_state() const;
+	void set_default_state(const String &p_default_state);
 
-	NodePath get_actor_node() const;
-	void set_actor_node(const NodePath &p_actor_node);
+	HBStateMachine();
+	~HBStateMachine();
+
 	friend class HBStateMachineState;
 };
 

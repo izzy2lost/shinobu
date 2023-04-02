@@ -172,7 +172,7 @@ public:
 		float ba_bc_1 = Math::acos(CLAMP((lat * lat - lab * lab - lcb * lcb) / (-2.0f * lab * lcb), -1.0f, 1.0f));
 
 		// Calculate the axis of rotation for lengthening/shortening the chain
-		Vector3 axis0 = pos_a.direction_to(pos_c).cross(pos_a.direction_to(pos_c)).normalized();
+		Vector3 axis0 = pos_a.direction_to(pos_c).cross(pos_a.direction_to(pos_b)).normalized();
 		if (p_use_magnet) {
 			Vector3 dir = pos_b.direction_to(p_magnet_pos);
 			axis0 = pos_a.direction_to(pos_c).cross(dir).normalized();
@@ -208,6 +208,31 @@ public:
 		float C = -((3.0f * accel * Math::pow(p_blend_time, 2.0f) + 12.0f * p_v0 * p_blend_time + 20.0f * p_x0) / (2.0f * Math::pow(p_blend_time, 3.0f)));
 
 		return A * Math::pow(p_t, 5.0f) + B * Math::pow(p_t, 4.0f) + C * Math::pow(p_t, 3.0f) + (accel * 0.5f) * Math::pow(p_t, 2.0f) + p_v0 * p_t + p_x0;
+	}
+	static void critical_spring_damper_exact(
+			float *x,
+			float *v,
+			float x_goal,
+			float halflife,
+			float dt) {
+		float y = halflife_to_damping(halflife) / 2.0f;
+		float j0 = *x - x_goal;
+		float j1 = *v + j0 * y;
+		float eydt = fast_negexp(y * dt);
+
+		*x = eydt * (j0 + j1 * dt) + x_goal;
+		*v = eydt * (*v - j1 * y * dt);
+	}
+
+	static void critical_spring_damper_exact_vector3(
+			Vector3 &x,
+			Vector3 &v,
+			Vector3 x_goal,
+			float halflife,
+			float dt) {
+		critical_spring_damper_exact(&(x.x), &(v.x), x_goal.x, halflife, dt);
+		critical_spring_damper_exact(&(x.y), &(v.y), x_goal.y, halflife, dt);
+		critical_spring_damper_exact(&(x.z), &(v.z), x_goal.z, halflife, dt);
 	}
 };
 

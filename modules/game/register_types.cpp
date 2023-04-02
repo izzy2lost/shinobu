@@ -4,6 +4,7 @@
 
 #include "agent.h"
 #include "agent_constants.h"
+#include "agent_state.h"
 #include "core/object/class_db.h"
 #include "game_main_loop.h"
 #include "modules/game/animation_system/epas_animation.h"
@@ -13,6 +14,7 @@
 #include "player_camera_arm.h"
 #include "scene/main/scene_tree.h"
 #include "scene/main/window.h"
+#include "state_machine.h"
 #ifdef DEBUG_ENABLED
 #include "animation_system/epas_editor_camera.h"
 #include "animation_system/epas_editor_grid.h"
@@ -25,6 +27,7 @@
 #include "animation_system/epas_controller.h"
 #include "animation_system/epas_inertialization_node.h"
 #include "animation_system/epas_node.h"
+#include "animation_system/epas_oneshot_animation_node.h"
 #include "animation_system/epas_pose.h"
 #include "animation_system/epas_pose_node.h"
 #include "animation_system/epas_transition_node.h"
@@ -34,10 +37,19 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
 		GLOBAL_DEF("game/mouse_sensitivity", 175.0f);
 		GLOBAL_DEF("game/player/graphics_rotation_speed", 45.0f);
+		// Agent stuff
 		GDREGISTER_CLASS(HBAgent);
 		GDREGISTER_CLASS(HBAgentConstants);
 		GDREGISTER_CLASS(HBPlayerAgent);
 		GDREGISTER_CLASS(HBPlayerAgentController);
+		// Agent states
+		GDREGISTER_ABSTRACT_CLASS(HBAgentState);
+		GDREGISTER_CLASS(HBAgentMoveState);
+		GDREGISTER_CLASS(HBAgentVaultState);
+		// State machine stuff
+		GDREGISTER_CLASS(HBStateMachine);
+		GDREGISTER_ABSTRACT_CLASS(HBStateMachineState);
+
 		GDREGISTER_CLASS(HBPlayerCameraArm);
 		GDREGISTER_CLASS(HBGameMainLoop);
 		// EPAS
