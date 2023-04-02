@@ -55,111 +55,157 @@ HBAgentMoveState::HBAgentMoveState() {
 #endif
 }
 
+bool is_wall(const Vector3 &p_normal, float p_floor_max_angle) {
+	return p_normal.angle_to(Vector3(0.0f, 1.0f, 0.0f)) > p_floor_max_angle;
+}
+
+bool is_floor(const Vector3 &p_normal, float p_floor_max_angle) {
+	return p_normal.angle_to(Vector3(0.0f, 1.0f, 0.0f)) <= p_floor_max_angle;
+}
+
 void HBAgentMoveState::physics_process(float p_delta) {
 	HBAgent *agent = get_agent();
 	if (agent) {
-		Vector3 movement_input_dir = agent->get_desired_movement_input().normalized();
-		if (agent->is_action_pressed(HBAgent::AgentInputAction::INPUT_ACTION_PARKOUR_DOWN)) {
-			PhysicsDirectSpaceState3D *dss = agent->get_world_3d()->get_direct_space_state();
+		bool is_parkour_down_held = agent->is_action_pressed(HBAgent::INPUT_ACTION_PARKOUR_DOWN);
+		bool is_run_held = agent->is_action_pressed(HBAgent::INPUT_ACTION_RUN);
 
-			Ref<CylinderShape3D> body_shape;
-			body_shape.instantiate();
-			body_shape->set_height(agent->get_height());
-			body_shape->set_radius(agent->get_radius());
-
-			float mid_height = get_agent()->get_height() * 0.5f;
-
-			// Vault constants
-			const float vault_max_wall_angle = agent->get_agent_constants()->get_vault_max_wall_angle_degrees();
-			const float vault_check_distance = agent->get_agent_constants()->get_vault_check_distance();
-
-			PhysicsDirectSpaceState3D::RayParameters ray_params;
-			ray_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
-			ray_params.from = agent->get_global_position() + Vector3(0.0f, mid_height, 0.0f);
-			ray_params.to = ray_params.from + movement_input_dir * vault_check_distance;
-
-			PhysicsDirectSpaceState3D::RayResult ray_result;
-
-			debug_geo->clear();
-			debug_geo->debug_raycast(ray_params, Color(1.0f, 0.0f, 0.0f));
-			// Check if there's a wall in front of us
-			if (dss->intersect_ray(ray_params, ray_result)) {
-				float floor_max_angle = agent->get_floor_max_angle();
-				Vector3 up = Vector3(0.0, 1.0f, 0.0f);
-				Vector3 vault_base_near = ray_result.position;
-				vault_base_near.y -= mid_height;
-				if (ray_result.normal.angle_to(up) > floor_max_angle && ray_result.normal.angle_to(-movement_input_dir) < Math::deg_to_rad(vault_max_wall_angle)) {
-					// It's a wall
-					// Find vaultable near edge
-					ray_params.from = ray_result.position;
-					ray_params.from += movement_input_dir * 0.01f;
-					ray_params.from.y += mid_height * 0.5f;
-					ray_params.to = ray_result.position + movement_input_dir * 0.01f;
-					debug_geo->debug_raycast(ray_params, Color(0.0f, 1.0f, 0.0f));
-					if (dss->intersect_ray(ray_params, ray_result)) {
-						if (ray_result.normal.angle_to(up) < floor_max_angle) {
-							// It's a floor
-							Vector3 vault_edge_near = vault_base_near;
-							vault_edge_near.y = ray_result.position.y;
-
-							ray_params.to = vault_base_near;
-							ray_params.to.y += agent->get_height() * 0.5f;
-							ray_params.from = ray_params.to + movement_input_dir * get_agent()->get_agent_constants()->get_vault_max_obstacle_width();
-							debug_geo->debug_raycast(ray_params, Color(0.0f, 0.0f, 1.0f));
-							// Do a backwards ray towards us to check if there's a wall on the other side
-							if (dss->intersect_ray(ray_params, ray_result)) {
-								if (ray_result.normal.angle_to(up) > floor_max_angle) {
-									// It's a wall
-									Vector3 vault_base_far = ray_result.position;
-									vault_base_far.y -= mid_height;
-									ray_params.from = ray_result.position;
-									ray_params.from.y += mid_height;
-									ray_params.from -= movement_input_dir * 0.01f;
-									ray_params.to = vault_base_far - movement_input_dir * 0.01f;
-									debug_geo->debug_raycast(ray_params, Color(1.0f, 1.0f, 0.0f));
-									// Find the far vault edge
-									if (dss->intersect_ray(ray_params, ray_result)) {
-										if (ray_result.normal.angle_to(up) < floor_max_angle) {
-											// It's a floor
-											Vector3 vault_edge_far = vault_base_far;
-											vault_edge_far.y = ray_result.position.y;
-											// Finally check if the player fits on the other side
-											PhysicsDirectSpaceState3D::ShapeParameters shape_params;
-											shape_params.shape_rid = body_shape->get_rid();
-											shape_params.transform.origin = vault_base_far * movement_input_dir * (agent->get_radius() + 0.5f);
-											shape_params.collision_mask = ray_params.collision_mask;
-											PhysicsDirectSpaceState3D::ShapeResult shape_result;
-											if (!dss->intersect_shape(shape_params, &shape_result, 1)) {
-												// We have space, time to vault
-												// Prepare the required arguments for the vault state
-												Dictionary args;
-												Transform3D temp_trf;
-
-												temp_trf.origin = vault_base_near;
-												temp_trf.basis = Basis().looking_at(-movement_input_dir);
-												args[StringName("VaultBaseNear")] = temp_trf;
-												temp_trf.origin = vault_edge_near;
-												args[StringName("VaultEdgeNear")] = temp_trf;
-
-												temp_trf.basis = Basis().looking_at(-movement_input_dir);
-												temp_trf.origin = vault_edge_far;
-												args[StringName("VaultEdgeFar")] = temp_trf;
-												temp_trf.origin = vault_base_far;
-												args[StringName("VaultBaseFar")] = temp_trf;
-
-												state_machine->transition_to("Vault", args);
-												return;
-											}
-										}
-									}
-								}
-							}
-						}
-					}
+		if (is_run_held) {
+			if (is_parkour_down_held) {
+				if (_handle_parkour_down()) {
+					return;
 				}
 			}
 		}
 	}
+}
+
+/*
+ * Vault points:
+ *
+ * Edge near --> |-----| <-- Edge far
+ *               |     |
+ *               |     |
+ * Base near --> |-----| <-- Base far
+ */
+bool HBAgentMoveState::_handle_parkour_down() {
+	HBAgent *agent = get_agent();
+	ERR_FAIL_COND_V(agent == nullptr, false);
+
+	Vector3 movement_input_dir = agent->get_desired_movement_input().normalized();
+
+	PhysicsDirectSpaceState3D *dss = agent->get_world_3d()->get_direct_space_state();
+
+	Ref<CylinderShape3D> body_shape;
+	body_shape.instantiate();
+	body_shape->set_height(agent->get_height());
+	body_shape->set_radius(agent->get_radius());
+
+	float mid_height = get_agent()->get_height() * 0.5f;
+	float floor_max_angle = agent->get_floor_max_angle();
+
+	// Vault constants
+	const float vault_max_wall_angle = agent->get_agent_constants()->get_vault_max_wall_angle_degrees();
+	const float vault_check_distance = agent->get_agent_constants()->get_vault_check_distance();
+	const float vault_max_obstacle_width = agent->get_agent_constants()->get_vault_max_obstacle_width();
+
+	debug_geo->clear();
+
+	PhysicsDirectSpaceState3D::RayResult ray_result;
+	PhysicsDirectSpaceState3D::RayParameters ray_params;
+	ray_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
+
+	// Check if there's a wall in front of us
+	ray_params.from = agent->get_global_position() + Vector3(0.0f, mid_height, 0.0f);
+	ray_params.to = ray_params.from + movement_input_dir * vault_check_distance;
+
+	debug_geo->debug_raycast(ray_params, Color(1.0f, 0.0f, 0.0f));
+
+	if (!dss->intersect_ray(ray_params, ray_result) || !is_wall(ray_result.normal, floor_max_angle)) {
+		// Not a wall, abort
+		return false;
+	}
+
+	if (ray_result.normal.angle_to(-movement_input_dir) >= Math::deg_to_rad(vault_max_wall_angle)) {
+		// We are heading towards a wall at a too wide of an angle, abort
+		return false;
+	}
+
+	Vector3 vault_base_near = ray_result.position;
+	vault_base_near.y -= mid_height;
+
+	// Find vaultable near edge
+	ray_params.from = ray_result.position;
+	ray_params.from += movement_input_dir * 0.01f;
+	ray_params.from.y += mid_height * 0.5f;
+	ray_params.to = ray_result.position + movement_input_dir * 0.01f;
+
+	debug_geo->debug_raycast(ray_params, Color(0.0f, 1.0f, 0.0f));
+
+	if (!dss->intersect_ray(ray_params, ray_result) || !is_floor(ray_result.normal, floor_max_angle)) {
+		// Not a floor or not hit
+		return false;
+	}
+
+	Vector3 vault_edge_near = vault_base_near;
+	vault_edge_near.y = ray_result.position.y;
+
+	// Do a backwards ray towards us to check if there's a wall on the other side
+	ray_params.to = vault_base_near;
+	ray_params.to.y += agent->get_height() * 0.5f;
+	ray_params.from = ray_params.to + movement_input_dir * vault_max_obstacle_width;
+	debug_geo->debug_raycast(ray_params, Color(0.0f, 0.0f, 1.0f));
+
+	if (!dss->intersect_ray(ray_params, ray_result) || !is_wall(ray_result.normal, floor_max_angle)) {
+		// No wall on the other side!
+		return false;
+	}
+
+	// Find the far vault edge, which should obviously also be a floor
+	Vector3 vault_base_far = ray_result.position;
+	vault_base_far.y -= mid_height;
+	ray_params.from = ray_result.position;
+	ray_params.from.y += mid_height;
+	ray_params.from -= movement_input_dir * 0.01f;
+	ray_params.to = vault_base_far - movement_input_dir * 0.01f;
+	debug_geo->debug_raycast(ray_params, Color(1.0f, 1.0f, 0.0f));
+
+	if (!dss->intersect_ray(ray_params, ray_result) || !is_floor(ray_result.normal, floor_max_angle)) {
+		return false;
+	}
+
+	Vector3 vault_edge_far = vault_base_far;
+	vault_edge_far.y = ray_result.position.y;
+
+	// Finally check if the player fits on the other side
+	PhysicsDirectSpaceState3D::ShapeParameters shape_query_params;
+	shape_query_params.shape_rid = body_shape->get_rid();
+	shape_query_params.transform.origin = vault_base_far * movement_input_dir * (agent->get_radius() + 0.5f);
+	shape_query_params.collision_mask = ray_params.collision_mask;
+	PhysicsDirectSpaceState3D::ShapeResult shape_query_result;
+
+	if (dss->intersect_shape(shape_query_params, &shape_query_result, 1)) {
+		return false;
+	}
+	// We have space, time to vault
+	// Prepare the required arguments for the vault state
+	Dictionary args;
+	Transform3D temp_trf;
+
+	temp_trf.origin = vault_base_near;
+	temp_trf.basis = Basis().looking_at(-movement_input_dir);
+	args[SNAME("VaultBaseNear")] = temp_trf;
+	temp_trf.origin = vault_edge_near;
+	args[SNAME("VaultEdgeNear")] = temp_trf;
+
+	temp_trf.basis = Basis().looking_at(-movement_input_dir);
+	temp_trf.origin = vault_edge_far;
+	args[SNAME("VaultEdgeFar")] = temp_trf;
+	temp_trf.origin = vault_base_far;
+	args[SNAME("VaultBaseFar")] = temp_trf;
+
+	state_machine->transition_to("Vault", args);
+
+	return true;
 }
 
 /**********************

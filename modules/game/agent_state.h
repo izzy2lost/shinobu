@@ -26,6 +26,7 @@ protected:
 	virtual void enter(const Dictionary &p_args) override;
 	virtual void physics_process(float p_delta) override;
 	virtual void debug_draw() const override;
+	bool _handle_parkour_down();
 
 public:
 	HBAgentMoveState();
