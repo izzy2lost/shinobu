@@ -35,28 +35,33 @@
 
 void ProcessUnix::make_default() {
 	_create = create_unix;
+	OS_Unix::get_singleton()->add_sigchld_callback(&handle_sigchld, nullptr);
 }
+
+Vector<Ref<ProcessUnix>> ProcessUnix::processes;
 
 Ref<Process> ProcessUnix::create_unix(const String &p_path, const Vector<String> &p_arguments, const String &p_working_dir, bool p_open_stdin) {
-	return memnew(ProcessUnix(p_path, p_arguments, p_working_dir, p_open_stdin));
+	Ref<ProcessUnix> proc = memnew(ProcessUnix(p_path, p_arguments, p_working_dir, p_open_stdin));
+	processes.push_back(proc.ptr());
+	return proc;
 }
 
-void ProcessUnix::handle_sigchld(int s_p_id, void *userdata) {
-	ProcessUnix *process = static_cast<ProcessUnix *>(userdata);
-	if (process->get_id() == s_p_id) {
-		// TinyProcessLib will reap the process if needed
-		// when get_exit_status is called
-		process->get_exit_status();
+bool ProcessUnix::handle_sigchld(int s_p_id, void *userdata) {
+	for (int i = 0; i < processes.size(); i++) {
+		Ref<ProcessUnix> process = processes[i];
+		if (process->get_id() == s_p_id) {
+			// TinyProcessLib will reap the process if needed
+			// when get_exit_status is called
+			process->get_exit_status();
+			processes.erase(process);
+			return true;
+		}
 	}
+	return false;
 }
 
 ProcessUnix::ProcessUnix(const String &m_path, const Vector<String> &p_arguments, const String &p_working_dir, bool p_open_stdin) :
 		ProcessTinyProcessLibrary(m_path, p_arguments, p_working_dir, p_open_stdin) {
-	OS_Unix::get_singleton()->add_sigchld_callback(&handle_sigchld, this);
-}
-
-ProcessUnix::~ProcessUnix() {
-	OS_Unix::get_singleton()->remove_sigchld_callback(&handle_sigchld, this);
 }
 
 #endif // UNIX_ENABLED

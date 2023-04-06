@@ -36,7 +36,10 @@
 #include "process_tiny_process_lib.h"
 
 class ProcessUnix : public ProcessTinyProcessLibrary {
-	static void handle_sigchld(int s_p_id, void *userdata);
+	static bool handle_sigchld(int s_p_id, void *userdata);
+
+	// We keep track of all processes so that they don't disappear before sigchld is called
+	static Vector<Ref<ProcessUnix>> processes;
 
 protected:
 	static Ref<Process> create_unix(const String &m_path, const Vector<String> &p_arguments, const String &p_working_dir, bool p_open_stdin);
@@ -44,7 +47,6 @@ protected:
 public:
 	static void make_default();
 	ProcessUnix(const String &m_path, const Vector<String> &p_arguments, const String &p_working_dir, bool p_open_stdin);
-	virtual ~ProcessUnix();
 };
 #endif // UNIX_ENABLED
 

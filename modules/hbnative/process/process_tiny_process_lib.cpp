@@ -94,7 +94,6 @@ ProcessTinyProcessLibrary::ProcessTinyProcessLibrary(const String &m_path, const
 			std::bind(&ProcessTinyProcessLibrary::_on_stdout, this, std::placeholders::_1, std::placeholders::_2),
 			std::bind(&ProcessTinyProcessLibrary::_on_stderr, this, std::placeholders::_1, std::placeholders::_2),
 			p_open_stdin));
-	process->get_id();
 }
 
 ProcessTinyProcessLibrary::~ProcessTinyProcessLibrary() {

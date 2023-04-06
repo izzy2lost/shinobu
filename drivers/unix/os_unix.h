@@ -42,7 +42,7 @@ private:
 	Mutex mutex;
 
 public:
-	typedef void (*SigchldHandlerCallback)(int p_pid, void *userdata);
+	typedef bool (*SigchldHandlerCallback)(int p_pid, void *userdata);
 	struct SigchldCallbackItem {
 		SigchldHandlerCallback callback;
 		void *userdata = nullptr;

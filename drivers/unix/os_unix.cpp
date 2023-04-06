@@ -101,7 +101,9 @@ void OS_Unix::handle_sigchld(int sig, siginfo_t *info, void *ucontext) {
 	OS_Unix *os = OS_Unix::get_singleton();
 	os->mutex.lock();
 	for (int i = 0; i < os->sigchld_handler_callbacks.size(); i++) {
-		os->sigchld_handler_callbacks[i]->callback(info->si_pid, os->sigchld_handler_callbacks[i]->userdata);
+		if (os->sigchld_handler_callbacks[i]->callback(info->si_pid, os->sigchld_handler_callbacks[i]->userdata)) {
+			break;
+		}
 	}
 	os->mutex.unlock();
 }
