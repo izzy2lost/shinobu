@@ -15,6 +15,7 @@
 #include "imnodes.h"
 #include "implot.h"
 #include "main/performance.h"
+#include "modules/game/game_main_loop.h"
 #include "scene/gui/label.h"
 #include "servers/rendering/rendering_device_binds.h"
 
@@ -767,6 +768,10 @@ void GodotImGui::_notification(int p_what) {
 							ImGui::SameLine();
 							if (ImGui::Button("0.25x")) {
 								Engine::get_singleton()->set_time_scale(0.25);
+							}
+							if (ImGui::Button("Enable FP exceptions")) {
+								HBGameMainLoop *ml = (HBGameMainLoop *)HBGameMainLoop::get_singleton();
+								ml->enable_fp_exceptions();
 							}
 						}
 

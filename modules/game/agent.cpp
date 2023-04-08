@@ -9,11 +9,12 @@
 #include "modules/imgui/godot_imgui_macros.h"
 
 #include "core/config/project_settings.h"
+#include "scene/resources/cylinder_shape_3d.h"
 
 HBAgent::HBAgent() :
 		CharacterBody3D() {
 	if (!Engine::get_singleton()->is_editor_hint()) {
-		set_physics_process_internal(true);
+		set_physics_process(true);
 		set_process_internal(true);
 		agent_constants.instantiate();
 	}
@@ -61,6 +62,14 @@ float HBAgent::get_radius() const {
 	return 0.2f;
 }
 
+Ref<Shape3D> HBAgent::get_collision_shape() {
+	Ref<CylinderShape3D> body_shape;
+	body_shape.instantiate();
+	body_shape->set_height(get_height());
+	body_shape->set_radius(get_radius());
+	return body_shape;
+}
+
 void HBAgent::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_graphics_node", "path"), &HBAgent::set_graphics_node);
 	ClassDB::bind_method(D_METHOD("get_graphics_node"), &HBAgent::get_graphics_node);
@@ -97,7 +106,7 @@ void HBAgent::_rotate_towards_velocity(float p_delta) {
 			desired_look_normal.normalize();
 			if (desired_look_normal.length() > 0.0f) {
 				Vector3 forward = Vector3(0, 0, -1);
-				Vector3 current_forward = look_at_rot.xform(forward);
+				Vector3 current_forward = gn->get_global_transform().basis.xform(Vector3(0.0, 0.0, -1.0));
 				current_forward.y = 0.0f;
 				current_forward.normalize();
 				Vector3 up = Vector3(0, 1.0f, 0);
@@ -105,9 +114,9 @@ void HBAgent::_rotate_towards_velocity(float p_delta) {
 				float angle_diff = current_forward.signed_angle_to(desired_look_normal, up);
 
 				float angle_delta = SIGN(angle_diff) * MIN(Math::abs(angle_diff), p_delta * Math::deg_to_rad(360.0f));
-				look_at_rot = Quaternion(up, angle_delta) * look_at_rot;
 				Transform3D global_trf = gn->get_global_transform();
-				global_trf.basis.set_quaternion(look_at_rot);
+				Quaternion rot = Quaternion(up, angle_delta) * global_trf.basis.get_rotation_quaternion();
+				global_trf.basis.set_quaternion(rot);
 				gn->set_global_transform(global_trf);
 			}
 		}
@@ -164,20 +173,20 @@ void HBAgent::_physics_process(float p_delta) {
 					desired_velocity,
 					agent_constants->get_velocity_spring_halflife(),
 					p_delta);
+			vel += agent_constants->get_gravity() * p_delta;
+
+			set_velocity(vel);
+
+			move_and_slide();
+			_rotate_towards_velocity(p_delta);
+			_tilt_towards_acceleration(p_delta);
 		} break;
 		case MovementMode::MOVE_MANUAL: {
 			velocity_spring_acceleration = Vector3();
+			tilt_spring_velocity = Vector3();
 		} break;
 	}
 
-	vel += agent_constants->get_gravity() * p_delta;
-
-	set_velocity(vel);
-
-	_rotate_towards_velocity(p_delta);
-	_tilt_towards_acceleration(p_delta);
-
-	move_and_slide();
 	prev_input_state = current_input_state;
 }
 
@@ -296,6 +305,12 @@ EPASController *HBAgent::_get_epas_controller() {
 }
 
 void HBAgent::set_movement_mode(MovementMode p_movement_mode) {
+	if (p_movement_mode == MovementMode::MOVE_MANUAL) {
+		if (_get_tilt_node()) {
+			// HACK-ish, should probably inertialize this
+			_get_tilt_node()->set_transform(Transform3D());
+		}
+	}
 	movement_mode = p_movement_mode;
 }
 
@@ -314,7 +329,7 @@ void HBAgent::set_epas_controller_node(const NodePath &p_epas_controller_node) {
 
 void HBAgent::_notification(int p_what) {
 	switch (p_what) {
-		case NOTIFICATION_INTERNAL_PHYSICS_PROCESS: {
+		case NOTIFICATION_PHYSICS_PROCESS: {
 			_physics_process(get_physics_process_delta_time());
 		} break;
 		case NOTIFICATION_INTERNAL_PROCESS: {
@@ -323,6 +338,7 @@ void HBAgent::_notification(int p_what) {
 			if (gim && gim->is_debug_enabled(this)) {
 				if (gim->begin_debug_window(this)) {
 					ImGui::Text("Velocity %s", String(get_linear_velocity()).utf8().get_data());
+					ImGui::Text("gn rot %s", String(_get_graphics_node()->get_rotation_degrees()).utf8().get_data());
 					plot_t += get_process_delta_time();
 
 					{

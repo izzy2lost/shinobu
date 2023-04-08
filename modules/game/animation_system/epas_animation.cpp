@@ -223,6 +223,20 @@ void EPASAnimation::interpolate(float p_time, const Ref<EPASPose> &p_base_pose, 
 		if (p_playback_info->use_root_motion) {
 			StringName root_bone_name = p_playback_info->root_bone;
 			if (p_target_pose->has_bone(root_bone_name)) {
+				if (p_interp_method != InterpolationMethod::LINEAR) {
+					// make sure root is interpolated linearly
+					Vector3 pos_prev = keyframes[prev_frame_i]->get_pose()->get_bone_position(root_bone_name, p_base_pose);
+					Quaternion rot_prev = keyframes[prev_frame_i]->get_pose()->get_bone_rotation(root_bone_name, p_base_pose);
+
+					Vector3 pos_next = keyframes[next_frame_i]->get_pose()->get_bone_position(root_bone_name, p_base_pose);
+					Quaternion rot_next = keyframes[next_frame_i]->get_pose()->get_bone_rotation(root_bone_name, p_base_pose);
+
+					if (!p_target_pose->has_bone(root_bone_name)) {
+						p_target_pose->create_bone(root_bone_name);
+					}
+					p_target_pose->set_bone_position(root_bone_name, pos_prev.lerp(pos_next, blend));
+					p_target_pose->set_bone_rotation(root_bone_name, rot_prev.slerp(rot_next, blend));
+				}
 				int frame = p_time * 60.0; // TODO: make this framerate configurable? Animation editor only supports 60 fps r/n
 				Transform3D base_root_trf = p_base_pose->get_bone_transform(root_bone_name);
 				Vector<Ref<EPASWarpPoint>> sorted_wps;

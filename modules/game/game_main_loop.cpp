@@ -6,6 +6,11 @@
 #include "animation_system/epas_animation_editor.h"
 #endif
 
+#ifdef LINUXBSD_ENABLED
+#define _GNU_SOURCE 1
+#include <fenv.h>
+#endif
+
 HBGameMainLoop::HBGameMainLoop() :
 		SceneTree() {
 	imgui_module_post_init();
@@ -19,6 +24,12 @@ void HBGameMainLoop::change_scene(Node *p_new_scene) {
 	}
 	get_root()->add_child(p_new_scene);
 	set_current_scene(p_new_scene);
+}
+
+void HBGameMainLoop::enable_fp_exceptions() {
+#ifdef LINUXBSD_ENABLED
+	feenableexcept(FE_INVALID);
+#endif
 }
 
 void HBGameMainLoop::initialize() {

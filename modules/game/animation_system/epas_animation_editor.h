@@ -142,6 +142,7 @@ private:
 		bool constraintdbg_window_visible = false;
 		int selected_warp_point = -1;
 		Vector<bool> group_visibility;
+		Vector3 copy_buffer;
 	} ui_info;
 
 	UndoRedo *undo_redo = nullptr;
@@ -155,7 +156,7 @@ private:
 	void _world_to_bone_trf(int p_bone_idx, const float *p_world_trf, Transform3D &p_out);
 	void _set_frame_time(int p_frame_idx, int32_t p_frame_time);
 	void _create_eirteam_humanoid_ik();
-	void _apply_handle_transform();
+	void _apply_handle_transform(ImGuizmo::OPERATION p_operation);
 	void _apply_constraints();
 	bool _is_playing();
 	void _show_error(const String &error);

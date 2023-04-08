@@ -27,6 +27,10 @@ void HBStateMachine::_notification(int p_what) {
 #ifdef DEBUG_ENABLED
 			GodotImGui *gim = GodotImGui::get_singleton();
 			if (gim->is_debug_enabled(this) && gim->begin_debug_window(this)) {
+				HBStateMachineState *st = _get_current_state();
+				if (st) {
+					ImGui::Text("Current state: %s", String(st->get_name()).utf8().get_data());
+				}
 				HBStateMachineState *selected_state_ptr = nullptr;
 				if (ImGui::BeginListBox("##States", ImVec2(250, 100))) {
 					for (int i = 0; i < get_child_count(); i++) {

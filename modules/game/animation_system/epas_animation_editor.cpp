@@ -161,11 +161,11 @@ void EPASAnimationEditor::_draw_bone_positions() {
 
 void EPASAnimationEditor::_world_to_bone_trf(int p_bone_idx, const float *p_world_trf, Transform3D &p_out) {
 	HBUtils::mat_to_trf(p_world_trf, p_out);
+	p_out = editing_skeleton->get_global_transform().affine_inverse() * p_out;
 	int parent = editing_skeleton->get_bone_parent(p_bone_idx);
 	if (parent != -1) {
 		p_out = editing_skeleton->get_bone_global_pose(parent).affine_inverse() * p_out;
 	}
-	p_out = editing_skeleton->get_global_transform().affine_inverse() * p_out;
 }
 
 // Need this thing for undo_redo reasons
@@ -520,6 +520,7 @@ void EPASAnimationEditor::_draw_ui() {
 					String name = ui_info.group_visibility[i] ? eye_icon : eye_off_icon;
 					name += String(GROUP_NAMES[i]);
 					if (ImGui::Selectable(name.utf8().get_data())) {
+						print_line(i);
 						ui_info.group_visibility.set(i, !ui_info.group_visibility[i]);
 					}
 				}
@@ -564,6 +565,7 @@ void EPASAnimationEditor::_draw_ui() {
 		dock_up_r = ImGui::DockBuilderSplitNode(dock_up_r, ImGuiDir_Right, 0.2f, nullptr, nullptr);
 
 		ImGui::DockBuilderDockWindow("Timeline", dock_bottom);
+		ImGui::DockBuilderDockWindow("Inspector", dock_up_r);
 		ImGui::DockBuilderDockWindow("Settings", dock_up_r);
 		ImGui::DockBuilderDockWindow("Undo History", dock_up_r);
 		ImGui::DockBuilderDockWindow("Warp Points", dock_up_r);
@@ -698,6 +700,58 @@ void EPASAnimationEditor::_draw_ui() {
 	}
 	ImGui::End();
 
+	if (ImGui::Begin("Inspector")) {
+		if (editing_selection_handle != -1 && get_current_pose().is_valid()) {
+			const Ref<Selection> selection_handle = selection_handles[editing_selection_handle];
+			if (selection_handle.is_valid()) {
+				Transform3D handle_trf;
+				HBUtils::mat_to_trf(current_handle_trf_matrix.ptr(), handle_trf);
+				float *origin = current_handle_trf_matrix.ptrw() + 12;
+				bool pasted_pos = false;
+
+				if (ImGui::Button("Copy##pos")) {
+					ui_info.copy_buffer = handle_trf.origin;
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Paste##pos")) {
+					pasted_pos = true;
+					origin[0] = ui_info.copy_buffer.x;
+					origin[1] = ui_info.copy_buffer.y;
+					origin[2] = ui_info.copy_buffer.z;
+				}
+
+				if (ImGui::InputFloat3("Position", origin, "%.6f") || pasted_pos) {
+					_apply_handle_transform(ImGuizmo::OPERATION::TRANSLATE);
+				}
+				Vector3 euler = handle_trf.get_basis().get_rotation_quaternion().get_euler();
+				euler.x = Math::rad_to_deg(euler.x);
+				euler.y = Math::rad_to_deg(euler.y);
+				euler.z = Math::rad_to_deg(euler.z);
+				bool pasted_rot = false;
+				if (ImGui::Button("Copy##rot")) {
+					ui_info.copy_buffer = euler;
+					print_line("COPYEULER");
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Paste##rot")) {
+					euler = ui_info.copy_buffer;
+					pasted_rot = true;
+				}
+
+				if (ImGui::InputFloat3("Rotation", euler.coord) || pasted_rot) {
+					euler.x = Math::deg_to_rad(euler.x);
+					euler.y = Math::deg_to_rad(euler.y);
+					euler.z = Math::deg_to_rad(euler.z);
+					handle_trf.set_basis(Basis::from_euler(euler));
+					HBUtils::trf_to_mat(handle_trf, current_handle_trf_matrix.ptrw());
+					_apply_handle_transform(ImGuizmo::ROTATE);
+				}
+				ImGui::Text("COPYBUFF %.2f, %.2f, %.2f", ui_info.copy_buffer.x, ui_info.copy_buffer.y, ui_info.copy_buffer.z);
+			}
+		}
+	}
+	ImGui::End();
+
 	if (ImGui::Begin("Settings")) {
 		EPASAnimation::InterpolationMethod interp_method = epas_animation_node->get_interpolation_method();
 		EPASAnimation::InterpolationMethod original_interp_method = interp_method;
@@ -707,7 +761,8 @@ void EPASAnimationEditor::_draw_ui() {
 		if (interp_method != original_interp_method) {
 			epas_animation_node->set_interpolation_method(interp_method);
 		}
-	};
+		ImGui::InputInt("Length", &end_frame);
+	}
 	ImGui::End();
 
 	Ref<EPASPose> current_pose = get_current_pose();
@@ -882,7 +937,7 @@ void EPASAnimationEditor::_draw_ui() {
 			Transform3D trf;
 			HBUtils::mat_to_trf(current_handle_trf_matrix.ptr(), trf);
 			if (manipulated || ImGuizmo::IsUsing()) {
-				_apply_handle_transform();
+				_apply_handle_transform(guizmo_operation);
 			}
 			was_using_gizmo = ImGuizmo::IsUsing();
 		}
@@ -903,7 +958,7 @@ void EPASAnimationEditor::_draw_ui() {
 	}
 }
 
-void EPASAnimationEditor::_apply_handle_transform() {
+void EPASAnimationEditor::_apply_handle_transform(ImGuizmo::OPERATION p_operation) {
 	// Apply the handle transform based on the user's input, after the user is done use
 	Ref<Selection> selection_handle = selection_handles[editing_selection_handle];
 	Ref<EPASPose> current_pose = get_current_pose();
@@ -932,7 +987,7 @@ void EPASAnimationEditor::_apply_handle_transform() {
 			current_pose->create_bone(bone_name);
 		}
 		String action_template = "%s bone %s";
-		switch (guizmo_operation) {
+		switch (p_operation) {
 			case ImGuizmo::TRANSLATE: {
 				created_action = true;
 				undo_redo->create_action(vformat(action_template, "Translate", bone_name), UndoRedo::MERGE_ENDS);

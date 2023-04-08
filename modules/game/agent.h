@@ -21,6 +21,7 @@ public:
 	enum AgentInputAction {
 		INPUT_ACTION_RUN,
 		INPUT_ACTION_PARKOUR_DOWN,
+		INPUT_ACTION_PARKOUR_UP,
 		INPUT_ACTION_MAX
 	};
 
@@ -54,9 +55,6 @@ private:
 
 	Quaternion last_rotation;
 	Quaternion last_last_rotation;
-	Ref<RotationInertializer> look_at_rot_inertializer;
-	// look at rot before inertialization being applied
-	Quaternion look_at_rot;
 
 	void _update_graphics_node_cache();
 	void _update_tilt_node_cache();
@@ -98,6 +96,8 @@ public:
 	void apply_root_motion(const Ref<EPASOneshotAnimationNode> &p_animation_node);
 	float get_height() const;
 	float get_radius() const;
+
+	Ref<Shape3D> get_collision_shape();
 
 #ifdef DEBUG_ENABLED
 	const int VELOCITY_PLOT_SIZE = 90;

@@ -8,7 +8,7 @@
 HBPlayerAgent::HBPlayerAgent() :
 		HBAgent() {
 	if (!Engine::get_singleton()->is_editor_hint()) {
-		Input::get_singleton()->set_mouse_mode(Input::MouseMode::MOUSE_MODE_CAPTURED);
+		//Input::get_singleton()->set_mouse_mode(Input::MouseMode::MOUSE_MODE_CAPTURED);
 	}
 }
 
@@ -54,6 +54,7 @@ void HBPlayerAgentController::_notification(int p_what) {
 				Input *input = Input::get_singleton();
 				agent->set_input_action_state(HBAgent::AgentInputAction::INPUT_ACTION_RUN, input->is_action_pressed(SNAME("move_run")));
 				agent->set_input_action_state(HBAgent::AgentInputAction::INPUT_ACTION_PARKOUR_DOWN, input->is_action_pressed(SNAME("move_parkour_down")));
+				agent->set_input_action_state(HBAgent::AgentInputAction::INPUT_ACTION_PARKOUR_UP, input->is_action_pressed(SNAME("move_parkour_up")));
 
 				// Movement input
 				Vector2 movement_input = Input::get_singleton()->get_vector("move_left", "move_right", "move_forward", "move_backward");

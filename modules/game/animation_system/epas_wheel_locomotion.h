@@ -80,6 +80,8 @@ public:
 	void set_root_bone_name(const StringName &p_root_bone_name);
 
 	virtual ~EPASWheelLocomotion();
+
+	friend class EPASWheelVisualizer;
 };
 
 VARIANT_ENUM_CAST(EPASWheelLocomotion::LocomotionSetType);

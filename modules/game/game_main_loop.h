@@ -9,6 +9,9 @@ class HBGameMainLoop : public SceneTree {
 	virtual void initialize() override;
 	void change_scene(Node *p_new_scene);
 	HBGameMainLoop();
+
+public:
+	void enable_fp_exceptions();
 };
 
 #endif

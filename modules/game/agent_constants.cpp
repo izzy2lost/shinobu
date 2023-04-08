@@ -21,13 +21,17 @@ void HBAgentConstants::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_tilt_max_angle_degrees", "tilt_max_angle_degrees"), &HBAgentConstants::set_tilt_max_angle_degrees);
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "tilt_max_angle_degrees", PROPERTY_HINT_RANGE, "0,180,degrees"), "set_tilt_max_angle_degrees", "get_tilt_max_angle_degrees");
 
-	ClassDB::bind_method(D_METHOD("get_vault_max_wall_angle_degrees"), &HBAgentConstants::get_vault_max_wall_angle_degrees);
-	ClassDB::bind_method(D_METHOD("set_vault_max_wall_angle_degrees", "vault_max_wall_angle_degrees"), &HBAgentConstants::set_vault_max_wall_angle_degrees);
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "vault_max_wall_angle_degrees"), "set_vault_max_wall_angle_degrees", "get_vault_max_wall_angle_degrees");
+	ClassDB::bind_method(D_METHOD("get_parkour_max_wall_facing_angle_degrees"), &HBAgentConstants::get_parkour_max_wall_facing_angle_degrees);
+	ClassDB::bind_method(D_METHOD("set_parkour_max_wall_facing_angle_degrees", "parkour_max_wall_facing_angle_degrees"), &HBAgentConstants::set_parkour_max_wall_facing_angle_degrees);
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "parkour_max_wall_facing_angle_degrees"), "set_parkour_max_wall_facing_angle_degrees", "get_parkour_max_wall_facing_angle_degrees");
 
 	ClassDB::bind_method(D_METHOD("get_vault_max_obstacle_width"), &HBAgentConstants::get_vault_max_obstacle_width);
 	ClassDB::bind_method(D_METHOD("set_vault_max_obstacle_width", "vault_max_obstacle_width"), &HBAgentConstants::set_vault_max_obstacle_width);
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "vault_max_obstacle_width"), "set_vault_max_obstacle_width", "get_vault_max_obstacle_width");
+
+	ClassDB::bind_method(D_METHOD("get_turn_animation_threshold"), &HBAgentConstants::get_turn_animation_threshold_degrees);
+	ClassDB::bind_method(D_METHOD("set_turn_animation_threshold", "turn_animation_threshold"), &HBAgentConstants::set_turn_animation_threshold_degrees);
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "turn_animation_threshold"), "set_turn_animation_threshold", "get_turn_animation_threshold");
 }
 
 float HBAgentConstants::get_max_move_velocity() const {
@@ -70,12 +74,12 @@ void HBAgentConstants::set_tilt_max_angle_degrees(float p_tilt_max_angle_degrees
 	tilt_max_angle_degrees = p_tilt_max_angle_degrees;
 }
 
-float HBAgentConstants::get_vault_max_wall_angle_degrees() const {
-	return vault_max_wall_angle_degrees;
+float HBAgentConstants::get_parkour_max_wall_facing_angle_degrees() const {
+	return parkour_max_wall_facing_angle_degrees;
 }
 
-void HBAgentConstants::set_vault_max_wall_angle_degrees(float p_vault_max_wall_angle_degrees) {
-	vault_max_wall_angle_degrees = p_vault_max_wall_angle_degrees;
+void HBAgentConstants::set_parkour_max_wall_facing_angle_degrees(float p_parkour_max_wall_facing_angle_degrees) {
+	parkour_max_wall_facing_angle_degrees = p_parkour_max_wall_facing_angle_degrees;
 }
 
 float HBAgentConstants::get_vault_max_obstacle_width() const {
@@ -86,10 +90,26 @@ void HBAgentConstants::set_vault_max_obstacle_width(float p_vault_max_obstacle_w
 	vault_max_obstacle_width = p_vault_max_obstacle_width;
 }
 
-float HBAgentConstants::get_vault_check_distance() const {
-	return vault_check_distance;
+float HBAgentConstants::get_parkour_wall_check_distance() const {
+	return parkour_wall_check_distance;
 }
 
-void HBAgentConstants::set_vault_check_distance(float p_vault_check_distance) {
-	vault_check_distance = p_vault_check_distance;
+void HBAgentConstants::set_parkour_wall_check_distance(float p_vault_check_distance) {
+	parkour_wall_check_distance = p_vault_check_distance;
+}
+
+float HBAgentConstants::get_turn_animation_threshold_degrees() const {
+	return turn_animation_threshold;
+}
+
+void HBAgentConstants::set_turn_animation_threshold_degrees(float p_turn_animation_threshold) {
+	turn_animation_threshold = p_turn_animation_threshold;
+}
+
+float HBAgentConstants::get_parkour_max_ledge_height() const {
+	return parkour_max_ledge_height;
+}
+
+void HBAgentConstants::set_parkour_max_ledge_height(float p_parkour_max_ledge_height) {
+	parkour_max_ledge_height = p_parkour_max_ledge_height;
 }
