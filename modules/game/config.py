@@ -36,4 +36,5 @@ def get_doc_classes():
         "HBGameMainLoop",
         "HBAgentConstants",
         "HBStateMachine",
+        "FABRIKSolver",
     ]

@@ -11,6 +11,7 @@ if env.debug_features:
     env_game.Prepend(CPPPATH=["#modules/imgui/thirdparty/imgui"])
 env_game.add_source_files(module_obj, "*.cpp")
 env_game.add_source_files(module_obj, "animation_system/*.cpp")
+env_game.add_source_files(module_obj, "fabrik/*.cpp")
 
 env.modules_sources += module_obj
 

@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="FABRIKSolver" inherits="RefCounted" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		Generic solver for FABRIK inverse kinematics systems.
+		Techically this is a FABRIK-CCD hybrid when using pole constraints, woow.
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="calculate_distances">
+			<return type="void" />
+			<description>
+				Calculates the lengths of the different IK chain points.
+			</description>
+		</method>
+		<method name="get_debug_geo" qualifiers="const">
+			<return type="ImmediateMesh" />
+			<description>
+			</description>
+		</method>
+		<method name="get_joint_hinge_axis" qualifiers="const">
+			<return type="Vector3" />
+			<param index="0" name="joint_idx" type="int" />
+			<description>
+				Returns the axis around which the hinge constraint is enforced.
+			</description>
+		</method>
+		<method name="get_joint_hinge_enabled" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="joint_idx" type="int" />
+			<description>
+				Returns [code]true[/code] if the hinge constraint is ebaled for the given joint.
+			</description>
+		</method>
+		<method name="get_joint_rotation_limit_enabled" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="joint_idx" type="int" />
+			<description>
+				Returns [code]true[/code] if the rotation limiter constraint is enabled for the given joint.
+			</description>
+		</method>
+		<method name="get_joint_rotation_limit_max">
+			<return type="Vector3" />
+			<param index="0" name="joint_idx" type="int" />
+			<description>
+				Returns the maximum euler rotation limits for the given joint, in radians.
+			</description>
+		</method>
+		<method name="get_joint_rotation_limit_min">
+			<return type="Vector3" />
+			<param index="0" name="joint_idx" type="int" />
+			<description>
+				Returns the minimum euler rotation limits for the given joint, in radians.
+			</description>
+		</method>
+		<method name="get_joint_transform" qualifiers="const">
+			<return type="Transform3D" />
+			<param index="0" name="joint_idx" type="int" />
+			<description>
+				Returns the joint transform in local space, except for the root which should be in global space.
+			</description>
+		</method>
+		<method name="set_joint_hinge_axis">
+			<return type="void" />
+			<param index="0" name="joint_idx" type="int" />
+			<param index="1" name="joint_hinge_axis" type="Vector3" />
+			<description>
+				Sets the hinge axis of the joint.
+			</description>
+		</method>
+		<method name="set_joint_hinge_enabled">
+			<return type="void" />
+			<param index="0" name="joint_idx" type="int" />
+			<param index="1" name="joint_hinge_enabled" type="bool" />
+			<description>
+				Enables the hinge constraint, which makes this joint's hinge axis match the parent.
+			</description>
+		</method>
+		<method name="set_joint_rotation_limit_enabled">
+			<return type="void" />
+			<param index="0" name="joint_idx" type="int" />
+			<param index="1" name="joint_rotation_limit_enabled" type="bool" />
+			<description>
+				Enabled euler rotation limits for the given joint.
+			</description>
+		</method>
+		<method name="set_joint_rotation_limit_max">
+			<return type="void" />
+			<param index="0" name="joint_idx" type="int" />
+			<param index="1" name="joint_rotation_limit_max" type="Vector3" />
+			<description>
+				Sets the euler rotation maximum limit for each axis, in radians.
+			</description>
+		</method>
+		<method name="set_joint_rotation_limit_min">
+			<return type="void" />
+			<param index="0" name="joint_idx" type="int" />
+			<param index="1" name="joint_rotation_limit_min" type="Vector3" />
+			<description>
+				Sets the euler rotation minimum limit for each axis, in radians.
+			</description>
+		</method>
+		<method name="set_joint_transform">
+			<return type="void" />
+			<param index="0" name="joint_idx" type="int" />
+			<param index="1" name="joint_transform" type="Transform3D" />
+			<description>
+				Sets the transform for a joint, these should be local transforms except for the root, which should be global.
+			</description>
+		</method>
+		<method name="solve">
+			<return type="void" />
+			<param index="0" name="solve_iterations" type="int" default="10" />
+			<description>
+				Solves this IK chain.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="joint_count" type="int" setter="set_joint_count" getter="get_joint_count" default="0">
+			The amount of joints in this chain.
+		</member>
+		<member name="pole_position" type="Vector3" setter="set_pole_position" getter="get_pole_position" default="Vector3(0, 0, 0)">
+			The position towards which to point the chain when [member use_pole_constraint] is used.
+		</member>
+		<member name="target_position" type="Vector3" setter="set_target_position" getter="get_target_position" default="Vector3(0, 0, 0)">
+			The position the chain will try to reach.
+		</member>
+		<member name="use_pole_constraint" type="bool" setter="set_use_pole_constraint" getter="get_use_pole_constraint" default="false">
+			If [code]true[/code] enables the pole vector constraint.
+		</member>
+	</members>
+</class>

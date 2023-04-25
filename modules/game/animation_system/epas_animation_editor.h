@@ -4,6 +4,7 @@
 #include "modules/game/animation_system/epas_animation.h"
 #include "modules/game/animation_system/epas_animation_node.h"
 #ifdef DEBUG_ENABLED
+#include "../fabrik/fabrik.h"
 #include "../utils.h"
 #include "core/object/ref_counted.h"
 #include "core/object/undo_redo.h"
@@ -25,6 +26,7 @@ class EPASAnimationEditorIKJoint : public Resource {
 	// We use a virtual bone in the skeleton for simplifying IK code
 	String ik_target_bone_name;
 	String ik_magnet_bone_name;
+	Ref<FABRIKSolver> fabrik_solver;
 
 public:
 	bool get_use_magnet() const { return use_magnet; }
@@ -38,6 +40,9 @@ public:
 
 	String get_ik_magnet_bone_name() const { return ik_magnet_bone_name; }
 	void set_ik_magnet_bone_name(const String &p_ik_magnet_bone_name) { ik_magnet_bone_name = p_ik_magnet_bone_name; }
+
+	Ref<FABRIKSolver> get_fabrik_solver() const { return fabrik_solver; }
+	void set_fabrik_solver(const Ref<FABRIKSolver> &p_fabrik_solver) { fabrik_solver = p_fabrik_solver; }
 };
 
 class EPASAnimationEditor : public Control {

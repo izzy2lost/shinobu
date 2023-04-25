@@ -255,10 +255,23 @@ void EPASAnimationEditor::_create_eirteam_humanoid_ik() {
 		// Create the constraint
 		Ref<EPASAnimationEditorIKJoint> ik_constraint;
 		ik_constraint.instantiate();
+
+		Ref<FABRIKSolver> fabrik_solver;
+		fabrik_solver.instantiate();
+		fabrik_solver->set_joint_count(3);
+
+		fabrik_solver->set_use_pole_constraint(true);
+		fabrik_solver->set_joint_hinge_enabled(1, true);
+		fabrik_solver->set_joint_rotation_limit_enabled(1, true);
+		fabrik_solver->set_joint_rotation_limit_min(1, Vector3(Math::deg_to_rad(10.0f), Math::deg_to_rad(-180.0f), Math::deg_to_rad(-180.0f)));
+		fabrik_solver->set_joint_rotation_limit_max(1, Vector3(Math::deg_to_rad(180.0f), Math::deg_to_rad(180.0f), Math::deg_to_rad(180.0f)));
+
+		ik_constraint->set_fabrik_solver(fabrik_solver);
+
 		ik_constraint->set_ik_magnet_bone_name(ik_magnet_bone_name);
 		ik_constraint->set_ik_target_bone_name(ik_target_bone_name);
 		ik_constraint->set_ik_tip_bone_name(ik_tips[i]);
-		ik_constraint->set_use_magnet(true);
+		ik_constraint->set_use_magnet(false);
 
 		// Create selection handles
 		Ref<Selection> ik_target_handle;
@@ -301,38 +314,38 @@ void EPASAnimationEditor::_apply_constraints() {
 		int b_bone_idx = editing_skeleton->get_bone_parent(c_bone_idx);
 		int a_bone_idx = editing_skeleton->get_bone_parent(b_bone_idx);
 
-		editing_skeleton->reset_bone_pose(c_bone_idx);
-		editing_skeleton->reset_bone_pose(b_bone_idx);
-		editing_skeleton->reset_bone_pose(a_bone_idx);
-
 		ERR_FAIL_COND_MSG(c_bone_idx == -1 || b_bone_idx == -1 || a_bone_idx == -1, "Invalid IK constraint");
 
 		Transform3D a_bone_trf = editing_skeleton->get_bone_global_pose(a_bone_idx);
-		Transform3D b_bone_trf = editing_skeleton->get_bone_global_pose(b_bone_idx);
-		Transform3D c_bone_trf = editing_skeleton->get_bone_global_pose(c_bone_idx);
+		Transform3D b_bone_trf = editing_skeleton->get_bone_pose(b_bone_idx);
+		Transform3D c_bone_trf = editing_skeleton->get_bone_pose(c_bone_idx);
 		Transform3D target_bone_trf = editing_skeleton->get_bone_global_pose(target_bone_idx);
+		Vector3 magnet_target_pos = editing_skeleton->get_bone_global_pose(magnet_bone_idx).origin;
 
-		Quaternion a_local_rot = editing_skeleton->get_bone_pose_rotation(a_bone_idx);
-		Quaternion b_local_rot = editing_skeleton->get_bone_pose_rotation(b_bone_idx);
+		Ref<FABRIKSolver> fabrik_solver = ik_constraint->get_fabrik_solver();
+		fabrik_solver->set_joint_transform(0, a_bone_trf);
+		fabrik_solver->set_joint_transform(1, b_bone_trf);
+		fabrik_solver->set_joint_transform(2, c_bone_trf);
+		fabrik_solver->calculate_distances();
+		fabrik_solver->set_target_position(target_bone_trf.origin);
+		fabrik_solver->set_pole_position(magnet_target_pos);
 
-		HBUtils::two_joint_ik(
-				a_bone_trf.origin,
-				b_bone_trf.origin,
-				c_bone_trf.origin,
-				target_bone_trf.origin, 0.01f,
-				a_bone_trf.basis.get_rotation_quaternion(),
-				b_bone_trf.basis.get_rotation_quaternion(),
-				a_local_rot,
-				b_local_rot,
-				true,
-				editing_skeleton->get_bone_global_pose(magnet_bone_idx).origin);
+		fabrik_solver->solve(15);
 
 		String a_bone_name = editing_skeleton->get_bone_name(a_bone_idx);
 		String b_bone_name = editing_skeleton->get_bone_name(b_bone_idx);
 		String c_bone_name = ik_constraint->get_ik_tip_bone_name();
 
+		int a_parent_transform_idx = editing_skeleton->get_bone_parent(a_bone_idx);
+
+		ERR_FAIL_COND(a_parent_transform_idx == -1);
+
+		Transform3D a_parent_global_transform = editing_skeleton->get_bone_global_pose(a_parent_transform_idx);
+		Quaternion a_bone_result_local = (a_parent_global_transform.affine_inverse() * fabrik_solver->get_joint_transform(0)).basis.get_rotation_quaternion();
+		Quaternion b_bone_result_local = fabrik_solver->get_joint_transform(1).basis.get_rotation_quaternion();
+
 		const int bone_indices[] = { a_bone_idx, b_bone_idx };
-		const Quaternion *bone_rots[] = { &a_local_rot, &b_local_rot };
+		const Quaternion *bone_rots[] = { &a_bone_result_local, &b_bone_result_local };
 
 		for (int j = 0; j < 2; j++) {
 			String bone_name = editing_skeleton->get_bone_name(bone_indices[j]);
