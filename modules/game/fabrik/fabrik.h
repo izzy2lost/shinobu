@@ -29,6 +29,7 @@ class FABRIKSolver : public RefCounted {
 	Vector3 pole_position;
 	Vector3 target_position;
 	bool use_pole_constraint = false;
+	float full_chain_distance = 0.0f;
 
 	void _solve_backwards();
 	void _solve_forwards(const Vector3 &p_base);
@@ -75,6 +76,19 @@ public:
 	Transform3D get_global_trf(int p_idx);
 
 	FABRIKSolver();
+};
+
+class FABRIKLimbSolver : public FABRIKSolver {
+public:
+	FABRIKLimbSolver() :
+			FABRIKSolver() {
+		set_joint_count(3);
+		set_joint_hinge_enabled(1, true);
+		set_joint_rotation_limit_enabled(1, true);
+		set_joint_rotation_limit_min(1, Vector3(Math::deg_to_rad(10.0f), Math::deg_to_rad(-180.0f), Math::deg_to_rad(-180.0f)));
+		set_joint_rotation_limit_max(1, Vector3(Math::deg_to_rad(180.0f), Math::deg_to_rad(180.0f), Math::deg_to_rad(180.0f)));
+		set_use_pole_constraint(true);
+	}
 };
 
 #endif // FABRIK_H

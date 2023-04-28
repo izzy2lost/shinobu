@@ -39,6 +39,10 @@ void EPASController::_notification(int p_what) {
 		} break;
 		case NOTIFICATION_ENTER_TREE: {
 			_update_process_mode();
+			REGISTER_DEBUG(this);
+		} break;
+		case NOTIFICATION_EXIT_TREE: {
+			UNREGISTER_DEBUG(this);
 		} break;
 		case NOTIFICATION_INTERNAL_PROCESS: {
 #ifdef DEBUG_ENABLED
@@ -337,9 +341,7 @@ EPASController::EPASController() {
 	hip_plot_lines_x.resize_zeroed(90);
 	hip_plot_lines_y.resize_zeroed(90);
 #endif
-	REGISTER_DEBUG(this);
 }
 
 EPASController::~EPASController() {
-	UNREGISTER_DEBUG(this);
 }

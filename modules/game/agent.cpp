@@ -25,11 +25,9 @@ HBAgent::HBAgent() :
 	acceleration_plot_lines_x.resize_zeroed(VELOCITY_PLOT_SIZE);
 	acceleration_plot_lines_y.resize_zeroed(VELOCITY_PLOT_SIZE);
 #endif
-	REGISTER_DEBUG(this);
 }
 
 HBAgent::~HBAgent() {
-	UNREGISTER_DEBUG(this);
 }
 
 Ref<HBAgentConstants> HBAgent::get_agent_constants() const {
@@ -332,12 +330,19 @@ void HBAgent::_notification(int p_what) {
 		case NOTIFICATION_PHYSICS_PROCESS: {
 			_physics_process(get_physics_process_delta_time());
 		} break;
-		case NOTIFICATION_INTERNAL_PROCESS: {
+		case NOTIFICATION_ENTER_TREE: {
+			REGISTER_DEBUG(this);
+		} break;
+		case NOTIFICATION_EXIT_TREE: {
+			UNREGISTER_DEBUG(this);
+		} break;
 #ifdef DEBUG_ENABLED
+		case NOTIFICATION_INTERNAL_PROCESS: {
 			GodotImGui *gim = GodotImGui::get_singleton();
 			if (gim && gim->is_debug_enabled(this)) {
 				if (gim->begin_debug_window(this)) {
 					ImGui::Text("Velocity %s", String(get_linear_velocity()).utf8().get_data());
+					ImGui::Text("Desired Velocity %s", String(_get_desired_velocity()).utf8().get_data());
 					ImGui::Text("gn rot %s", String(_get_graphics_node()->get_rotation_degrees()).utf8().get_data());
 					plot_t += get_process_delta_time();
 
@@ -388,8 +393,8 @@ void HBAgent::_notification(int p_what) {
 				}
 				ImGui::End();
 			}
-#endif
 		} break;
+#endif
 	}
 }
 
@@ -412,6 +417,10 @@ void HBAgent::set_input_action_state(AgentInputAction p_event, bool p_state) {
 void HBAgent::set_movement_input(Vector3 p_movement_input) {
 	ERR_FAIL_COND(p_movement_input.y != 0.0f);
 	current_input_state.movement = p_movement_input;
+}
+
+Vector3 HBAgent::get_movement_input() const {
+	return current_input_state.movement;
 }
 
 Vector3 HBAgent::get_desired_movement_input() const {

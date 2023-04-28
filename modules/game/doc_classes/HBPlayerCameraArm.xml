@@ -6,4 +6,10 @@
 	</description>
 	<tutorials>
 	</tutorials>
+	<members>
+		<member name="skeleton_path" type="NodePath" setter="set_target_skeleton_path" getter="get_target_skeleton_path" default="NodePath(&quot;&quot;)">
+		</member>
+		<member name="target_bone_name" type="StringName" setter="set_target_bone_name" getter="get_target_bone_name" default="&amp;&quot;&quot;">
+		</member>
+	</members>
 </class>

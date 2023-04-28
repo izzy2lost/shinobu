@@ -73,7 +73,7 @@ public:
 	}
 
 	static Vector3 quat_to_scaled_angle_axis(Quaternion q) {
-		return 2.0f * (q.get_axis() * q.get_angle());
+		return 2.0f * (q.get_axis().normalized() * q.get_angle());
 	}
 
 	static Quaternion quat_from_scaled_angle_axis(Vector3 v) {

@@ -132,7 +132,7 @@ GodotImGui::GodotImGui() {
 
 	ImGuiIO &io = ImGui::GetIO();
 	(void)io;
-	io.IniFilename = nullptr;
+	//io.IniFilename = nullptr;
 
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
@@ -736,17 +736,9 @@ void GodotImGui::_notification(int p_what) {
 					if (ImGui::BeginTabBar("DebugTabBar")) {
 						if (ImGui::BeginTabItem("Objects")) {
 							for (KeyValue<ObjectID, ObjectDebugInfo> kv : debug_status) {
-								Object *obj = ObjectDB::get_instance(kv.key);
-								Node *node = Object::cast_to<Node>(obj);
-								String label_text;
-								const String class_name = obj->get_class_name();
-								if (node) {
-									const String str = node->get_name();
-									label_text = vformat("%s (%s) %d", str, class_name, static_cast<int64_t>(kv.key));
-								} else {
-									label_text = vformat("%s %d", class_name, static_cast<int64_t>(kv.key));
+								if (kv.value.is_root) {
+									_draw_debug_object_tree(kv.key);
 								}
-								ImGui::Checkbox(label_text.utf8().ptr(), &(debug_status.getptr(kv.key)->debug_enabled));
 							}
 							ImGui::EndTabItem();
 						}
@@ -951,15 +943,74 @@ ImGuiKey GodotImGui::_map_to_imgui_key(const Key &p_key) {
 	return imgui_key;
 }
 
+void GodotImGui::_draw_debug_object_tree(ObjectID p_id) {
+	Object *obj = ObjectDB::get_instance(p_id);
+	Node *node = Object::cast_to<Node>(obj);
+	String label_text;
+	const String class_name = obj->get_class_name();
+	if (node) {
+		const String str = node->get_name();
+		label_text = vformat("%s (%s)##%d", str, class_name, static_cast<int64_t>(p_id));
+	} else {
+		label_text = vformat("%s##%d", class_name, static_cast<int64_t>(p_id));
+	}
+
+	ImGuiTreeNodeFlags tree_flags = ImGuiTreeNodeFlags_FramePadding;
+
+	if (debug_status[p_id].children.size() == 0) {
+		tree_flags |= ImGuiTreeNodeFlags_Leaf;
+	}
+
+	bool tree_open = ImGui::TreeNodeEx(label_text.utf8().get_data(), tree_flags);
+	ImGui::SameLine(0.0f, 10.0f);
+	ImGui::GetItemRectSize();
+
+	ImGui::Checkbox("##visibilitycheck", &(debug_status.getptr(p_id)->debug_enabled));
+
+	if (tree_open) {
+		Vector<ObjectID> children = debug_status[p_id].children;
+		for (int i = 0; i < children.size(); i++) {
+			_draw_debug_object_tree(children[i]);
+		}
+		ImGui::TreePop();
+	}
+}
+
 void GodotImGui::register_debug_object(const ObjectID &p_object_id) {
 	ERR_FAIL_COND_MSG(debug_status.has(p_object_id), "GAME: Error registering debug object, already registered");
 	const ObjectDebugInfo debug_data;
 	debug_status.insert(p_object_id, debug_data);
+	Node *node = Object::cast_to<Node>(ObjectDB::get_instance(p_object_id));
+	debug_status[p_object_id].is_root = true;
+	if (node) {
+		// Find the first parent of this object that we are tracking
+		// So we can put it in the correct container
+		Node *parent_node = node->get_parent();
+		while (parent_node != nullptr) {
+			ObjectID id = parent_node->get_instance_id();
+			if (debug_status.has(id)) {
+				break;
+			}
+			parent_node = parent_node->get_parent();
+		}
+
+		if (parent_node) {
+			debug_status[p_object_id].is_root = false;
+			ObjectID id = parent_node->get_instance_id();
+			debug_status[id].children.push_back(p_object_id);
+		}
+	}
 }
 
 void GodotImGui::unregister_debug_object(const ObjectID &p_object_id) {
 	ERR_FAIL_COND_MSG(!debug_status.has(p_object_id), "GAME: Error unregistering debug object, object is not registered");
 	debug_status.erase(p_object_id);
+	for (KeyValue<ObjectID, ObjectDebugInfo> kv : debug_status) {
+		if (kv.value.children.has(p_object_id)) {
+			kv.value.children.erase(p_object_id);
+			break;
+		}
+	}
 }
 
 bool GodotImGui::is_debugging_enabled(const ObjectID &p_object_id) const {

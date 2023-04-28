@@ -27,7 +27,7 @@ protected:
 	GDVIRTUAL1(_process, float);
 	GDVIRTUAL0(_exit);
 
-	virtual void debug_draw() const {};
+	virtual void debug_ui_draw() const {};
 
 	Node *get_actor() const;
 

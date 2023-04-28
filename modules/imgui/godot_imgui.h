@@ -30,6 +30,8 @@ private:
 	SubViewport *viewport = nullptr;
 	struct ObjectDebugInfo {
 		bool debug_enabled = false;
+		bool is_root = false; // If it's a display tree root object
+		Vector<ObjectID> children;
 	};
 	HashMap<ObjectID, ObjectDebugInfo> debug_status;
 	bool debug_active = false;
@@ -58,6 +60,7 @@ private:
 	void _setup_buffers(ImDrawData *p_draw_data);
 	void _show_overlay();
 	ImGuiKey _map_to_imgui_key(const Key &p_key);
+	void _draw_debug_object_tree(ObjectID p_id);
 
 protected:
 	void _notification(int p_what);

@@ -1,4 +1,5 @@
 #include "state_machine.h"
+#include "agent_state.h"
 #ifdef DEBUG_ENABLED
 #include "modules/imgui/godot_imgui.h"
 #include "modules/imgui/godot_imgui_macros.h"
@@ -12,6 +13,12 @@ void HBStateMachine::_notification(int p_what) {
 				ERR_FAIL_COND_MSG(actor == nullptr, "No actor was given to the state machine");
 				actor->connect("ready", callable_mp(this, &HBStateMachine::transition_to).bind(default_state, Dictionary()), CONNECT_ONE_SHOT);
 			}
+		} break;
+		case NOTIFICATION_ENTER_TREE: {
+			REGISTER_DEBUG(this);
+		} break;
+		case NOTIFICATION_EXIT_TREE: {
+			UNREGISTER_DEBUG(this);
 		} break;
 		case NOTIFICATION_PHYSICS_PROCESS: {
 			HBStateMachineState *current_state = _get_current_state();
@@ -50,7 +57,7 @@ void HBStateMachine::_notification(int p_what) {
 				}
 				ImGui::SameLine();
 				if (selected_state_ptr != nullptr) {
-					selected_state_ptr->debug_draw();
+					selected_state_ptr->debug_ui_draw();
 				}
 			}
 			ImGui::End();
@@ -113,6 +120,11 @@ void HBStateMachine::transition_to(const StringName &p_name, const Dictionary &p
 	HBStateMachineState *current_state = _get_current_state();
 	if (current_state) {
 		current_state->exit();
+		// HACK: hide debug collisions when switching states, please ignore
+		HBAgentState *agent_state = Object::cast_to<HBAgentState>(current_state);
+		if (agent_state) {
+			agent_state->debug_draw_clear();
+		}
 		current_state = nullptr;
 	}
 	current_state = Object::cast_to<HBStateMachineState>(get_node(String(p_name)));
@@ -126,12 +138,10 @@ HBStateMachine::HBStateMachine() {
 	if (!Engine::get_singleton()->is_editor_hint()) {
 		set_physics_process(true);
 		set_process(true);
-		REGISTER_DEBUG(this);
 	}
 }
 
 HBStateMachine::~HBStateMachine() {
-	UNREGISTER_DEBUG(this);
 }
 
 NodePath HBStateMachine::get_agent_node() const {

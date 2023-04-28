@@ -35,7 +35,7 @@
 		<member name="epas_controller_node" type="NodePath" setter="set_epas_controller_node" getter="get_epas_controller_node" default="NodePath(&quot;&quot;)">
 		</member>
 		<member name="graphics_node" type="NodePath" setter="set_graphics_node" getter="get_graphics_node" default="NodePath(&quot;&quot;)">
-			The path to the node that should turn on the Y axis to face the direction of the current velocity.
+			The path to the node that takes care of visually rotating the character around the Y axis.
 		</member>
 		<member name="tilt_node" type="NodePath" setter="set_tilt_node" getter="get_tilt_node" default="NodePath(&quot;&quot;)">
 			The path to the node that should tilt when accelerating, this should be different from [member graphics_node].

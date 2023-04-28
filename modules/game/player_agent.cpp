@@ -70,8 +70,14 @@ void HBPlayerAgentController::_notification(int p_what) {
 				agent->set_movement_input(input_3d_space);
 			}
 		} break;
-		case NOTIFICATION_INTERNAL_PROCESS: {
+		case NOTIFICATION_ENTER_TREE: {
+			REGISTER_DEBUG(this);
+		} break;
+		case NOTIFICATION_EXIT_TREE: {
+			UNREGISTER_DEBUG(this);
+		} break;
 #ifdef DEBUG_ENABLED
+		case NOTIFICATION_INTERNAL_PROCESS: {
 			GodotImGui *gim = GodotImGui::get_singleton();
 			if (gim && gim->is_debug_enabled(this)) {
 				if (gim->begin_debug_window(this)) {
@@ -89,8 +95,8 @@ void HBPlayerAgentController::_notification(int p_what) {
 				}
 				ImGui::End();
 			}
-#endif
 		} break;
+#endif
 	}
 }
 
@@ -109,9 +115,7 @@ HBPlayerAgentController::HBPlayerAgentController() {
 		set_process_internal(true);
 #endif
 	}
-	REGISTER_DEBUG(this);
 }
 
 HBPlayerAgentController::~HBPlayerAgentController() {
-	UNREGISTER_DEBUG(this);
 }

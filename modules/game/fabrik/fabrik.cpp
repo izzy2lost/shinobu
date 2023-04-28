@@ -75,7 +75,7 @@ void FABRIKSolver::_apply_fabrik() {
 
 		Quaternion delta = Quaternion(from, to);
 		joint.global_transform = joint_global;
-		joint.global_transform.basis = Basis(delta * joint_global.basis.get_rotation_quaternion());
+		joint.global_transform.basis = Basis(Quaternion(from, to) * joint_global.basis.get_rotation_quaternion());
 
 		if (joint.rotation_limit_enabled) {
 			Transform3D local = prev_global_trf.affine_inverse() * joint.global_transform;
@@ -137,6 +137,7 @@ void FABRIKSolver::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("calculate_distances"), &FABRIKSolver::calculate_distances);
 	ClassDB::bind_method(D_METHOD("get_debug_geo"), &FABRIKSolver::get_debug_geo);
+	ClassDB::bind_method(D_METHOD("get_debug_geo2"), &FABRIKSolver::get_debug_geo);
 	ClassDB::bind_method(D_METHOD("solve", "solve_iterations"), &FABRIKSolver::solve, DEFVAL(10));
 }
 
@@ -197,8 +198,10 @@ Vector3 FABRIKSolver::get_joint_rotation_limit_max(int p_joint_idx) {
 }
 
 void FABRIKSolver::calculate_distances() {
+	full_chain_distance = 0.0f;
 	for (int i = 1; i < joints.size(); i++) {
 		joints.write[i].distance_to_parent = joints[i].transform.origin.length();
+		full_chain_distance += joints[i].distance_to_parent;
 	}
 }
 
@@ -233,16 +236,21 @@ void FABRIKSolver::solve(int p_iterations) {
 		_process_pole_vector();
 	}
 
-	if (joints[joints.size() - 1].working_position.distance_squared_to(target_position) < dist_eps_squared) {
-		return;
-	}
-
 	_local_to_global();
+
 	for (int i = 0; i < joints.size(); i++) {
 		joints.write[i].working_position = joints[i].global_transform.origin;
 	}
 
+	if (joints[joints.size() - 1].working_position.distance_squared_to(target_position) < dist_eps_squared) {
+		return;
+	}
+
 	Vector3 base_pos = joints[0].working_position;
+
+	if (base_pos.distance_to(target_position) > full_chain_distance) {
+		return;
+	}
 
 	for (int i = 0; i < p_iterations; i++) {
 		if (joints[joints.size() - 1].working_position.distance_squared_to(target_position) < dist_eps_squared) {
@@ -251,6 +259,8 @@ void FABRIKSolver::solve(int p_iterations) {
 		}
 		_solve_backwards();
 		_solve_forwards(base_pos);
+		_apply_fabrik();
+		_local_to_global();
 	}
 	_apply_fabrik();
 }
