@@ -1,18 +1,30 @@
 #!/usr/bin/env python
 
 Import("env")
-Import("env_modules")
 
-env_game = env_modules.Clone()
+env_game = env.Clone()
 
 module_obj = []
 if env.debug_features:
     # Need imgui
     env_game.Prepend(CPPPATH=["#modules/imgui/thirdparty/imgui"])
-env_game.add_source_files(module_obj, "*.cpp")
-env_game.add_source_files(module_obj, "animation_system/*.cpp")
-env_game.add_source_files(module_obj, "fabrik/*.cpp")
 
-env.modules_sources += module_obj
+sources = [
+    Glob("*.cpp"),
+    Glob("animation_system/*.cpp"),
+    Glob("fabrik/*.cpp"),
+]
+
+if ARGUMENTS.get("game_shared", "no") == "yes":
+    # Shared lib compilation
+    env_game.Append(CCFLAGS=["-fPIC"])
+    env_game["LIBS"] = []
+    shared_lib = env_game.SharedLibrary(target="#bin/game", source=sources)
+    shared_lib_shim = shared_lib[0].name.rsplit(".", 1)[0]
+    env.Append(LIBPATH=["#bin"])
+    env.Append(LIBS=[shared_lib_shim])
+else:
+    env_game.add_source_files(module_obj, sources)
+    env.modules_sources += module_obj
 
 SConscript("resources/SCsub")
