@@ -885,9 +885,9 @@ void HBAgentWallGrabbedState::physics_process(float p_delta) {
 	Vector3 ik_position_avg;
 	// Weights used for a weighted average of the ik positions
 	// this is used to calculate the hip offset
-	float weights[4];
+	float weights[LedgePoint::LEDGE_POINT_MAX];
 	float total_weight = 0.0f;
-	Vector3 ik_handle_positions[4];
+	Vector3 ik_handle_positions[LedgePoint::LEDGE_POINT_MAX];
 
 	float anim_mul = Math::abs(ledge_movement_velocity) / 0.5;
 	for (int i = 0; i < LedgePoint::LEDGE_POINT_MAX; i++) {
