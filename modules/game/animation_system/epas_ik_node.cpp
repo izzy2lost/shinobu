@@ -140,6 +140,14 @@ void EPASIKNode::set_magnet_position(const Vector3 &p_magnet_position) {
 	fabrik_solver->set_pole_position(p_magnet_position);
 }
 
+void EPASIKNode::set_use_hinge(bool p_use_hinge) {
+	fabrik_solver->set_joint_hinge_enabled(1, p_use_hinge);
+}
+
+bool EPASIKNode::get_use_hinge() const {
+	return fabrik_solver->get_joint_hinge_enabled(1);
+}
+
 StringName EPASIKNode::get_ik_end() const {
 	return ik_end;
 }

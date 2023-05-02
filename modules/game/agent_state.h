@@ -28,7 +28,7 @@ public:
 	Ref<EPASTransitionNode> get_movement_transition_node() const;
 	Skeleton3D *get_skeleton() const;
 	Node3D *get_graphics_node();
-	virtual void debug_ui_draw() const override;
+	virtual void debug_ui_draw() override;
 	friend class HBStateMachine;
 };
 
@@ -97,6 +97,8 @@ class HBAgentWallGrabbedState : public HBAgentState {
 		Vector3 position;
 		Vector3 target_position;
 		int bone_idx;
+		// Magnet pos in local space
+		Vector3 magnet_position;
 		// Hand raycasts are different, they try to find the ledge, while foot raycasts just
 		// try to find a point to place the foot upon.
 		LedgeIKPointRaycastType raycast_type;
@@ -111,11 +113,22 @@ class HBAgentWallGrabbedState : public HBAgentState {
 		float start_time = 0.0f;
 		float end_time = 0.0f;
 		Color debug_color;
+
+		float get_weight(float p_time) const {
+			if (p_time <= 0.0f || p_time >= 1.0f) {
+				return 1.0f;
+			}
+			float w = 1.0f - sin(p_time * Math_PI);
+			return w * w;
+		}
 	};
 
 	float animation_time = 0.0f;
-	int animation_direction = 0;
+	int animation_direction = 1; // Direction in which the animation should be played
+								 // it is okay if the animationa and movement direction
+								 // it doesn't look too bad, it's just eyecandy :P
 
+	// Velocity spring values
 	float ledge_movement_velocity = 0.0f;
 	float ledge_movement_acceleration = 0.0f;
 
@@ -129,12 +142,29 @@ class HBAgentWallGrabbedState : public HBAgentState {
 
 	Vector<LedgeIKPoint> ledge_ik_points;
 
+	Vector3 target_agent_position;
+	float target_spring_halflife = 0.175f;
+	Vector3 target_agent_spring_velocity;
+	struct IKDebugInfo { // Debug graph info
+		static const int IK_OFFSET_PLOT_SIZE = 90;
+		float plot_time = 0.0f;
+		float graph_x_time[IK_OFFSET_PLOT_SIZE] = { 0.0f };
+		float ik_tip_influence_y_graph[LedgePoint::LEDGE_POINT_MAX][IK_OFFSET_PLOT_SIZE] = { { 0.0f } };
+		float ik_hip_offset_graph[IK_OFFSET_PLOT_SIZE] = { 0.0f };
+		// We do this because the physics threads updates at a different rate than the process thread the UI uses
+		bool last_data_is_valid = true;
+		// This is here because we migh do more than one physics step between
+		float physics_time_delta = 0.0f;
+		float last_tip_weights[LedgePoint::LEDGE_POINT_MAX] = { 0.0f };
+		float last_hip_offset_x = 0.0f;
+	} ik_debug_info;
+
 	Transform3D _get_ledge_point_target_trf(int p_ledge_point, const Vector3 &p_position);
 	bool _find_ledge(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_normal, const Color &p_debug_color);
 	bool _find_wall_point(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_normal, const Color &p_debug_color);
 	virtual void enter(const Dictionary &p_args) override;
 	virtual void physics_process(float p_delta) override;
-	virtual void debug_ui_draw() const override;
+	virtual void debug_ui_draw() override;
 };
 
 #endif // AGENT_STATE_H

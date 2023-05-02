@@ -64,7 +64,6 @@ void HBPlayerAgentController::_notification(int p_what) {
 				if (camera) {
 					input_3d_space = camera->get_camera_transform().basis.xform(input_3d_space);
 					input_3d_space.y = 0.0f;
-					input_3d_space.normalize();
 				}
 
 				agent->set_movement_input(input_3d_space);

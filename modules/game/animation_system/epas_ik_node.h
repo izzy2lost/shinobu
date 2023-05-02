@@ -34,6 +34,8 @@ public:
 	void set_use_magnet(bool p_use_magnet);
 	Vector3 get_magnet_position() const;
 	void set_magnet_position(const Vector3 &p_magnet_position);
+	void set_use_hinge(bool p_use_hinge);
+	bool get_use_hinge() const;
 	StringName get_ik_end() const;
 	void set_ik_end(const StringName &p_ik_end);
 
