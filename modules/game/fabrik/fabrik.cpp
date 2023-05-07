@@ -1,4 +1,5 @@
 #include "fabrik.h"
+#include "modules/tracy/tracy.gen.h"
 #include "scene/3d/mesh_instance_3d.h"
 
 void FABRIKSolver::_solve_backwards() {
@@ -226,6 +227,7 @@ Vector3 FABRIKSolver::get_joint_hinge_axis(int p_joint_idx) const {
 }
 
 void FABRIKSolver::solve(int p_iterations) {
+	ZoneScopedN("FABRIK Solve");
 	if (joints.size() == 0) {
 		return;
 	}

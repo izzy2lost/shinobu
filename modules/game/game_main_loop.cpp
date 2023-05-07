@@ -11,6 +11,8 @@
 #include <fenv.h>
 #endif
 
+#include "modules/tracy/tracy.gen.h"
+
 HBGameMainLoop::HBGameMainLoop() :
 		SceneTree() {
 	imgui_module_post_init();
@@ -24,6 +26,18 @@ void HBGameMainLoop::change_scene(Node *p_new_scene) {
 	}
 	get_root()->add_child(p_new_scene);
 	set_current_scene(p_new_scene);
+}
+
+bool HBGameMainLoop::process(double p_time) {
+	ZoneScopedN("Process Frame");
+	bool result = SceneTree::process(p_time);
+	return result;
+}
+
+bool HBGameMainLoop::physics_process(double p_time) {
+	ZoneScopedN("Physics Frame");
+	bool result = SceneTree::physics_process(p_time);
+	return result;
 }
 
 void HBGameMainLoop::enable_fp_exceptions() {

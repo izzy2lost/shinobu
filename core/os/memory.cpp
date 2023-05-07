@@ -36,6 +36,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "modules/tracy/tracy.gen.h"
+
 void *operator new(size_t p_size, const char *p_description) {
 	return Memory::alloc_static(p_size, false);
 }
@@ -75,6 +77,7 @@ void *Memory::alloc_static(size_t p_bytes, bool p_pad_align) {
 	void *mem = malloc(p_bytes + (prepad ? DATA_OFFSET : 0));
 
 	ERR_FAIL_NULL_V(mem, nullptr);
+	TracyAlloc(mem, p_bytes + (prepad ? PAD_ALIGN : 0));
 
 	alloc_count.increment();
 
@@ -120,6 +123,7 @@ void *Memory::realloc_static(void *p_memory, size_t p_bytes, bool p_pad_align) {
 		}
 #endif
 
+		TracyFree(mem);
 		if (p_bytes == 0) {
 			free(mem);
 			return nullptr;
@@ -129,6 +133,8 @@ void *Memory::realloc_static(void *p_memory, size_t p_bytes, bool p_pad_align) {
 			mem = (uint8_t *)realloc(mem, p_bytes + DATA_OFFSET);
 			ERR_FAIL_NULL_V(mem, nullptr);
 
+			TracyAlloc(mem, p_bytes + DATA_OFFSET);
+
 			s = (uint64_t *)(mem + SIZE_OFFSET);
 
 			*s = p_bytes;
@@ -137,6 +143,7 @@ void *Memory::realloc_static(void *p_memory, size_t p_bytes, bool p_pad_align) {
 		}
 	} else {
 		mem = (uint8_t *)realloc(mem, p_bytes);
+		TracyAlloc(mem, p_bytes);
 
 		ERR_FAIL_COND_V(mem == nullptr && p_bytes > 0, nullptr);
 
@@ -163,10 +170,13 @@ void Memory::free_static(void *p_ptr, bool p_pad_align) {
 #ifdef DEBUG_ENABLED
 		uint64_t *s = (uint64_t *)(mem + SIZE_OFFSET);
 		mem_usage.sub(*s);
+		TracyFree(mem);
 #endif
-
 		free(mem);
 	} else {
+#ifdef DEBUG_ENABLED
+		TracyFree(mem);
+#endif
 		free(mem);
 	}
 }
