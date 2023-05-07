@@ -815,6 +815,19 @@ void GodotImGui::ImImage(const Ref<Texture2D> &p_texture) {
 	ImGui::Image((void *)rid, size);
 }
 
+void GodotImGui::DrawJoystick(const Vector2 &p_value, const float p_radius) {
+	ImDrawList *dl = ImGui::GetWindowDrawList();
+	ImVec2 center_pos = ImGui::GetCursorScreenPos();
+	center_pos.x += p_radius;
+	center_pos.y += p_radius;
+	dl->AddCircleFilled(center_pos, p_radius, IM_COL32_BLACK);
+	Vector2 stick_input = p_value;
+	stick_input *= p_radius;
+	stick_input += Vector2(center_pos.x, center_pos.y);
+	dl->AddLine(center_pos, ImVec2(stick_input.x, stick_input.y), IM_COL32_WHITE);
+	ImGui::Dummy(ImVec2(p_radius * 2, p_radius * 2));
+}
+
 ImGuiKey GodotImGui::_map_to_imgui_key(const Key &p_key) {
 	ImGuiKey imgui_key = ImGuiKey_None;
 	if (p_key >= Key::A && p_key <= Key::Z) {

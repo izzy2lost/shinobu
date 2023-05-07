@@ -32,6 +32,10 @@ void HBAgentConstants::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_turn_animation_threshold"), &HBAgentConstants::get_turn_animation_threshold_degrees);
 	ClassDB::bind_method(D_METHOD("set_turn_animation_threshold", "turn_animation_threshold"), &HBAgentConstants::set_turn_animation_threshold_degrees);
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "turn_animation_threshold"), "set_turn_animation_threshold", "get_turn_animation_threshold");
+
+	ClassDB::bind_method(D_METHOD("get_ledge_movement_velocity"), &HBAgentConstants::get_ledge_movement_velocity);
+	ClassDB::bind_method(D_METHOD("set_ledge_movement_velocity", "ledge_movement_velocity"), &HBAgentConstants::set_ledge_movement_velocity);
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "ledge_movement_velocity"), "set_ledge_movement_velocity", "get_ledge_movement_velocity");
 }
 
 float HBAgentConstants::get_max_move_velocity() const {
@@ -112,4 +116,12 @@ float HBAgentConstants::get_parkour_max_ledge_height() const {
 
 void HBAgentConstants::set_parkour_max_ledge_height(float p_parkour_max_ledge_height) {
 	parkour_max_ledge_height = p_parkour_max_ledge_height;
+}
+
+float HBAgentConstants::get_ledge_movement_velocity() const {
+	return ledge_movement_velocity;
+}
+
+void HBAgentConstants::set_ledge_movement_velocity(float p_ledge_movement_velocity) {
+	ledge_movement_velocity = p_ledge_movement_velocity;
 }

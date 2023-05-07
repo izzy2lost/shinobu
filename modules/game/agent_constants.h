@@ -23,6 +23,9 @@ class HBAgentConstants : public Resource {
 
 	float turn_animation_threshold = 45.0f; // If the rotation is bigger than this we initiate a rotation
 
+	// Wall movement
+	float ledge_movement_velocity = 0.5f;
+
 protected:
 	static void _bind_methods();
 
@@ -33,6 +36,7 @@ public:
 		MOVEMENT_TURN180_R = 2,
 		MOVEMENT_WALLRUN = 4,
 		MOVEMENT_WALLGRABBED = 5,
+		MOVEMENT_FALL = 6,
 	};
 
 	float get_max_move_velocity() const;
@@ -64,6 +68,9 @@ public:
 
 	float get_parkour_max_ledge_height() const;
 	void set_parkour_max_ledge_height(float p_parkour_max_ledge_height);
+
+	float get_ledge_movement_velocity() const;
+	void set_ledge_movement_velocity(float p_ledge_movement_velocity);
 };
 
 #endif // AGENT_CONSTANTS_H

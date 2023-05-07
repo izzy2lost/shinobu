@@ -15,7 +15,8 @@ class HBAgent : public CharacterBody3D {
 public:
 	enum MovementMode {
 		MOVE_GROUNDED,
-		MOVE_MANUAL
+		MOVE_MANUAL,
+		MOVE_FALL
 	};
 
 	enum AgentInputAction {

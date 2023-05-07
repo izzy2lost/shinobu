@@ -82,6 +82,7 @@ public:
 	void set_enable_overlay(bool p_enable);
 
 	static void ImImage(const Ref<Texture2D> &p_texture);
+	static void DrawJoystick(const Vector2 &p_value, const float p_radius);
 
 	GodotImGui();
 	~GodotImGui();

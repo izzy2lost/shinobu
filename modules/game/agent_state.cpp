@@ -4,6 +4,7 @@
 #include "implot.h"
 #include "modules/imgui/godot_imgui.h"
 #endif
+#include "modules/tracy/tracy.gen.h"
 #include "physics_layers.h"
 #include "scene/resources/cylinder_shape_3d.h"
 #include "scene/resources/sphere_shape_3d.h"
@@ -115,6 +116,7 @@ bool is_floor(const Vector3 &p_normal, float p_floor_max_angle) {
 }
 
 void HBAgentMoveState::physics_process(float p_delta) {
+	ZoneScopedN("HBAgentMoveState physics process");
 	HBAgent *agent = get_agent();
 	if (agent) {
 		bool is_parkour_down_held = agent->is_action_pressed(HBAgent::INPUT_ACTION_PARKOUR_DOWN);
@@ -532,6 +534,7 @@ void HBAgentWallrunState::enter(const Dictionary &p_args) {
 
 	get_agent()->set_movement_mode(HBAgent::MOVE_MANUAL);
 	get_agent()->set_velocity(Vector3());
+
 	if (!dbg) {
 		dbg = memnew(EPASOneshotAnimationNodeDebug);
 		add_child(dbg);
@@ -564,7 +567,7 @@ Transform3D HBAgentWallGrabbedState::_get_ledge_point_target_trf(int p_ledge_poi
 	return trf;
 }
 
-bool HBAgentWallGrabbedState::_find_ledge(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_wall_normal, const Color &p_debug_color) {
+bool HBAgentWallGrabbedState::_find_ledge(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_wall_normal, Vector3 &p_out_ledge_normal, const Color &p_debug_color) {
 	HBAgent *agent = get_agent();
 
 	ERR_FAIL_COND_V(!agent, false);
@@ -595,12 +598,14 @@ bool HBAgentWallGrabbedState::_find_ledge(const Vector3 &p_from, const Vector3 &
 		return false;
 	}
 
+	Vector3 wall_normal = ray_result.normal;
+
 	Vector3 ledge_point = ray_result.position;
 
 	// Then we try to find the ledge top point
 
 	ray_params.to = ray_result.position - ray_result.normal * 0.01;
-	ray_params.from = ray_params.to + Vector3(0.0f, 0.5f, 0.0f);
+	ray_params.from = ray_params.to + Vector3(0.0f, 0.75f, 0.0f);
 
 	debug_draw_raycast(ray_params, p_debug_color);
 	if (!dss->intersect_ray(ray_params, ray_result)) {
@@ -610,6 +615,9 @@ bool HBAgentWallGrabbedState::_find_ledge(const Vector3 &p_from, const Vector3 &
 	if (!is_floor(ray_result.normal, agent->get_floor_max_angle())) {
 		return false;
 	}
+
+	p_out_wall_normal = wall_normal;
+	p_out_ledge_normal = ray_result.normal;
 
 	p_out = ray_result.position;
 	ledge_point.y = ray_result.position.y;
@@ -760,10 +768,11 @@ void HBAgentWallGrabbedState::enter(const Dictionary &p_args) {
 		Vector3 from = gn->to_global(ledge_ik_points[i].raycast_origin);
 		Vector3 to = gn->to_global(ledge_ik_points[i].raycast_target);
 		if (ledge_ik_points[i].raycast_type == LedgeIKPointRaycastType::RAYCAST_HAND) {
-			_find_ledge(from, to, ledge_ik_points.write[i].position, ledge_ik_points.write[i].wall_normal, ledge_ik_points[i].debug_color);
+			_find_ledge(from, to, ledge_ik_points.write[i].position, ledge_ik_points.write[i].wall_normal, ledge_ik_points.write[i].ledge_normal, ledge_ik_points[i].debug_color);
 		} else {
 			_find_wall_point(from, to, ledge_ik_points.write[i].position, ledge_ik_points.write[i].wall_normal, ledge_ik_points[i].debug_color);
 		}
+		ledge_ik_points.write[i].ik_node->set_ik_influence(1.0f);
 		ledge_ik_points.write[i].target_position = ledge_ik_points[i].position;
 	}
 
@@ -788,14 +797,36 @@ void HBAgentWallGrabbedState::enter(const Dictionary &p_args) {
 	right_hand_ik_node->set_magnet_position(skel->to_global(right_magnet));
 
 	target_agent_position = agent->get_global_position();
+
+	animation_time = 0.0f;
+}
+
+void HBAgentWallGrabbedState::exit() {
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_FOOT].ik_node->set_ik_influence(0.0f);
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_FOOT].ik_node->set_ik_influence(0.0f);
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_HAND].ik_node->set_ik_influence(0.0f);
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_HAND].ik_node->set_ik_influence(0.0f);
+
+	Skeleton3D *skel = get_skeleton();
+	ERR_FAIL_COND(!skel);
+	skel->set_position(Vector3());
 }
 
 void HBAgentWallGrabbedState::physics_process(float p_delta) {
+	ZoneScopedN("HBAgentWallGrabbedState physics process");
 	// TODO: Make character face the average wall normal (used for non-coplanar ledges)
 	// TODO: Make the character's position be influenced by the wall normals and wall hit positions
 	debug_draw_clear();
 	HBAgent *agent = get_agent();
 	ERR_FAIL_COND(!agent);
+
+	Skeleton3D *skel = get_skeleton();
+	ERR_FAIL_COND(!skel);
+
+	if (agent->is_action_just_pressed(HBAgent::AgentInputAction::INPUT_ACTION_PARKOUR_DOWN)) {
+		state_machine->transition_to("Fall");
+		return;
+	}
 
 	// move the agent
 	Node3D *gn = get_graphics_node();
@@ -804,11 +835,12 @@ void HBAgentWallGrabbedState::physics_process(float p_delta) {
 	Vector3 forward = get_graphics_node()->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
 	Plane plane = Plane(forward);
 	Vector3 movement_input = plane.project(agent->get_desired_movement_input());
-
+	ik_debug_info.transformed_movement_input = Vector2(movement_input.x, movement_input.z);
+	const float ledge_movement_max_vel = agent->get_agent_constants()->get_ledge_movement_velocity();
 	HBUtils::velocity_spring(
 			&ledge_movement_velocity,
 			&ledge_movement_acceleration,
-			gn->get_global_transform().basis.xform_inv(movement_input).x * 0.5f,
+			gn->get_global_transform().basis.xform_inv(movement_input).x * ledge_movement_max_vel,
 			0.175f,
 			p_delta);
 
@@ -843,26 +875,29 @@ void HBAgentWallGrabbedState::physics_process(float p_delta) {
 
 	// First, we figure out if any ledge doesn't have a potential target ledge position, this means
 	// that we moved into a side that doesn't have more corner for us to grab to
-	Vector<Vector3> new_ledge_positions;
-	new_ledge_positions.resize(ledge_ik_points.size());
+	static struct {
+		Vector3 position;
+		Vector3 wall_normal;
+		Vector3 ledge_normal;
+	} new_ledge_info[LedgePoint::LEDGE_POINT_MAX];
 
-	Transform3D gn_trf = gn->get_global_transform();
-	gn_trf.origin += target_agent_position - agent->get_global_position();
+	Transform3D target_gn_trf = gn->get_global_transform();
+	target_gn_trf.origin += target_agent_position - agent->get_global_position();
 	if (is_moving) {
 		for (int i = 0; i < ledge_ik_points.size(); i++) {
 			LedgeIKPoint &ik_point = ledge_ik_points.write[i];
 			Vector3 new_position;
 			Vector3 wall_normal;
-			Vector3 from = gn_trf.xform(ik_point.raycast_origin);
-			Vector3 to = gn_trf.xform(ik_point.raycast_target);
+			Vector3 ledge_normal;
+			Vector3 from = target_gn_trf.xform(ik_point.raycast_origin);
+			Vector3 to = target_gn_trf.xform(ik_point.raycast_target);
 
 			bool result;
 
 			if (ik_point.raycast_type == LedgeIKPointRaycastType::RAYCAST_FOOT) {
 				result = _find_wall_point(from, to, new_position, wall_normal, ledge_ik_points[i].debug_color);
-
 			} else {
-				result = _find_ledge(from, to, new_position, wall_normal, ledge_ik_points[i].debug_color);
+				result = _find_ledge(from, to, new_position, wall_normal, ledge_normal, ledge_ik_points[i].debug_color);
 			}
 
 			if (!result) {
@@ -873,13 +908,13 @@ void HBAgentWallGrabbedState::physics_process(float p_delta) {
 				is_moving = false;
 				break;
 			} else {
-				new_ledge_positions.write[i] = new_position;
+				new_ledge_info[i].position = new_position;
+				new_ledge_info[i].wall_normal = wall_normal;
+				new_ledge_info[i].ledge_normal = ledge_normal;
+				debug_draw_sphere(new_position, 0.05f, ik_point.debug_color);
 			}
 		}
 	}
-
-	Skeleton3D *skel = get_skeleton();
-	ERR_FAIL_COND(!skel);
 
 	// Average position of all IK positions
 	Vector3 ik_position_avg;
@@ -889,7 +924,7 @@ void HBAgentWallGrabbedState::physics_process(float p_delta) {
 	float total_weight = 0.0f;
 	Vector3 ik_handle_positions[LedgePoint::LEDGE_POINT_MAX];
 
-	float anim_mul = Math::abs(ledge_movement_velocity) / 0.5;
+	float anim_mul = Math::abs(ledge_movement_velocity) / ledge_movement_max_vel;
 	for (int i = 0; i < LedgePoint::LEDGE_POINT_MAX; i++) {
 		LedgeIKPoint &ik_point = ledge_ik_points.write[i];
 
@@ -907,7 +942,9 @@ void HBAgentWallGrabbedState::physics_process(float p_delta) {
 
 		// The ik point only moves when we are within the animation, otherwise we make it stay in place
 		if (is_moving && animation_time <= end_time && animation_time >= start_time) {
-			ik_point.target_position = new_ledge_positions[i];
+			ik_point.target_position = new_ledge_info[i].position;
+			ik_point.wall_normal = new_ledge_info[i].wall_normal;
+			ik_point.ledge_normal = new_ledge_info[i].ledge_normal;
 		}
 		Vector3 new_pos = ik_point.position.lerp(ik_point.target_position, animation_pos);
 		new_pos.y += Math::sin(animation_pos * Math_PI) * 0.05f * anim_mul;
@@ -932,8 +969,11 @@ void HBAgentWallGrabbedState::physics_process(float p_delta) {
 	ik_position_weighted = plane.project(ik_position_weighted);
 	ik_position_avg = plane.project(ik_position_avg);
 
-	// Move along the wall normal
-	target_agent_position = target_agent_position + gn->get_global_transform().basis.xform(Vector3(ledge_movement_velocity, 0.0f, 0.0f)) * p_delta;
+	// Move along the wall
+	Vector3 movement_vector = Vector3(ledge_movement_velocity, 0.0f, 0.0f);
+	Vector3 movement_dir = ledge_ik_points[LedgePoint::LEDGE_POINT_LEFT_HAND].ledge_normal.cross(ledge_ik_points[LedgePoint::LEDGE_POINT_LEFT_HAND].wall_normal);
+	movement_vector = Quaternion(Vector3(1.0f, 0.0f, 0.0f), movement_dir).xform(movement_vector);
+	target_agent_position = target_agent_position + movement_vector * p_delta;
 
 	// Make the movement lag behind visually a bit, to make limbs look better
 	Vector3 current_position = agent->get_global_position();
@@ -965,10 +1005,13 @@ void HBAgentWallGrabbedState::physics_process(float p_delta) {
 	ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_HAND].ik_node->set_magnet_position(left_magnet);
 	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_HAND].ik_node->set_magnet_position(right_magnet);
 }
+
 void HBAgentWallGrabbedState::debug_ui_draw() {
 	HBAgentState::debug_ui_draw();
 	ImGui::Text("Animation time: %.2f", animation_time);
 	ImGui::SliderFloat("Velocity spring halflife", &target_spring_halflife, 0.0f, 1.0f);
+
+	GodotImGui::DrawJoystick(ik_debug_info.transformed_movement_input, 50.0f);
 
 	if (ik_debug_info.last_data_is_valid) {
 		ik_debug_info.plot_time += ik_debug_info.physics_time_delta;
@@ -1007,5 +1050,28 @@ void HBAgentWallGrabbedState::debug_ui_draw() {
 		ImPlot::SetupAxisLimits(ImAxis_Y1, -0.25f, 0.25f);
 		ImPlot::PlotLine(vformat("x offset").utf8().get_data(), ik_debug_info.graph_x_time, ik_debug_info.ik_hip_offset_graph, IKDebugInfo::IK_OFFSET_PLOT_SIZE);
 		ImPlot::EndPlot();
+	}
+}
+
+/**********************
+	Fall State
+***********************/
+
+void HBAgentFallState::enter(const Dictionary &p_args) {
+	Ref<EPASTransitionNode> movement_transition = get_movement_transition_node();
+	ERR_FAIL_COND(!movement_transition.is_valid());
+
+	movement_transition->transition_to(HBAgentConstants::MovementTransitionInputs::MOVEMENT_FALL);
+
+	HBAgent *agent = get_agent();
+	ERR_FAIL_COND(!agent);
+	agent->set_movement_mode(HBAgent::MovementMode::MOVE_GROUNDED);
+	agent->set_velocity(Vector3());
+}
+
+void HBAgentFallState::physics_process(float p_delta) {
+	HBAgent *agent = get_agent();
+	if (agent->is_on_floor()) {
+		state_machine->transition_to("Move");
 	}
 }

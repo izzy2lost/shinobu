@@ -17,8 +17,8 @@
 		<member name="magnet_position" type="Vector3" setter="set_magnet_position" getter="get_magnet_position" default="Vector3(0, 0, 0)">
 			A magnet position used to orient the chain, usually the knee. Requires [member use_magnet] to be [code]true[/code].
 		</member>
-		<member name="target_position" type="Vector3" setter="set_target_position" getter="get_target_position" default="Vector3(0, 0, 0)">
-			The position that the chain should try to reach.
+		<member name="target_transform" type="Transform3D" setter="set_target_transform" getter="get_target_transform" default="Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)">
+			The transform to try to reach.
 		</member>
 		<member name="use_magnet" type="bool" setter="set_use_magnet" getter="get_use_magnet" default="false">
 			If [code]true[/code] makes the magnet work.

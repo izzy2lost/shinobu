@@ -109,7 +109,10 @@ class HBAgentWallGrabbedState : public HBAgentState {
 		// Offset applied to the edge
 		Vector3 target_offset;
 		Ref<Tween> tween;
+		// Normal of the wall the limb is resting against
 		Vector3 wall_normal;
+		// For hands we also know the normal of the ledge (AKA pointing up)
+		Vector3 ledge_normal;
 		float start_time = 0.0f;
 		float end_time = 0.0f;
 		Color debug_color;
@@ -157,14 +160,24 @@ class HBAgentWallGrabbedState : public HBAgentState {
 		float physics_time_delta = 0.0f;
 		float last_tip_weights[LedgePoint::LEDGE_POINT_MAX] = { 0.0f };
 		float last_hip_offset_x = 0.0f;
+		Vector2 transformed_movement_input;
 	} ik_debug_info;
 
 	Transform3D _get_ledge_point_target_trf(int p_ledge_point, const Vector3 &p_position);
-	bool _find_ledge(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_normal, const Color &p_debug_color);
+	bool _find_ledge(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_wall_normal, Vector3 &p_out_ledge_normal, const Color &p_debug_color);
 	bool _find_wall_point(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_normal, const Color &p_debug_color);
 	virtual void enter(const Dictionary &p_args) override;
+	virtual void exit() override;
 	virtual void physics_process(float p_delta) override;
 	virtual void debug_ui_draw() override;
+};
+
+class HBAgentFallState : public HBAgentState {
+	GDCLASS(HBAgentFallState, HBAgentState);
+
+protected:
+	virtual void enter(const Dictionary &p_args) override;
+	virtual void physics_process(float p_delta) override;
 };
 
 #endif // AGENT_STATE_H

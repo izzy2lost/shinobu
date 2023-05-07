@@ -80,17 +80,8 @@ void HBPlayerAgentController::_notification(int p_what) {
 			GodotImGui *gim = GodotImGui::get_singleton();
 			if (gim && gim->is_debug_enabled(this)) {
 				if (gim->begin_debug_window(this)) {
-					ImDrawList *dl = ImGui::GetWindowDrawList();
-					const float RADIUS = 50.0f;
-					ImVec2 center_pos = ImGui::GetCursorScreenPos();
-					center_pos.x += RADIUS;
-					center_pos.y += RADIUS;
-					dl->AddCircleFilled(center_pos, RADIUS, IM_COL32_BLACK);
 					Vector2 movement_input = Input::get_singleton()->get_vector("move_left", "move_right", "move_forward", "move_backward");
-					movement_input *= RADIUS;
-					movement_input += Vector2(center_pos.x, center_pos.y);
-					dl->AddLine(center_pos, ImVec2(movement_input.x, movement_input.y), IM_COL32_WHITE);
-					ImGui::Dummy(ImVec2(RADIUS * 2, RADIUS * 2));
+					GodotImGui::DrawJoystick(movement_input, 50.0f);
 				}
 				ImGui::End();
 			}

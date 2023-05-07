@@ -11,6 +11,9 @@
 		<member name="gravity" type="Vector3" setter="set_gravity" getter="get_gravity" default="Vector3(0, -20.81, 0)">
 			The gravity vector applied to this agent.
 		</member>
+		<member name="ledge_movement_velocity" type="float" setter="set_ledge_movement_velocity" getter="get_ledge_movement_velocity" default="0.5">
+			The maximum velocity the agent moves while hanging from a ledge.
+		</member>
 		<member name="max_move_velocity" type="float" setter="set_max_move_velocity" getter="get_max_move_velocity" default="2.8">
 			The maximum velocity the agent can move.
 		</member>

@@ -162,6 +162,10 @@ void HBAgent::_physics_process(float p_delta) {
 	Vector3 vel = get_velocity();
 	ERR_FAIL_COND(!agent_constants.is_valid());
 	switch (movement_mode) {
+		case MovementMode::MOVE_FALL: {
+			vel += agent_constants->get_gravity() * p_delta;
+			move_and_slide();
+		} break;
 		case MovementMode::MOVE_GROUNDED: {
 			Vector3 input_vector = get_desired_movement_input();
 			Vector3 desired_velocity = input_vector * agent_constants->get_max_move_velocity();
