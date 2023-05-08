@@ -177,6 +177,9 @@ GodotImGui::GodotImGui() {
 	uint64_t rid = font_texture->get_rid().get_id();
 	ImGui::GetIO().Fonts->SetTexID((void *)rid);
 	embrace_the_darkness();
+
+	config_file.instantiate();
+	config_file->load(CONFIG_FILE_PATH);
 }
 
 void GodotImGui::_begin_frame() {
@@ -828,6 +831,22 @@ void GodotImGui::DrawJoystick(const Vector2 &p_value, const float p_radius) {
 	ImGui::Dummy(ImVec2(p_radius * 2, p_radius * 2));
 }
 
+void GodotImGui::save_config() {
+	config_file->save(CONFIG_FILE_PATH);
+}
+
+Variant GodotImGui::get_config_value(Object *p_obj, const String &p_key, Variant p_default_value) const {
+	ObjectID obj_id = p_obj->get_instance_id();
+	ERR_FAIL_COND_V(!debug_status.has(obj_id), Variant());
+	return config_file->get_value(debug_status[obj_id].config_section_name, p_key, p_default_value);
+}
+
+void GodotImGui::set_config_value(Object *p_obj, const String &p_key, Variant p_value) {
+	ObjectID obj_id = p_obj->get_instance_id();
+	ERR_FAIL_COND(!debug_status.has(obj_id));
+	config_file->set_value(debug_status[obj_id].config_section_name, p_key, p_value);
+}
+
 ImGuiKey GodotImGui::_map_to_imgui_key(const Key &p_key) {
 	ImGuiKey imgui_key = ImGuiKey_None;
 	if (p_key >= Key::A && p_key <= Key::Z) {
@@ -978,7 +997,12 @@ void GodotImGui::_draw_debug_object_tree(ObjectID p_id) {
 	ImGui::SameLine(0.0f, 10.0f);
 	ImGui::GetItemRectSize();
 
-	ImGui::Checkbox("##visibilitycheck", &(debug_status.getptr(p_id)->debug_enabled));
+	if (ImGui::Checkbox("##visibilitycheck", &(debug_status.getptr(p_id)->debug_enabled))) {
+		if (!debug_status[p_id].config_section_name.is_empty()) {
+			config_file->set_value(debug_status[p_id].config_section_name, "enabled", debug_status[p_id].debug_enabled);
+			save_config();
+		}
+	}
 
 	if (tree_open) {
 		Vector<ObjectID> children = debug_status[p_id].children;
@@ -1000,8 +1024,8 @@ void GodotImGui::register_debug_object(const ObjectID &p_object_id) {
 		// So we can put it in the correct container
 		Node *parent_node = node->get_parent();
 		while (parent_node != nullptr) {
-			ObjectID id = parent_node->get_instance_id();
-			if (debug_status.has(id)) {
+			ObjectID parenet_id = parent_node->get_instance_id();
+			if (debug_status.has(parenet_id)) {
 				break;
 			}
 			parent_node = parent_node->get_parent();
@@ -1011,6 +1035,13 @@ void GodotImGui::register_debug_object(const ObjectID &p_object_id) {
 			debug_status[p_object_id].is_root = false;
 			ObjectID id = parent_node->get_instance_id();
 			debug_status[id].children.push_back(p_object_id);
+		}
+
+		SceneTree *tree = node->get_tree();
+
+		if (tree) {
+			debug_status[p_object_id].config_section_name = tree->get_current_scene()->get_scene_file_path() + node->get_path();
+			debug_status[p_object_id].debug_enabled = config_file->get_value(debug_status[p_object_id].config_section_name, "enabled", false);
 		}
 	}
 }

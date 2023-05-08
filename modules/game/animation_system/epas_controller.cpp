@@ -15,6 +15,11 @@
 #include "scene/resources/material.h"
 #include "scene/resources/mesh.h"
 
+#ifdef DEBUG_ENABLED
+static bool has_finished_init = false;
+static bool node_position_changed = false;
+#endif
+
 void EPASController::set_playback_process_mode(EPASController::PlaybackProcessMode p_playback_process_mode) {
 	playback_process_mode = p_playback_process_mode;
 	_update_process_mode();
@@ -74,6 +79,13 @@ void EPASController::_notification(int p_what) {
 					debug_draw_link_accumulator = 0;
 					debug_draw_attrib_accumulator = 0;
 					_debug_draw_node(root, nullptr);
+					if (!has_finished_init) {
+						has_finished_init = true;
+					}
+					if (node_position_changed && ImGui::IsMouseReleased(0)) {
+						node_position_changed = false;
+						gim->save_config();
+					}
 					ImNodes::EndNodeEditor();
 				}
 				ImGui::End();
@@ -90,6 +102,23 @@ void EPASController::_notification(int p_what) {
 #ifdef DEBUG_ENABLED
 void EPASController::_debug_draw_node(Ref<EPASNode> p_node, int *p_output_attrib_id) {
 	int64_t object_id = p_node->get_instance_id();
+	if (!has_finished_init) {
+		StringName epas_name = p_node->get_meta("epas_name");
+		String pos_property_name = String(epas_name) + "/position";
+		p_node->set_meta("epas_pos_property_name", pos_property_name);
+		Vector2 pos = GodotImGui::get_singleton()->get_config_value(this, pos_property_name, Vector2());
+		p_node->set_meta("epas_pos", pos);
+		ImNodes::SetNodeEditorSpacePos(object_id, ImVec2(pos.x, pos.y));
+	} else {
+		ImVec2 curr_pos = ImNodes::GetNodeEditorSpacePos(object_id);
+		Vector2 new_pos = Vector2(curr_pos.x, curr_pos.y);
+		Vector2 prev_pos = p_node->get_meta("epas_pos");
+		if (prev_pos != new_pos) {
+			p_node->set_meta("epas_pos", new_pos);
+			GodotImGui::get_singleton()->set_config_value(this, p_node->get_meta("epas_pos_property_name"), new_pos);
+			node_position_changed = true;
+		}
+	}
 	ImNodes::BeginNode((int32_t)object_id);
 	// Root node doesn't have an output
 	ImNodes::BeginNodeTitleBar();

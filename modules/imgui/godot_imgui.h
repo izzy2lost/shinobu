@@ -14,6 +14,7 @@
 #define GODOT_IMGUI_H
 #ifdef DEBUG_ENABLED
 #include "ImGuizmo.h"
+#include "core/io/config_file.h"
 #include "imgui.h"
 #include "imgui_neo_sequencer.h"
 #include "scene/gui/subviewport_container.h"
@@ -27,11 +28,15 @@ class GodotImGui : public SubViewportContainer {
 
 private:
 	static GodotImGui *singleton;
+
+	const String CONFIG_FILE_PATH = "user://imgui_config.cfg";
+
 	SubViewport *viewport = nullptr;
 	struct ObjectDebugInfo {
 		bool debug_enabled = false;
 		bool is_root = false; // If it's a display tree root object
 		Vector<ObjectID> children;
+		String config_section_name;
 	};
 	HashMap<ObjectID, ObjectDebugInfo> debug_status;
 	bool debug_active = false;
@@ -51,6 +56,7 @@ private:
 	Ref<ImageTexture> font_texture;
 	PackedFloat32Array push_constant_buffer;
 	RenderingDevice::VertexFormatID vertex_format;
+	Ref<ConfigFile> config_file;
 
 	void _init_imgui();
 	void _begin_frame();
@@ -83,6 +89,10 @@ public:
 
 	static void ImImage(const Ref<Texture2D> &p_texture);
 	static void DrawJoystick(const Vector2 &p_value, const float p_radius);
+
+	void save_config();
+	Variant get_config_value(Object *p_obj, const String &p_key, Variant p_default_value = Variant()) const;
+	void set_config_value(Object *p_obj, const String &p_key, Variant p_value);
 
 	GodotImGui();
 	~GodotImGui();
