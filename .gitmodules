@@ -1,3 +1,6 @@
 [submodule "modules/tracy/thirdparty/tracy"]
 	path = modules/tracy/thirdparty/tracy
 	url = https://github.com/wolfpld/tracy.git
+[submodule "modules/tbloader"]
+	path = modules/tbloader
+	url = https://github.com/codecat/godot-tbloader.git
