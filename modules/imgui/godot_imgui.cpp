@@ -784,7 +784,9 @@ bool GodotImGui::begin_debug_window(const Object *p_object) {
 	} else {
 		window_title = vformat("%s - ID: %d", class_name, object_id);
 	}
-
+	if (!di_pointer->config_section_name.is_empty()) {
+		window_title = window_title + "###" + di_pointer->config_section_name;
+	}
 	return ImGui::Begin(window_title.utf8().ptr(), &(di_pointer->debug_enabled));
 }
 
