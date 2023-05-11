@@ -26,6 +26,16 @@
 				Starts playback of the animation from 0.
 			</description>
 		</method>
+		<method name="play_with_warp_points">
+			<return type="void" />
+			<param index="0" name="warp_points" type="Dictionary" />
+			<description>
+				Utility function that allows starting playback while setting all warp points at once and checks that you have all of them.
+				You should pass this a [Dictionary] with a StringName key for each warp point, with the values being the [Transform3D] of each warp point.
+				This will also set your root motion starting transform to whatever the [Skeleton3D]'s global transform is.
+				[b]Note:[/b] don't forget to set your [member root_motion_forward]!
+			</description>
+		</method>
 		<method name="set_warp_point_transform">
 			<return type="void" />
 			<param index="0" name="name" type="StringName" />

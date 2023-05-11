@@ -50,6 +50,7 @@ class HBStateMachine : public Node {
 
 private:
 	HBStateMachineState *_get_current_state();
+	void _on_child_entered_tree(Node *p_child);
 
 protected:
 	void _notification(int p_what);

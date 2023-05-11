@@ -145,6 +145,7 @@ private:
 	struct ui_info_t {
 		bool posedbg_window_visible = false;
 		bool constraintdbg_window_visible = false;
+		bool root_mover_window_visible = false;
 		int selected_warp_point = -1;
 		Vector<bool> group_visibility;
 		Vector3 copy_buffer;

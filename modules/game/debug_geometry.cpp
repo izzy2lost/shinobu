@@ -14,6 +14,29 @@ Ref<StandardMaterial3D> HBDebugGeometry::get_debug_material() {
 	return debug_material;
 }
 
+void HBDebugGeometry::_draw_arrow(const Vector3 &p_from, const Vector3 &p_to, const Color &p_color) {
+	im->surface_set_color(p_color);
+	im->surface_add_vertex(p_from);
+	im->surface_add_vertex(p_to);
+
+	Vector3 dir = p_from.direction_to(p_to);
+
+	Vector3 normal = (fabs(dir.x) + fabs(dir.y) > CMP_EPSILON) ? Vector3(-dir.y, dir.x, 0).normalized() : Vector3(0, -dir.z, dir.y).normalized();
+
+	for (int i = 0; i < 4; i++) {
+		float prog = i / 4.0f;
+		float prog_plus_one = (i + 1) / 4.0f;
+		Vector3 v_curr = p_to + normal.rotated(dir, prog * Math_TAU) * 0.1f;
+		Vector3 v_next = p_to + normal.rotated(dir, prog_plus_one * Math_TAU) * 0.1f;
+		v_curr -= dir * 0.1f;
+		v_next -= dir * 0.1f;
+		im->surface_add_vertex(v_curr);
+		im->surface_add_vertex(v_next);
+		im->surface_add_vertex(p_to);
+		im->surface_add_vertex(v_curr);
+	}
+}
+
 void HBDebugGeometry::clear() {
 	im->clear_surfaces();
 	if (sphere_multi_mesh) {
@@ -29,26 +52,8 @@ void HBDebugGeometry::clear() {
 
 void HBDebugGeometry::debug_raycast(const PhysicsDirectSpaceState3D::RayParameters &p_params, const Color &p_color) {
 	im->surface_begin(Mesh::PRIMITIVE_LINES);
-	im->surface_set_color(p_color);
-	im->surface_add_vertex(p_params.from);
-	im->surface_add_vertex(p_params.to);
 
-	Vector3 dir = p_params.from.direction_to(p_params.to);
-
-	Vector3 normal = (fabs(dir.x) + fabs(dir.y) > CMP_EPSILON) ? Vector3(-dir.y, dir.x, 0).normalized() : Vector3(0, -dir.z, dir.y).normalized();
-
-	for (int i = 0; i < 4; i++) {
-		float prog = i / 4.0f;
-		float prog_plus_one = (i + 1) / 4.0f;
-		Vector3 v_curr = p_params.to + normal.rotated(dir, prog * Math_TAU) * 0.1f;
-		Vector3 v_next = p_params.to + normal.rotated(dir, prog_plus_one * Math_TAU) * 0.1f;
-		v_curr -= dir * 0.1f;
-		v_next -= dir * 0.1f;
-		im->surface_add_vertex(v_curr);
-		im->surface_add_vertex(v_next);
-		im->surface_add_vertex(p_params.to);
-		im->surface_add_vertex(v_curr);
-	}
+	_draw_arrow(p_params.from, p_params.to, p_color);
 
 	im->surface_end();
 }
@@ -77,15 +82,18 @@ void HBDebugGeometry::debug_shape(Ref<Shape3D> p_shape, const Vector3 &p_positio
 		mmi->set_material_override(get_debug_material());
 		mmi->set_multimesh(mm);
 
+		mm->set_instance_count(SPHERE_INSTANCE_COUNT);
+		mm->set_visible_instance_count(0);
+
 		shape_map.insert(p_shape, mmi);
 		add_child(mmi);
 	}
 	Ref<MultiMesh> mm = shape_map[p_shape]->get_multimesh();
-	mm->set_instance_count(mm->get_instance_count() + 1);
+	mm->set_visible_instance_count(mm->get_visible_instance_count() + 1);
 	Transform3D trf;
 	trf.origin = p_position;
-	mm->set_instance_transform(mm->get_instance_count() - 1, trf);
-	mm->set_instance_color(mm->get_instance_count() - 1, p_color);
+	mm->set_instance_transform(mm->get_visible_instance_count() - 1, trf);
+	mm->set_instance_color(mm->get_visible_instance_count() - 1, p_color);
 }
 
 void HBDebugGeometry::debug_sphere(const Vector3 &p_position, float p_radius, const Color &p_color) {
@@ -117,6 +125,13 @@ void HBDebugGeometry::debug_sphere(const Vector3 &p_position, float p_radius, co
 	mm->set_instance_transform(mm_idx, trf);
 	mm->set_instance_color(mm_idx, p_color);
 	curr_sphere_instance = (curr_sphere_instance + 1) % SPHERE_INSTANCE_COUNT;
+}
+
+void HBDebugGeometry::debug_cast_motion(const Ref<Shape3D> &p_shape, const PhysicsDirectSpaceState3D::ShapeParameters &p_shape_cast_3d, const Color &p_color) {
+	im->surface_begin(Mesh::PRIMITIVE_LINES);
+	_draw_arrow(p_shape_cast_3d.transform.origin, p_shape_cast_3d.transform.origin + p_shape_cast_3d.motion);
+	debug_shape(p_shape, p_shape_cast_3d.transform.origin, p_color);
+	im->surface_end();
 }
 
 HBDebugGeometry::HBDebugGeometry() {

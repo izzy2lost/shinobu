@@ -44,6 +44,8 @@ public:
 
 	void set_warp_point_transform(const StringName &p_name, const Transform3D &p_transform);
 
+	void play_with_warp_points(const Dictionary &p_warp_points);
+
 	Transform3D get_root_motion_transform() const;
 	friend class EPASOneshotAnimationNodeDebug;
 };

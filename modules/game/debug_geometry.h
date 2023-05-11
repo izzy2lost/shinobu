@@ -18,6 +18,7 @@ private:
 	MultiMeshInstance3D *sphere_multi_mesh = nullptr;
 	static Ref<StandardMaterial3D> debug_material;
 	static Ref<StandardMaterial3D> get_debug_material();
+	void _draw_arrow(const Vector3 &p_from, const Vector3 &p_to, const Color &p_color = Color());
 
 public:
 	void clear();
@@ -25,6 +26,7 @@ public:
 	void debug_line(const Vector3 &p_from, const Vector3 &p_to, const Color &p_color = Color());
 	void debug_shape(Ref<Shape3D> p_shape, const Vector3 &p_position, const Color &p_color = Color());
 	void debug_sphere(const Vector3 &p_position, float p_radius = 0.05f, const Color &p_color = Color());
+	void debug_cast_motion(const Ref<Shape3D> &p_shape, const PhysicsDirectSpaceState3D::ShapeParameters &p_shape_cast_3d, const Color &p_color = Color());
 	HBDebugGeometry();
 };
 

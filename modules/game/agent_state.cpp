@@ -12,6 +12,7 @@
 
 HBDebugGeometry *HBAgentState::_get_debug_geo() {
 	if (debug_geo == nullptr) {
+		_init_ui_settings_if_needed();
 		debug_geo = memnew(HBDebugGeometry);
 		debug_geo->set_visible(draw_debug_geometry);
 		debug_geo->set_as_top_level(true);
@@ -19,6 +20,13 @@ HBDebugGeometry *HBAgentState::_get_debug_geo() {
 		debug_geo->set_position(Vector3());
 	}
 	return debug_geo;
+}
+
+void HBAgentState::_init_ui_settings_if_needed() {
+	if (!ui_settings_init) {
+		draw_debug_geometry = GodotImGui::get_singleton()->get_config_value(state_machine, String(get_name()) + "/draw_debug_geometry", false);
+		ui_settings_init = true;
+	}
 }
 
 void HBAgentState::debug_draw_shape(Ref<Shape3D> p_shape, const Vector3 &p_position, const Color &p_color) {
@@ -56,6 +64,13 @@ void HBAgentState::debug_draw_line(const Vector3 &p_from, const Vector3 &p_to, c
 	}
 }
 
+void HBAgentState::debug_draw_cast_motion(const Ref<Shape3D> &p_shape, const PhysicsDirectSpaceState3D::ShapeParameters &p_shape_cast_3d, const Color &p_color) {
+	HBDebugGeometry *dbg_geo = _get_debug_geo();
+	if (dbg_geo) {
+		dbg_geo->debug_cast_motion(p_shape, p_shape_cast_3d, p_color);
+	}
+}
+
 HBAgent *HBAgentState::get_agent() const {
 	Node *actor = get_actor();
 	ERR_FAIL_COND_V_MSG(!actor, nullptr, "Error getting the agent node: Couldn't be found");
@@ -88,10 +103,13 @@ Node3D *HBAgentState::get_graphics_node() {
 
 void HBAgentState::debug_ui_draw() {
 #ifdef DEBUG_ENABLED
+	_init_ui_settings_if_needed();
 	if (ImGui::Checkbox("Draw debug geometry", &const_cast<HBAgentState *>(this)->draw_debug_geometry)) {
 		if (debug_geo) {
 			debug_geo->set_visible(draw_debug_geometry);
 		}
+		GodotImGui::get_singleton()->set_config_value(state_machine, String(get_name()) + "/draw_debug_geometry", draw_debug_geometry);
+		GodotImGui::get_singleton()->save_config();
 	}
 #endif
 }
@@ -136,13 +154,14 @@ void HBAgentMoveState::physics_process(float p_delta) {
 		}
 
 		Node3D *gn = get_graphics_node();
-		if (gn && agent->get_desired_movement_input().length() > 0.0f) {
+		Vector3 movement_input = agent->get_desired_movement_input_transformed();
+		if (gn && movement_input.length() > 0.0f) {
 			Vector3 forward = gn->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
 			forward.y = 0.0f;
 			forward.normalize();
 
 			float turn_threshold = Math::deg_to_rad(agent->get_agent_constants()->get_turn_animation_threshold_degrees());
-			if (agent->get_desired_movement_input().angle_to(forward) > turn_threshold && agent->get_linear_velocity().length() < 0.1f) {
+			if (movement_input.angle_to(forward) > turn_threshold && agent->get_linear_velocity().length() < 0.1f) {
 				state_machine->transition_to("Turn");
 			}
 		}
@@ -338,7 +357,7 @@ bool HBAgentMoveState::_check_wall(PhysicsDirectSpaceState3D::RayResult &p_resul
 	float mid_height = get_agent()->get_height() * 0.5f;
 
 	ray_params.from = agent->get_global_position() + Vector3(0.0f, mid_height, 0.0f);
-	Vector3 movement_input_dir = agent->get_desired_movement_input().normalized();
+	Vector3 movement_input_dir = agent->get_desired_movement_input_transformed();
 	ray_params.to = ray_params.from + movement_input_dir * parkour_wall_check_distance;
 
 	debug_draw_raycast(ray_params, Color(1.0f, 0.0f, 0.0f));
@@ -368,47 +387,21 @@ void HBAgentVaultState::_on_animation_finished() {
 }
 
 void HBAgentVaultState::enter(const Dictionary &p_args) {
-	const StringName wp_names[4] = {
-		"VaultBaseFar",
-		"VaultBaseNear",
-		"VaultEdgeNear",
-		"VaultEdgeFar"
-	};
-	Array arr;
-	for (int i = 0; i < 4; i++) {
-		arr.push_back(wp_names[i]);
-	}
-
-	ERR_FAIL_COND_MSG(!p_args.has_all(arr), "Missing vault warp points");
-
 	Ref<EPASTransitionNode> transition_node = get_movement_transition_node();
-	Skeleton3D *skel = get_skeleton();
 	EPASController *epas_controller = get_epas_controller();
 	ERR_FAIL_COND(epas_controller == nullptr);
-	ERR_FAIL_COND(skel == nullptr);
 	ERR_FAIL_COND(!transition_node.is_valid());
 
 	transition_node->transition_to(HBAgentConstants::MovementTransitionInputs::MOVEMENT_VAULT);
 	animation_node = epas_controller->get_epas_node("Vault");
-	animation_node->set_root_motion_starting_transform(skel->get_global_transform());
 	if (animation_node.is_valid()) {
-		for (int i = 0; i < 4; i++) {
-			ERR_FAIL_COND_MSG(p_args[wp_names[i]].get_type() != Variant::TRANSFORM3D, "Warp point transition must be Transform3D");
-			animation_node->set_warp_point_transform(wp_names[i], p_args[wp_names[i]]);
-		}
 		animation_node->set_root_motion_forward(Vector3(0.0f, 0.0, 1.0f));
-		animation_node->play();
-		animation_node->connect("playback_finished", callable_mp(this, &HBAgentVaultState::_on_animation_finished));
+		animation_node->play_with_warp_points(p_args);
+		animation_node->connect("playback_finished", callable_mp(this, &HBAgentVaultState::_on_animation_finished), CONNECT_ONE_SHOT);
 	}
 
 	get_agent()->set_movement_mode(HBAgent::MOVE_MANUAL);
 	get_agent()->set_velocity(Vector3());
-}
-
-void HBAgentVaultState::exit() {
-	if (animation_node.is_valid()) {
-		animation_node->disconnect("playback_finished", callable_mp(this, &HBAgentVaultState::_on_animation_finished));
-	}
 }
 
 void HBAgentVaultState::process(float p_delta) {
@@ -450,7 +443,7 @@ void HBAgentTurnState::enter(const Dictionary &p_args) {
 	get_movement_transition_node()->transition_to(HBAgentConstants::MOVEMENT_TURN180_R);
 	animation_node->play();
 
-	Vector3 movement_input = get_agent()->get_desired_movement_input().normalized();
+	Vector3 movement_input = get_agent()->get_desired_movement_input_transformed();
 
 	Vector3 forward = gn->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
 	forward.y = 0.0f;
@@ -471,7 +464,7 @@ void HBAgentTurnState::enter(const Dictionary &p_args) {
 	target_rot = gn->get_quaternion() * Quaternion(Vector3(0.0, SIGN(rot_axis.y), 0.0), angle_diff);
 	anim_length = animation_node->get_animation()->get_length() * (angle_diff / Math_PI);
 	time = 0.0f;
-	animation_node->connect("playback_finished", callable_mp(this, &HBAgentTurnState::_on_animation_finished));
+	animation_node->connect("playback_finished", callable_mp(this, &HBAgentTurnState::_on_animation_finished), CONNECT_ONE_SHOT);
 }
 
 void HBAgentTurnState::process(float p_delta) {
@@ -486,12 +479,6 @@ void HBAgentTurnState::process(float p_delta) {
 		if (!animation_node->is_playing()) {
 			state_machine->transition_to("Move");
 		}
-	}
-}
-
-void HBAgentTurnState::exit() {
-	if (animation_node.is_valid()) {
-		animation_node->disconnect("playback_finished", callable_mp(this, &HBAgentTurnState::_on_animation_finished));
 	}
 }
 
@@ -547,7 +534,7 @@ void HBAgentWallrunState::process(float p_delta) {
 	if (!animation_node->is_playing()) {
 		state_machine->transition_to("WallGrabbed");
 	}
-	dbg->update();
+	//dbg->update();
 }
 
 /**********************
@@ -664,6 +651,93 @@ bool HBAgentWallGrabbedState::_find_wall_point(const Vector3 &p_from, const Vect
 	return true;
 }
 
+void HBAgentWallGrabbedState::_init_ik_points() {
+	Skeleton3D *skel = get_skeleton();
+	ERR_FAIL_COND(!skel);
+
+	HBAgent *agent = get_agent();
+	ERR_FAIL_COND(!agent);
+
+	EPASController *epas_controller = get_epas_controller();
+	ERR_FAIL_COND(!epas_controller);
+
+	// Not very pretty but lets initialize IK points
+	struct ik_points {
+		String bone_name;
+		StringName epas_node_name;
+	} ik_points[LedgePoint::LEDGE_POINT_MAX];
+
+	Vector3 raycast_origin = Vector3(0.0f, agent->get_height() * 0.25f, 0.0f);
+	Vector3 raycast_target_base = Vector3(0.0f, agent->get_height() * 0.25f, -1.0f);
+
+	// Left hand
+	ik_points[LedgePoint::LEDGE_POINT_LEFT_HAND].bone_name = "hand.L";
+	ik_points[LedgePoint::LEDGE_POINT_LEFT_HAND].epas_node_name = "LeftHandIK";
+
+	// Right hand
+	ik_points[LedgePoint::LEDGE_POINT_RIGHT_HAND].bone_name = "hand.R";
+	ik_points[LedgePoint::LEDGE_POINT_RIGHT_HAND].epas_node_name = "RightHandIK";
+
+	Vector3 foot_trg = Vector3(0.02f, 0.1, -0.2f).normalized();
+
+	// Left foot
+	ik_points[LedgePoint::LEDGE_POINT_LEFT_FOOT].bone_name = "foot.L";
+	ik_points[LedgePoint::LEDGE_POINT_LEFT_FOOT].epas_node_name = "LeftFootIK";
+
+	// Right foot
+	ik_points[LedgePoint::LEDGE_POINT_RIGHT_FOOT].bone_name = "foot.R";
+	ik_points[LedgePoint::LEDGE_POINT_RIGHT_FOOT].epas_node_name = "RightFootIK";
+
+	ledge_ik_points.resize_zeroed(LedgePoint::LEDGE_POINT_MAX);
+
+	for (int i = 0; i < LedgePoint::LEDGE_POINT_MAX; i++) {
+		ledge_ik_points.write[i].bone_idx = skel->find_bone(ik_points[i].bone_name);
+		ledge_ik_points.write[i].ik_node = epas_controller->get_epas_node(ik_points[i].epas_node_name);
+		ERR_FAIL_COND_MSG(ledge_ik_points[i].bone_idx == -1, vformat("Error getting bone %s from skeleton.", ik_points[i].bone_name));
+		ERR_FAIL_COND(!ledge_ik_points[i].ik_node.is_valid());
+		ledge_ik_points.write[i].ik_node->set_ik_influence(1.0f);
+		ledge_ik_points.write[i].target_offset = Vector3(0.0f, 0.0f, 0.05f);
+		ledge_ik_points.write[i].raycast_origin = raycast_origin;
+		ledge_ik_points.write[i].ik_node->set_use_magnet(false);
+	}
+
+	// Left Hand
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_HAND].raycast_target = raycast_target_base + Vector3(-0.2f, 0.0f, 0.0f);
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_HAND].raycast_origin += Vector3(-0.2f, 0.0f, 0.0f);
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_HAND].debug_color = Color("RED");
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_HAND].start_time = 0.5f;
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_HAND].end_time = 0.9f;
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_HAND].raycast_type = LedgeIKPointRaycastType::RAYCAST_HAND;
+
+	// Right Hand
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_HAND].raycast_target = raycast_target_base + Vector3(0.2f, 0.0f, 0.0f);
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_HAND].raycast_origin += Vector3(0.2f, 0.0f, 0.0f);
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_HAND].debug_color = Color("GREEN");
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_HAND].start_time = 0.0f;
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_HAND].end_time = 0.4f;
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_HAND].raycast_type = LedgeIKPointRaycastType::RAYCAST_HAND;
+
+	// Left Foot
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_FOOT].raycast_target = foot_trg * Vector3(-1.0f, 1.0f, 1.0f);
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_FOOT].raycast_origin = foot_trg * Vector3(-1.0f, 1.0f, 1.0f);
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_FOOT].raycast_origin.z = 0.0f;
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_FOOT].debug_color = Color("DARK_RED");
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_FOOT].start_time = 0.6f;
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_FOOT].end_time = 1.0f;
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_FOOT].raycast_type = LedgeIKPointRaycastType::RAYCAST_FOOT;
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_FOOT].target_offset = Vector3(0.0f, 0.0f, 0.15f);
+
+	// Right foot
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_FOOT].raycast_origin = foot_trg;
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_FOOT].raycast_origin.z = 0.0f;
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_FOOT].raycast_target = foot_trg;
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_FOOT].debug_color = Color("DARK_GREEN");
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_FOOT].start_time = 0.1f;
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_FOOT].end_time = 0.5f;
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_FOOT].raycast_type = LedgeIKPointRaycastType::RAYCAST_FOOT;
+	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_FOOT].target_offset = Vector3(0.0f, 0.0f, 0.15f);
+}
+
 void HBAgentWallGrabbedState::enter(const Dictionary &p_args) {
 	debug_draw_clear();
 	Ref<EPASTransitionNode> movement_transition = get_movement_transition_node();
@@ -685,86 +759,22 @@ void HBAgentWallGrabbedState::enter(const Dictionary &p_args) {
 	ERR_FAIL_COND(!agent);
 
 	if (ledge_ik_points.size() == 0) {
-		// Not very pretty but lets initialize IK points
-		struct ik_points {
-			String bone_name;
-			StringName epas_node_name;
-		} ik_points[LedgePoint::LEDGE_POINT_MAX];
-
-		Vector3 raycast_origin = Vector3();
-		Vector3 raycast_target_base = Vector3(0.0f, agent->get_height() * 0.5f, -0.5f);
-
-		// Left hand
-		ik_points[LedgePoint::LEDGE_POINT_LEFT_HAND].bone_name = "hand.L";
-		ik_points[LedgePoint::LEDGE_POINT_LEFT_HAND].epas_node_name = "LeftHandIK";
-
-		// Right hand
-		ik_points[LedgePoint::LEDGE_POINT_RIGHT_HAND].bone_name = "hand.R";
-		ik_points[LedgePoint::LEDGE_POINT_RIGHT_HAND].epas_node_name = "RightHandIK";
-
-		Vector3 foot_trg = Vector3(0.05f, 0.225f, -0.2f).normalized() * 0.75f;
-
-		// Left foot
-		ik_points[LedgePoint::LEDGE_POINT_LEFT_FOOT].bone_name = "foot.L";
-		ik_points[LedgePoint::LEDGE_POINT_LEFT_FOOT].epas_node_name = "LeftFootIK";
-
-		// Right foot
-		ik_points[LedgePoint::LEDGE_POINT_RIGHT_FOOT].bone_name = "foot.R";
-		ik_points[LedgePoint::LEDGE_POINT_RIGHT_FOOT].epas_node_name = "RightFootIK";
-
-		ledge_ik_points.resize_zeroed(LedgePoint::LEDGE_POINT_MAX);
-
-		for (int i = 0; i < LedgePoint::LEDGE_POINT_MAX; i++) {
-			ledge_ik_points.write[i].bone_idx = skel->find_bone(ik_points[i].bone_name);
-			ledge_ik_points.write[i].ik_node = epas_controller->get_epas_node(ik_points[i].epas_node_name);
-			ERR_FAIL_COND_MSG(ledge_ik_points[i].bone_idx == -1, vformat("Error getting bone %s from skeleton.", ik_points[i].bone_name));
-			ERR_FAIL_COND(!ledge_ik_points[i].ik_node.is_valid());
-			ledge_ik_points.write[i].ik_node->set_ik_influence(1.0f);
-			ledge_ik_points.write[i].target_offset = Vector3(0.0f, 0.0f, 0.05f);
-			ledge_ik_points.write[i].raycast_origin = raycast_origin;
-			ledge_ik_points.write[i].ik_node->set_use_magnet(false);
-		}
-
-		// Left Hand
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_HAND].raycast_target = raycast_target_base + Vector3(-0.2f, 0.0f, 0.0f);
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_HAND].debug_color = Color("RED");
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_HAND].start_time = 0.5f;
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_HAND].end_time = 0.9f;
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_HAND].raycast_type = LedgeIKPointRaycastType::RAYCAST_HAND;
-
-		// Right Hand
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_HAND].raycast_target = raycast_target_base + Vector3(0.2f, 0.0f, 0.0f);
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_HAND].debug_color = Color("GREEN");
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_HAND].start_time = 0.0f;
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_HAND].end_time = 0.4f;
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_HAND].raycast_type = LedgeIKPointRaycastType::RAYCAST_HAND;
-
-		// Left Foot
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_FOOT].raycast_target = foot_trg * Vector3(-1.0f, 1.0f, 1.0f);
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_FOOT].debug_color = Color("DARK_RED");
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_FOOT].start_time = 0.6f;
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_FOOT].end_time = 1.0f;
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_FOOT].raycast_type = LedgeIKPointRaycastType::RAYCAST_FOOT;
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_FOOT].target_offset = Vector3(0.0f, 0.0f, 0.15f);
-
-		// Right foot
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_FOOT].raycast_target = foot_trg;
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_FOOT].debug_color = Color("DARK_GREEN");
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_FOOT].start_time = 0.1f;
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_FOOT].end_time = 0.5f;
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_FOOT].raycast_type = LedgeIKPointRaycastType::RAYCAST_FOOT;
-		ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_FOOT].target_offset = Vector3(0.0f, 0.0f, 0.15f);
+		_init_ik_points();
 	}
 
-	int hand_bone_l_idx = ledge_ik_points[LedgePoint::LEDGE_POINT_LEFT_HAND].bone_idx;
-	int hand_bone_r_idx = ledge_ik_points[LedgePoint::LEDGE_POINT_RIGHT_HAND].bone_idx;
-	Ref<EPASIKNode> left_hand_ik_node = ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_HAND].ik_node;
-	Ref<EPASIKNode> right_hand_ik_node = ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_HAND].ik_node;
+	for (int i = 0; i < LedgePoint::LEDGE_POINT_MAX; i++) {
+		// Setup magnet
+		Vector3 magnet = skel->get_bone_global_pose(skel->get_bone_parent(ledge_ik_points[i].bone_idx)).origin;
+		magnet.y += ledge_ik_points[i].raycast_type == RAYCAST_FOOT ? 1.5f : -1.5f;
+		if (ledge_ik_points[i].raycast_type == RAYCAST_FOOT) {
+			magnet.x += SIGN(magnet.x);
+		}
+		ledge_ik_points.write[i].magnet_position = magnet;
+		ledge_ik_points.write[i].ik_node->set_use_hinge(true);
+		ledge_ik_points.write[i].ik_node->set_magnet_position(skel->to_global(magnet));
+		ledge_ik_points.write[i].ik_node->set_use_magnet(true);
 
-	LedgeIKPoint &ik_point_left = ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_HAND];
-	LedgeIKPoint &ik_point_right = ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_HAND];
-
-	for (int i = 0; i < ledge_ik_points.size(); i++) {
+		// Setup initial IK position
 		Vector3 from = gn->to_global(ledge_ik_points[i].raycast_origin);
 		Vector3 to = gn->to_global(ledge_ik_points[i].raycast_target);
 		if (ledge_ik_points[i].raycast_type == LedgeIKPointRaycastType::RAYCAST_HAND) {
@@ -774,27 +784,8 @@ void HBAgentWallGrabbedState::enter(const Dictionary &p_args) {
 		}
 		ledge_ik_points.write[i].ik_node->set_ik_influence(1.0f);
 		ledge_ik_points.write[i].target_position = ledge_ik_points[i].position;
+		ledge_ik_points.write[i].ik_node->set_target_transform(_get_ledge_point_target_trf(i, ledge_ik_points[i].position));
 	}
-
-	// TODO: better magnet calculation, also make the magnet calculation be applied to all bones
-	Vector3 left_magnet = skel->get_bone_global_pose(skel->get_bone_parent(hand_bone_l_idx)).origin;
-	Vector3 right_magnet = skel->get_bone_global_pose(skel->get_bone_parent(hand_bone_r_idx)).origin;
-	left_magnet.y -= 1.5f;
-	right_magnet.y -= 1.5f;
-
-	ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_HAND].magnet_position = left_magnet;
-	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_HAND].magnet_position = right_magnet;
-
-	Transform3D temp_trf;
-	left_hand_ik_node->set_target_transform(_get_ledge_point_target_trf(LedgePoint::LEDGE_POINT_LEFT_HAND, ik_point_left.position));
-	left_hand_ik_node->set_use_magnet(true);
-	left_hand_ik_node->set_use_hinge(true);
-	left_hand_ik_node->set_magnet_position(skel->to_global(left_magnet));
-
-	right_hand_ik_node->set_target_transform(_get_ledge_point_target_trf(LedgePoint::LEDGE_POINT_RIGHT_HAND, ik_point_right.position));
-	right_hand_ik_node->set_use_magnet(true);
-	right_hand_ik_node->set_use_hinge(true);
-	right_hand_ik_node->set_magnet_position(skel->to_global(right_magnet));
 
 	target_agent_position = agent->get_global_position();
 
@@ -814,8 +805,6 @@ void HBAgentWallGrabbedState::exit() {
 
 void HBAgentWallGrabbedState::physics_process(float p_delta) {
 	ZoneScopedN("HBAgentWallGrabbedState physics process");
-	// TODO: Make character face the average wall normal (used for non-coplanar ledges)
-	// TODO: Make the character's position be influenced by the wall normals and wall hit positions
 	debug_draw_clear();
 	HBAgent *agent = get_agent();
 	ERR_FAIL_COND(!agent);
@@ -833,14 +822,57 @@ void HBAgentWallGrabbedState::physics_process(float p_delta) {
 	ERR_FAIL_COND(!gn);
 
 	Vector3 forward = get_graphics_node()->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
+	forward.y = 0.0f;
+	forward.normalize();
 	Plane plane = Plane(forward);
-	Vector3 movement_input = plane.project(agent->get_desired_movement_input());
-	ik_debug_info.transformed_movement_input = Vector2(movement_input.x, movement_input.z);
+	Vector3 movement_input_transformed = Quaternion(Vector3(0.0f, 0.0f, -1.0f), forward).xform(agent->get_movement_input());
+	Vector3 lateral_movement_input = plane.project(movement_input_transformed);
+	if (agent->get_movement_input().length_squared() > 0 && agent->get_movement_input().angle_to(Vector3(0.0, 0.0, -1.0f)) < Math::deg_to_rad(45.0f)) {
+		Vector3 origin = ledge_ik_points[LEDGE_POINT_LEFT_HAND].raycast_origin + ledge_ik_points[LEDGE_POINT_RIGHT_HAND].raycast_origin;
+		origin *= 0.5f;
+		origin.x = 0.0f;
+		origin = gn->get_global_transform().xform(origin);
+
+		Vector3 target = ledge_ik_points[LEDGE_POINT_LEFT_HAND].raycast_target + ledge_ik_points[LEDGE_POINT_RIGHT_HAND].raycast_target;
+		target *= 0.5f;
+		target.x = 0.0f;
+		target = gn->get_global_transform().xform(target);
+
+		Vector3 ledge_position, wall_normal, ledge_normal;
+		// We need to find the center of both hands, this is because we don't have any information on the height of the ledge
+		// in front of us
+		if (_find_ledge(origin, target, ledge_position, wall_normal, ledge_normal, Color("purple"))) {
+			PhysicsDirectSpaceState3D::RayParameters ray_params;
+			PhysicsDirectSpaceState3D::RayResult ray_result;
+			ray_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
+			ray_params.from = ledge_position + gn->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -0.25f));
+			ray_params.from.y += 0.5f;
+			ray_params.to = ray_params.from;
+			ray_params.to.y -= 1.0f;
+
+			if (agent->get_world_3d()->get_direct_space_state()->intersect_ray(ray_params, ray_result)) {
+				if (is_floor(ray_result.normal, get_agent()->get_floor_max_angle())) {
+					Dictionary args;
+					Transform3D temp_trf;
+					// root motion basis forward is reversed
+					temp_trf.basis = Quaternion(Vector3(0.0f, 0.0f, -1.0f), wall_normal);
+					temp_trf.origin = ledge_position;
+					args[StringName("Ledge")] = temp_trf;
+					temp_trf.origin = ray_result.position;
+					args[StringName("GetUpTarget")] = temp_trf;
+					state_machine->transition_to("LedgeGetUp", args);
+					return;
+				}
+			}
+		}
+		return;
+	}
+	ik_debug_info.transformed_movement_input = Vector2(lateral_movement_input.x, lateral_movement_input.z);
 	const float ledge_movement_max_vel = agent->get_agent_constants()->get_ledge_movement_velocity();
 	HBUtils::velocity_spring(
 			&ledge_movement_velocity,
 			&ledge_movement_acceleration,
-			gn->get_global_transform().basis.xform_inv(movement_input).x * ledge_movement_max_vel,
+			gn->get_global_transform().basis.xform_inv(lateral_movement_input).x * ledge_movement_max_vel,
 			0.175f,
 			p_delta);
 
@@ -852,7 +884,7 @@ void HBAgentWallGrabbedState::physics_process(float p_delta) {
 	}
 
 	if (is_moving || animation_time > 0.0f) {
-		animation_time += p_delta + (Math::abs(ledge_movement_velocity) * 2.0f * p_delta);
+		animation_time += p_delta + (Math::abs(ledge_movement_velocity) * 1.5f * p_delta);
 	}
 
 	// When the animation ends if we are still moving, wrap around, otherwise set it to 0
@@ -873,24 +905,65 @@ void HBAgentWallGrabbedState::physics_process(float p_delta) {
 		}
 	}
 
-	// First, we figure out if any ledge doesn't have a potential target ledge position, this means
-	// that we moved into a side that doesn't have more corner for us to grab to
+	Vector3 prev_agent_pos = agent->get_global_position();
+
+	if (animation_direction != 0) {
+		Vector3 curr_graphics_forward = gn->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
+		Vector3 new_graphics_forward = animation_direction == 1 ? ledge_ik_points[LedgePoint::LEDGE_POINT_RIGHT_HAND].wall_normal : ledge_ik_points[LedgePoint::LEDGE_POINT_LEFT_HAND].wall_normal;
+		new_graphics_forward *= -1.0f;
+		float angle = curr_graphics_forward.angle_to(new_graphics_forward);
+		Vector3 axis = curr_graphics_forward.cross(new_graphics_forward).normalized();
+
+		if (axis.is_normalized()) {
+			float angle_mul = Math::abs(ledge_movement_velocity) / ledge_movement_max_vel;
+			new_graphics_forward = curr_graphics_forward.rotated(axis, (angle * p_delta * angle_mul));
+		}
+
+		Transform3D gn_trf = gn->get_global_transform();
+		gn_trf.basis = Quaternion(curr_graphics_forward, new_graphics_forward) * gn_trf.basis.get_rotation_quaternion();
+
+		Vector3 average_pos = ledge_ik_points[LedgePoint::LEDGE_POINT_RIGHT_HAND].position + ledge_ik_points[LedgePoint::LEDGE_POINT_LEFT_HAND].position;
+		average_pos *= 0.5f;
+
+		PhysicsDirectSpaceState3D::RayParameters ray_params;
+		ray_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
+		Vector3 ray_dir = gn_trf.origin;
+		ray_dir.y = average_pos.y;
+		ray_dir = ray_dir.direction_to(average_pos);
+
+		ray_params.from = gn_trf.origin - new_graphics_forward;
+		ray_params.to = gn_trf.origin + new_graphics_forward;
+
+		PhysicsDirectSpaceState3D::RayResult ray_result;
+
+		PhysicsDirectSpaceState3D *dss = agent->get_world_3d()->get_direct_space_state();
+
+		gn->set_global_transform(gn_trf);
+
+		if (dss->intersect_ray(ray_params, ray_result)) {
+			Vector3 new_pos = ray_result.position + ray_result.position.direction_to(agent->get_global_position()) * 0.35f;
+			agent->set_global_position(new_pos);
+		}
+	}
+
 	static struct {
 		Vector3 position;
 		Vector3 wall_normal;
 		Vector3 ledge_normal;
 	} new_ledge_info[LedgePoint::LEDGE_POINT_MAX];
 
-	Transform3D target_gn_trf = gn->get_global_transform();
-	target_gn_trf.origin += target_agent_position - agent->get_global_position();
+	// First, we figure out if any ledge doesn't have a potential target ledge position, this means
+	// that we moved into a side that doesn't have more corner for us to grab to
+	Transform3D predicted_gn_trf = gn->get_global_transform();
+	predicted_gn_trf.origin += target_agent_position - agent->get_global_position();
 	if (is_moving) {
 		for (int i = 0; i < ledge_ik_points.size(); i++) {
 			LedgeIKPoint &ik_point = ledge_ik_points.write[i];
 			Vector3 new_position;
 			Vector3 wall_normal;
 			Vector3 ledge_normal;
-			Vector3 from = target_gn_trf.xform(ik_point.raycast_origin);
-			Vector3 to = target_gn_trf.xform(ik_point.raycast_target);
+			Vector3 from = predicted_gn_trf.xform(ik_point.raycast_origin);
+			Vector3 to = predicted_gn_trf.xform(ik_point.raycast_target);
 
 			bool result;
 
@@ -901,11 +974,12 @@ void HBAgentWallGrabbedState::physics_process(float p_delta) {
 			}
 
 			if (!result) {
-				// Ledge detection failed, which means we must stop moving
+				// Ledge detection failed, which means we must stop moving and go back
 				ledge_movement_acceleration = 0.0f;
 				ledge_movement_velocity = 0.0f;
 				target_agent_spring_velocity = Vector3();
 				is_moving = false;
+				agent->set_global_position(prev_agent_pos);
 				break;
 			} else {
 				new_ledge_info[i].position = new_position;
@@ -958,7 +1032,7 @@ void HBAgentWallGrabbedState::physics_process(float p_delta) {
 		ik_handle_positions[i] = trf.origin;
 	}
 
-	Vector3 ik_position_weighted;
+	Vector3 ik_position_weighted; // The hip position after
 	ik_position_avg /= (float)LedgePoint::LEDGE_POINT_MAX;
 
 	for (int i = 0; i < LedgePoint::LEDGE_POINT_MAX; i++) {
@@ -971,14 +1045,15 @@ void HBAgentWallGrabbedState::physics_process(float p_delta) {
 
 	// Move along the wall
 	Vector3 movement_vector = Vector3(ledge_movement_velocity, 0.0f, 0.0f);
-	Vector3 movement_dir = ledge_ik_points[LedgePoint::LEDGE_POINT_LEFT_HAND].ledge_normal.cross(ledge_ik_points[LedgePoint::LEDGE_POINT_LEFT_HAND].wall_normal);
+	Vector3 movement_dir = ledge_ik_points[LedgePoint::LEDGE_POINT_LEFT_HAND].ledge_normal.cross(ledge_ik_points[LedgePoint::LEDGE_POINT_LEFT_HAND].wall_normal).normalized();
+
 	movement_vector = Quaternion(Vector3(1.0f, 0.0f, 0.0f), movement_dir).xform(movement_vector);
 	target_agent_position = target_agent_position + movement_vector * p_delta;
 
 	// Make the movement lag behind visually a bit, to make limbs look better
-	Vector3 current_position = agent->get_global_position();
-	HBUtils::critical_spring_damper_exact_vector3(current_position, target_agent_spring_velocity, target_agent_position, target_spring_halflife, p_delta);
-	agent->set_global_position(current_position);
+	Vector3 graphics_position = agent->get_global_position();
+	HBUtils::critical_spring_damper_exact_vector3(graphics_position, target_agent_spring_velocity, target_agent_position, target_spring_halflife, p_delta);
+	agent->set_global_position(graphics_position);
 
 	float anim_mul_sq = anim_mul * anim_mul;
 	Vector3 offset = skel->get_global_transform().basis.xform_inv(ik_position_weighted - ik_position_avg);
@@ -987,6 +1062,7 @@ void HBAgentWallGrabbedState::physics_process(float p_delta) {
 	Vector3 skel_pos = offset * anim_mul_sq * 0.4f;
 	skel_pos.y = 0.2f * anim_mul_sq; // Perhaps these two should be using a spring to make them less sudden
 	skel_pos.z = 0.1f * anim_mul_sq;
+	skel->set_position(skel_pos);
 
 	// Update debug info
 	for (int i = 0; i < LedgePoint::LEDGE_POINT_MAX; i++) {
@@ -996,14 +1072,12 @@ void HBAgentWallGrabbedState::physics_process(float p_delta) {
 	ik_debug_info.physics_time_delta += p_delta;
 	ik_debug_info.last_data_is_valid = true;
 
-	skel->set_position(skel_pos);
 	debug_draw_sphere(skel->get_global_position() + (ik_position_weighted - ik_position_avg), 0.05f, Color("red"));
 
-	Vector3 left_magnet = skel->to_global(ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_HAND].magnet_position);
-	Vector3 right_magnet = skel->to_global(ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_HAND].magnet_position);
-
-	ledge_ik_points.write[LedgePoint::LEDGE_POINT_LEFT_HAND].ik_node->set_magnet_position(left_magnet);
-	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_HAND].ik_node->set_magnet_position(right_magnet);
+	for (int i = 0; i < LedgePoint::LEDGE_POINT_MAX; i++) {
+		Vector3 magnet = skel->to_global(ledge_ik_points[i].magnet_position);
+		ledge_ik_points.write[i].ik_node->set_magnet_position(magnet);
+	}
 }
 
 void HBAgentWallGrabbedState::debug_ui_draw() {
@@ -1065,13 +1139,49 @@ void HBAgentFallState::enter(const Dictionary &p_args) {
 
 	HBAgent *agent = get_agent();
 	ERR_FAIL_COND(!agent);
-	agent->set_movement_mode(HBAgent::MovementMode::MOVE_GROUNDED);
+	agent->set_movement_mode(HBAgent::MovementMode::MOVE_FALL);
 	agent->set_velocity(Vector3());
 }
 
 void HBAgentFallState::physics_process(float p_delta) {
 	HBAgent *agent = get_agent();
 	if (agent->is_on_floor()) {
+		state_machine->transition_to("Move");
+	}
+}
+
+/**********************
+	Ledge Getup State
+***********************/
+
+void HBAgentLedgeGetUpState::_on_animation_finished() {
+}
+
+void HBAgentLedgeGetUpState::enter(const Dictionary &p_args) {
+	EPASController *epas_controller = get_epas_controller();
+	ERR_FAIL_COND(!epas_controller);
+
+	Ref<EPASTransitionNode> movement_transition = get_movement_transition_node();
+	ERR_FAIL_COND(!movement_transition.is_valid());
+
+	animation_node = epas_controller->get_epas_node("LedgeGetUp");
+	ERR_FAIL_COND(!animation_node.is_valid());
+
+	HBAgent *agent = get_agent();
+	ERR_FAIL_COND(!agent);
+
+	agent->set_movement_mode(HBAgent::MOVE_MANUAL);
+
+	movement_transition->transition_to(HBAgentConstants::MOVEMENT_LEDGE_GETUP);
+	animation_node->play_with_warp_points(p_args);
+
+	animation_node->connect("playback_finished", callable_mp(this, &HBAgentLedgeGetUpState::_on_animation_finished), CONNECT_ONE_SHOT);
+}
+
+void HBAgentLedgeGetUpState::process(float p_delta) {
+	get_agent()->apply_root_motion(animation_node);
+
+	if (!animation_node->is_playing()) {
 		state_machine->transition_to("Move");
 	}
 }

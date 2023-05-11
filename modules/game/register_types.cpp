@@ -51,6 +51,7 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(HBAgentWallrunState);
 		GDREGISTER_CLASS(HBAgentWallGrabbedState);
 		GDREGISTER_CLASS(HBAgentFallState);
+		GDREGISTER_CLASS(HBAgentLedgeGetUpState);
 		// State machine stuff
 		GDREGISTER_CLASS(HBStateMachine);
 		GDREGISTER_ABSTRACT_CLASS(HBStateMachineState);

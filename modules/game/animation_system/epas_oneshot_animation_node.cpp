@@ -27,6 +27,7 @@ void EPASOneshotAnimationNode::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_root_motion_transform"), &EPASOneshotAnimationNode::get_root_motion_transform);
 
 	ClassDB::bind_method(D_METHOD("set_warp_point_transform", "name", "transform"), &EPASOneshotAnimationNode::set_warp_point_transform);
+	ClassDB::bind_method(D_METHOD("play_with_warp_points", "warp_points"), &EPASOneshotAnimationNode::play_with_warp_points);
 
 	ADD_SIGNAL(MethodInfo("playback_finished"));
 }
@@ -95,6 +96,20 @@ Vector3 EPASOneshotAnimationNode::get_root_motion_forward() const {
 
 void EPASOneshotAnimationNode::set_warp_point_transform(const StringName &p_name, const Transform3D &p_transform) {
 	playback_info.warp_point_transforms[p_name] = p_transform;
+}
+
+void EPASOneshotAnimationNode::play_with_warp_points(const Dictionary &p_warp_points) {
+	ERR_FAIL_COND(!animation.is_valid());
+	ERR_FAIL_COND(!get_skeleton());
+	for (int i = 0; i < animation->get_warp_point_count(); i++) {
+		const Ref<EPASWarpPoint> wp = animation->get_warp_point(i);
+		const StringName point_name = wp->get_point_name();
+		ERR_FAIL_COND_MSG(!p_warp_points.has(point_name), vformat("Animation didn't have mandatory warp point %s", point_name));
+		ERR_FAIL_COND_MSG(p_warp_points[point_name].get_type() != Variant::TRANSFORM3D, vformat("Animation warp point %s's transform wasn't a Transform3D", point_name));
+		set_warp_point_transform(point_name, p_warp_points[point_name]);
+	}
+	set_root_motion_starting_transform(get_skeleton()->get_global_transform());
+	play();
 }
 
 Transform3D EPASOneshotAnimationNode::get_root_motion_transform() const {

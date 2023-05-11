@@ -116,6 +116,13 @@ HBStateMachineState *HBStateMachine::_get_current_state() {
 	return nullptr;
 }
 
+void HBStateMachine::_on_child_entered_tree(Node *p_child) {
+	HBStateMachineState *state = Object::cast_to<HBStateMachineState>(p_child);
+	if (state) {
+		state->state_machine = this;
+	}
+}
+
 void HBStateMachine::transition_to(const StringName &p_name, const Dictionary &p_args) {
 	HBStateMachineState *current_state = _get_current_state();
 	if (current_state) {
@@ -129,7 +136,6 @@ void HBStateMachine::transition_to(const StringName &p_name, const Dictionary &p
 	}
 	current_state = Object::cast_to<HBStateMachineState>(get_node(String(p_name)));
 	ERR_FAIL_COND_MSG(!current_state, "State machine state not found: " + p_name);
-	current_state->state_machine = this;
 	current_state->enter(p_args);
 	current_state_cache = current_state->get_instance_id();
 }
@@ -138,6 +144,7 @@ HBStateMachine::HBStateMachine() {
 	if (!Engine::get_singleton()->is_editor_hint()) {
 		set_physics_process(true);
 		set_process(true);
+		connect("child_entered_tree", callable_mp(this, &HBStateMachine::_on_child_entered_tree));
 	}
 }
 

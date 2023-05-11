@@ -26,15 +26,16 @@ public:
 		INPUT_ACTION_MAX
 	};
 
+private:
 	struct InputState {
 		Vector3 movement;
+		Quaternion movement_input_rotation;
 		bool action_states[AgentInputAction::INPUT_ACTION_MAX] = {};
 	};
 
 	InputState current_input_state;
 	InputState prev_input_state;
 
-private:
 	Vector3 smoothed_accel = Vector3(0.0, 0.0, 0.0);
 
 	NavigationAgent3D *navigation_agent;
@@ -82,8 +83,11 @@ public:
 
 	void set_input_action_state(AgentInputAction p_event, bool p_state);
 	Vector3 get_desired_movement_input() const;
+	Vector3 get_desired_movement_input_transformed() const;
 	void set_movement_input(Vector3 p_movement_input);
 	Vector3 get_movement_input() const;
+	void set_movement_input_rotation(Quaternion p_movement_input_rotation);
+	Quaternion get_movement_input_rotation() const;
 	void set_graphics_node(NodePath p_path);
 	NodePath get_graphics_node() const;
 	void set_tilt_node(NodePath p_path);

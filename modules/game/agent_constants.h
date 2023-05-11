@@ -8,7 +8,7 @@ class HBAgentConstants : public Resource {
 	GDCLASS(HBAgentConstants, Resource);
 
 	float max_move_velocity = 2.8f;
-	Vector3 gravity = Vector3(0.0f, -20.81f, 0.0f);
+	Vector3 gravity = Vector3(0.0f, -9.81f, 0.0f);
 	float velocity_spring_halflife = 0.175f;
 	float tilt_spring_halflife = 0.5f;
 	float tilt_max_angle_degrees = 25.0f;
@@ -24,7 +24,7 @@ class HBAgentConstants : public Resource {
 	float turn_animation_threshold = 45.0f; // If the rotation is bigger than this we initiate a rotation
 
 	// Wall movement
-	float ledge_movement_velocity = 0.5f;
+	float ledge_movement_velocity = 0.4f;
 
 protected:
 	static void _bind_methods();
@@ -37,6 +37,7 @@ public:
 		MOVEMENT_WALLRUN = 4,
 		MOVEMENT_WALLGRABBED = 5,
 		MOVEMENT_FALL = 6,
+		MOVEMENT_LEDGE_GETUP = 7,
 	};
 
 	float get_max_move_velocity() const;

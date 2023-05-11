@@ -259,6 +259,10 @@ void EPASAnimationEditor::_create_eirteam_humanoid_ik() {
 		Ref<FABRIKSolver> fabrik_solver;
 		fabrik_solver.instantiate();
 		fabrik_solver->set_joint_count(3);
+		/*fabrik_solver->set_joint_transform(0, editing_skeleton->get_bone_global_rest(ik_a_bone_idx));
+		fabrik_solver->set_joint_transform(1, editing_skeleton->get_bone_rest(ik_b_bone_idx));
+		fabrik_solver->set_joint_transform(2, editing_skeleton->get_bone_rest(ik_c_bone_idx));
+		fabrik_solver->calculate_distances();*/
 
 		fabrik_solver->set_use_pole_constraint(true);
 		fabrik_solver->set_joint_hinge_enabled(1, true);
@@ -330,7 +334,7 @@ void EPASAnimationEditor::_apply_constraints() {
 		fabrik_solver->set_target_position(target_bone_trf.origin);
 		fabrik_solver->set_pole_position(magnet_target_pos);
 
-		fabrik_solver->solve(15);
+		fabrik_solver->solve(10);
 
 		String a_bone_name = editing_skeleton->get_bone_name(a_bone_idx);
 		String b_bone_name = editing_skeleton->get_bone_name(b_bone_idx);
@@ -498,6 +502,9 @@ void EPASAnimationEditor::_draw_ui() {
 					}
 				}
 			}
+			if (ImGui::MenuItem("RootMover™", nullptr, ui_info.root_mover_window_visible)) {
+				ui_info.root_mover_window_visible = !ui_info.root_mover_window_visible;
+			}
 			ImGui::EndMenu();
 		}
 		ImGui::EndMainMenuBar();
@@ -533,7 +540,6 @@ void EPASAnimationEditor::_draw_ui() {
 					String name = ui_info.group_visibility[i] ? eye_icon : eye_off_icon;
 					name += String(GROUP_NAMES[i]);
 					if (ImGui::Selectable(name.utf8().get_data())) {
-						print_line(i);
 						ui_info.group_visibility.set(i, !ui_info.group_visibility[i]);
 					}
 				}
@@ -743,7 +749,6 @@ void EPASAnimationEditor::_draw_ui() {
 				bool pasted_rot = false;
 				if (ImGui::Button("Copy##rot")) {
 					ui_info.copy_buffer = euler;
-					print_line("COPYEULER");
 				}
 				ImGui::SameLine();
 				if (ImGui::Button("Paste##rot")) {
@@ -902,25 +907,48 @@ void EPASAnimationEditor::_draw_ui() {
 				}
 				ImGui::EndCombo();
 			}
-			Ref<EPASWarpPoint> wp = current_animation->get_warp_point(selected_warp_point_idx);
-			const char *WARP_PROPS[] = {
-				"facing_start", "facing_end",
-				"rotation_start", "rotation_end",
-				"translation_start", "translation_end"
-			};
-			for (int i = 0; i < 6; i += 2) {
-				int warp_prop_vals[2] = { (int)wp->get(WARP_PROPS[i]), (int)wp->get(WARP_PROPS[i + 1]) };
-				String name = String(WARP_PROPS[i]).capitalize().split(" ")[0];
-				ImGui::PushItemWidth(-100);
-				if (ImGui::InputInt2(name.utf8().get_data(), warp_prop_vals)) {
-					undo_redo->create_action(vformat("Set warp point %s", name), UndoRedo::MergeMode::MERGE_ENDS);
-					String start_prop_name = WARP_PROPS[i];
-					String end_prop_name = WARP_PROPS[i + 1];
-					undo_redo->add_undo_property(wp.ptr(), start_prop_name, wp->get(start_prop_name));
-					undo_redo->add_do_property(wp.ptr(), start_prop_name, warp_prop_vals[0]);
-					undo_redo->add_undo_property(wp.ptr(), end_prop_name, wp->get(end_prop_name));
-					undo_redo->add_do_property(wp.ptr(), end_prop_name, warp_prop_vals[1]);
-					undo_redo->commit_action();
+			selected_warp_point_idx = CLAMP(ui_info.selected_warp_point, 0, current_animation->get_warp_point_count());
+
+			// Warp point delete button
+			ImGui::SameLine();
+			ImGui::BeginDisabled(selected_warp_point_idx == -1);
+			if (ImGui::Button(FONT_REMIX_ICON_DELETE_BIN_LINE) && selected_warp_point_idx != -1) {
+				Ref<EPASWarpPoint> wp = current_animation->get_warp_point(selected_warp_point_idx);
+				undo_redo->create_action("Remove selected warp point");
+				undo_redo->add_do_method(callable_mp(current_animation.ptr(), &EPASAnimation::erase_warp_point).bind(wp));
+				undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_remove_warp_point).bind(wp));
+				undo_redo->add_undo_method(callable_mp(current_animation.ptr(), &EPASAnimation::add_warp_point).bind(wp));
+				undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_add_warp_point).bind(wp));
+				undo_redo->commit_action();
+				selected_warp_point_idx = -1;
+			}
+			if (ImGui::IsItemHovered()) {
+				ImGui::SetTooltip("Remove selected warp point");
+			}
+			ImGui::EndDisabled();
+
+			// Warp point properties
+			if (selected_warp_point_idx != -1) {
+				Ref<EPASWarpPoint> wp = current_animation->get_warp_point(selected_warp_point_idx);
+				const char *WARP_PROPS[] = {
+					"facing_start", "facing_end",
+					"rotation_start", "rotation_end",
+					"translation_start", "translation_end"
+				};
+				for (int i = 0; i < 6; i += 2) {
+					int warp_prop_vals[2] = { (int)wp->get(WARP_PROPS[i]), (int)wp->get(WARP_PROPS[i + 1]) };
+					String name = String(WARP_PROPS[i]).capitalize().split(" ")[0];
+					ImGui::PushItemWidth(-100);
+					if (ImGui::InputInt2(name.utf8().get_data(), warp_prop_vals)) {
+						undo_redo->create_action(vformat("Set warp point %s", name), UndoRedo::MergeMode::MERGE_ENDS);
+						String start_prop_name = WARP_PROPS[i];
+						String end_prop_name = WARP_PROPS[i + 1];
+						undo_redo->add_undo_property(wp.ptr(), start_prop_name, wp->get(start_prop_name));
+						undo_redo->add_do_property(wp.ptr(), start_prop_name, warp_prop_vals[0]);
+						undo_redo->add_undo_property(wp.ptr(), end_prop_name, wp->get(end_prop_name));
+						undo_redo->add_do_property(wp.ptr(), end_prop_name, warp_prop_vals[1]);
+						undo_redo->commit_action();
+					}
 				}
 			}
 		}
@@ -968,6 +996,37 @@ void EPASAnimationEditor::_draw_ui() {
 		}
 		ImGui::SetItemDefaultFocus();
 		ImGui::EndPopup();
+	}
+
+	if (ui_info.root_mover_window_visible) {
+		if (ImGui::Begin("RootMover(tm)", &ui_info.root_mover_window_visible)) {
+			static float root_mover_target[3] = { 0.0f };
+			current_pose = get_current_pose();
+			ImGui::InputFloat3("New position", root_mover_target);
+			ImGui::BeginDisabled(!current_pose.is_valid());
+			if (ImGui::Button("Apply")) {
+				Vector3 old_root_pos = current_pose->get_bone_position("root", epas_controller->get_base_pose());
+				Vector3 new_root_pos = Vector3(root_mover_target[0], root_mover_target[1], root_mover_target[2]);
+				Vector3 diff = new_root_pos - old_root_pos;
+
+				Vector<int> children = editing_skeleton->get_bone_children(editing_skeleton->find_bone("root"));
+				undo_redo->create_action("RootMove");
+				for (int i = 0; i < children.size(); i++) {
+					StringName bone_name = editing_skeleton->get_bone_name(children[i]);
+					if (current_pose->has_bone(bone_name)) {
+						Vector3 curr_pos = current_pose->get_bone_position(bone_name, epas_controller->get_base_pose());
+						undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_position).bind(bone_name, curr_pos - diff));
+						undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_position).bind(bone_name, curr_pos));
+					}
+				}
+				undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_position).bind("root", new_root_pos));
+				undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_position).bind("root", old_root_pos));
+
+				undo_redo->commit_action();
+			}
+			ImGui::EndDisabled();
+		}
+		ImGui::End();
 	}
 }
 
@@ -1078,6 +1137,7 @@ void EPASAnimationEditor::_remove_warp_point(Ref<EPASWarpPoint> p_warp_point) {
 			}
 		}
 	}
+	ui_info.selected_warp_point = -1;
 	queue_warp_point_sphere_update();
 }
 
@@ -1422,6 +1482,7 @@ EPASAnimationEditor::EPASAnimationEditor() {
 		camera->set_position(Vector3(0.0, 1.0, 2.0));
 
 		DirectionalLight3D *dl = memnew(DirectionalLight3D);
+		dl->set_shadow(true);
 		editor_3d_root->add_child(dl);
 		dl->rotate_x(Math::deg_to_rad(-45.0));
 		dl->rotate_y(Math::deg_to_rad(-45.0));

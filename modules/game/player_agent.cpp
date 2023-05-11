@@ -58,14 +58,21 @@ void HBPlayerAgentController::_notification(int p_what) {
 
 				// Movement input
 				Vector2 movement_input = Input::get_singleton()->get_vector("move_left", "move_right", "move_forward", "move_backward");
-				Vector3 input_3d_space = Vector3(movement_input.x, 0, movement_input.y);
-
 				Camera3D *camera = get_viewport()->get_camera_3d();
 				if (camera) {
-					input_3d_space = camera->get_camera_transform().basis.xform(input_3d_space);
-					input_3d_space.y = 0.0f;
+					Quaternion camera_rot = camera->get_camera_transform().basis.get_rotation_quaternion();
+					Vector3 curr_camera_forward = camera_rot.xform(Vector3(0.0f, 0.0f, -1.0f));
+					Vector3 target_camera_forward = curr_camera_forward;
+					target_camera_forward.y = 0.0f;
+					target_camera_forward.normalize();
+					// Guard against fully vertical camera aiming
+					// Should never happen but...
+					if (target_camera_forward.is_normalized()) {
+						camera_rot = Quaternion(curr_camera_forward, target_camera_forward) * camera_rot;
+						agent->set_movement_input_rotation(camera_rot);
+					}
 				}
-
+				Vector3 input_3d_space = Vector3(movement_input.x, 0, movement_input.y);
 				agent->set_movement_input(input_3d_space);
 			}
 		} break;

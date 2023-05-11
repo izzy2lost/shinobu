@@ -14,6 +14,8 @@ class HBAgentState : public HBStateMachineState {
 	HBDebugGeometry *debug_geo = nullptr;
 	HBDebugGeometry *_get_debug_geo();
 	bool draw_debug_geometry = true;
+	bool ui_settings_init = false; // Lazily initialize loading of settings
+	void _init_ui_settings_if_needed();
 
 protected:
 	void debug_draw_shape(Ref<Shape3D> p_shape, const Vector3 &p_position, const Color &p_color = Color());
@@ -21,6 +23,7 @@ protected:
 	void debug_draw_raycast(const PhysicsDirectSpaceState3D::RayParameters &p_params, const Color &p_color = Color());
 	void debug_draw_sphere(const Vector3 &p_position, float p_radius = 0.05f, const Color &p_color = Color());
 	void debug_draw_line(const Vector3 &p_from, const Vector3 &p_to, const Color &p_color = Color());
+	void debug_draw_cast_motion(const Ref<Shape3D> &p_shape, const PhysicsDirectSpaceState3D::ShapeParameters &p_shape_cast_3d, const Color &p_color = Color());
 
 public:
 	HBAgent *get_agent() const;
@@ -54,7 +57,6 @@ private:
 
 protected:
 	virtual void enter(const Dictionary &p_args) override;
-	virtual void exit() override;
 	virtual void process(float p_delta) override;
 };
 
@@ -69,7 +71,6 @@ class HBAgentTurnState : public HBAgentState {
 
 protected:
 	virtual void enter(const Dictionary &p_args) override;
-	virtual void exit() override;
 	virtual void process(float p_delta) override;
 };
 
@@ -166,6 +167,7 @@ class HBAgentWallGrabbedState : public HBAgentState {
 	Transform3D _get_ledge_point_target_trf(int p_ledge_point, const Vector3 &p_position);
 	bool _find_ledge(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_wall_normal, Vector3 &p_out_ledge_normal, const Color &p_debug_color);
 	bool _find_wall_point(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_normal, const Color &p_debug_color);
+	void _init_ik_points();
 	virtual void enter(const Dictionary &p_args) override;
 	virtual void exit() override;
 	virtual void physics_process(float p_delta) override;
@@ -178,6 +180,17 @@ class HBAgentFallState : public HBAgentState {
 protected:
 	virtual void enter(const Dictionary &p_args) override;
 	virtual void physics_process(float p_delta) override;
+};
+
+class HBAgentLedgeGetUpState : public HBAgentState {
+	GDCLASS(HBAgentLedgeGetUpState, HBAgentState);
+	Ref<EPASOneshotAnimationNode> animation_node;
+
+	void _on_animation_finished();
+
+protected:
+	void enter(const Dictionary &p_args) override;
+	void process(float p_delta) override;
 };
 
 #endif // AGENT_STATE_H
