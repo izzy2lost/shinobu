@@ -24,8 +24,7 @@ void HBGameMainLoop::change_scene(Node *p_new_scene) {
 		memdelete(get_current_scene());
 		set_current_scene(nullptr);
 	}
-	get_root()->add_child(p_new_scene);
-	set_current_scene(p_new_scene);
+	add_current_scene(p_new_scene);
 }
 
 bool HBGameMainLoop::process(double p_time) {
