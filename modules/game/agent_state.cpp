@@ -575,7 +575,7 @@ bool HBAgentWallGrabbedState::_find_ledge(const Vector3 &p_from, const Vector3 &
 	ray_params.to = pos_target;
 	ray_params.from = pos;
 
-	debug_draw_raycast(ray_params, Color(1.0f, 0.0f, 0.0f));
+	debug_draw_raycast(ray_params, p_debug_color);
 
 	if (!dss->intersect_ray(ray_params, ray_result)) {
 		return false;
@@ -667,7 +667,7 @@ void HBAgentWallGrabbedState::_init_ik_points() {
 		StringName epas_node_name;
 	} ik_points[LedgePoint::LEDGE_POINT_MAX];
 
-	Vector3 raycast_origin = Vector3(0.0f, agent->get_height() * 0.25f, 0.0f);
+	Vector3 raycast_origin = Vector3(0.0f, agent->get_height() * 0.25f, 0.5f);
 	Vector3 raycast_target_base = Vector3(0.0f, agent->get_height() * 0.25f, -1.0f);
 
 	// Left hand
@@ -736,6 +736,84 @@ void HBAgentWallGrabbedState::_init_ik_points() {
 	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_FOOT].end_time = 0.5f;
 	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_FOOT].raycast_type = LedgeIKPointRaycastType::RAYCAST_FOOT;
 	ledge_ik_points.write[LedgePoint::LEDGE_POINT_RIGHT_FOOT].target_offset = Vector3(0.0f, 0.0f, 0.15f);
+}
+
+bool HBAgentWallGrabbedState::_handle_getup() {
+	Node3D *gn = get_graphics_node();
+	ERR_FAIL_COND_V(!gn, false);
+	HBAgent *agent = get_agent();
+	ERR_FAIL_COND_V(!agent, false);
+
+	Vector3 origin = ledge_ik_points[LEDGE_POINT_LEFT_HAND].raycast_origin + ledge_ik_points[LEDGE_POINT_RIGHT_HAND].raycast_origin;
+	origin *= 0.5f;
+	origin.x = 0.0f;
+	origin = gn->get_global_transform().xform(origin);
+
+	Vector3 target = ledge_ik_points[LEDGE_POINT_LEFT_HAND].raycast_target + ledge_ik_points[LEDGE_POINT_RIGHT_HAND].raycast_target;
+	target *= 0.5f;
+	target.x = 0.0f;
+	target = gn->get_global_transform().xform(target);
+
+	Vector3 ledge_position, wall_normal, ledge_normal;
+	// We need to find the center of both hands, this is because we don't have any information on the
+	// height of the ledge at the middle, only at the sides
+	if (!_find_ledge(origin, target, ledge_position, wall_normal, ledge_normal, Color("purple"))) {
+		// No ledge found? abort
+		return false;
+	}
+
+	// Now we find the position where the character will end up after getup is finished
+	PhysicsDirectSpaceState3D::RayParameters ray_params;
+	PhysicsDirectSpaceState3D::RayResult ray_result;
+	ray_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
+	ray_params.from = ledge_position + gn->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -0.25f));
+	ray_params.from.y += 0.5f;
+	ray_params.to = ray_params.from;
+	ray_params.to.y -= 1.0f;
+
+	debug_draw_raycast(ray_params, Color("purple"));
+	if (!agent->get_world_3d()->get_direct_space_state()->intersect_ray(ray_params, ray_result)) {
+		// We failed to find the target getup position
+		// This probably means there's some obstacle
+		return false;
+	}
+
+	if (!is_floor(ray_result.normal, get_agent()->get_floor_max_angle())) {
+		// We might be able to clear the edge, but it's possible the new position has a too high of an inclination
+		// to stand on
+		return false;
+	}
+
+	// We cast the agent shape down at the hit position to get the correct, as we might not fit otherwise
+	PhysicsDirectSpaceState3D::ShapeParameters shape_params;
+	PhysicsDirectSpaceState3D::ShapeResult shape_result;
+
+	shape_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
+	Ref<Shape3D> body_shape = agent->get_collision_shape();
+	shape_params.shape_rid = body_shape->get_rid();
+	shape_params.transform.origin = ray_result.position + Vector3(0.0f, agent->get_height() * 0.5f, 0.0f);
+	shape_params.transform.origin.y += 1.5f;
+	shape_params.motion.y = -3.0f;
+
+	float closest_safe;
+	float closest_unsafe;
+	if (!agent->get_world_3d()->get_direct_space_state()->cast_motion(shape_params, closest_safe, closest_unsafe)) {
+		// ??? This should never happen
+		ERR_FAIL_V_MSG(false, "Something clearly went wrong with the getup logic, call a programmer");
+	}
+
+	Vector3 safe_pos = shape_params.transform.origin + shape_params.motion * closest_safe - Vector3(0.0f, agent->get_height() * 0.5f, 0.0f);
+
+	Dictionary args;
+	Transform3D temp_trf;
+	// root motion basis forward is reversed
+	temp_trf.basis = Quaternion(Vector3(0.0f, 0.0f, -1.0f), wall_normal);
+	temp_trf.origin = ledge_position;
+	args[StringName("Ledge")] = temp_trf;
+	temp_trf.origin = safe_pos;
+	args[StringName("GetUpTarget")] = temp_trf;
+	state_machine->transition_to("LedgeGetUp", args);
+	return true;
 }
 
 void HBAgentWallGrabbedState::enter(const Dictionary &p_args) {
@@ -828,44 +906,9 @@ void HBAgentWallGrabbedState::physics_process(float p_delta) {
 	Vector3 movement_input_transformed = Quaternion(Vector3(0.0f, 0.0f, -1.0f), forward).xform(agent->get_movement_input());
 	Vector3 lateral_movement_input = plane.project(movement_input_transformed);
 	if (agent->get_movement_input().length_squared() > 0 && agent->get_movement_input().angle_to(Vector3(0.0, 0.0, -1.0f)) < Math::deg_to_rad(45.0f)) {
-		Vector3 origin = ledge_ik_points[LEDGE_POINT_LEFT_HAND].raycast_origin + ledge_ik_points[LEDGE_POINT_RIGHT_HAND].raycast_origin;
-		origin *= 0.5f;
-		origin.x = 0.0f;
-		origin = gn->get_global_transform().xform(origin);
-
-		Vector3 target = ledge_ik_points[LEDGE_POINT_LEFT_HAND].raycast_target + ledge_ik_points[LEDGE_POINT_RIGHT_HAND].raycast_target;
-		target *= 0.5f;
-		target.x = 0.0f;
-		target = gn->get_global_transform().xform(target);
-
-		Vector3 ledge_position, wall_normal, ledge_normal;
-		// We need to find the center of both hands, this is because we don't have any information on the height of the ledge
-		// in front of us
-		if (_find_ledge(origin, target, ledge_position, wall_normal, ledge_normal, Color("purple"))) {
-			PhysicsDirectSpaceState3D::RayParameters ray_params;
-			PhysicsDirectSpaceState3D::RayResult ray_result;
-			ray_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
-			ray_params.from = ledge_position + gn->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -0.25f));
-			ray_params.from.y += 0.5f;
-			ray_params.to = ray_params.from;
-			ray_params.to.y -= 1.0f;
-
-			if (agent->get_world_3d()->get_direct_space_state()->intersect_ray(ray_params, ray_result)) {
-				if (is_floor(ray_result.normal, get_agent()->get_floor_max_angle())) {
-					Dictionary args;
-					Transform3D temp_trf;
-					// root motion basis forward is reversed
-					temp_trf.basis = Quaternion(Vector3(0.0f, 0.0f, -1.0f), wall_normal);
-					temp_trf.origin = ledge_position;
-					args[StringName("Ledge")] = temp_trf;
-					temp_trf.origin = ray_result.position;
-					args[StringName("GetUpTarget")] = temp_trf;
-					state_machine->transition_to("LedgeGetUp", args);
-					return;
-				}
-			}
+		if (_handle_getup()) {
+			return;
 		}
-		return;
 	}
 	ik_debug_info.transformed_movement_input = Vector2(lateral_movement_input.x, lateral_movement_input.z);
 	const float ledge_movement_max_vel = agent->get_agent_constants()->get_ledge_movement_velocity();
