@@ -168,6 +168,7 @@ class HBAgentWallGrabbedState : public HBAgentState {
 	bool _find_ledge(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_wall_normal, Vector3 &p_out_ledge_normal, const Color &p_debug_color);
 	bool _find_wall_point(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_normal, const Color &p_debug_color);
 	void _init_ik_points();
+	bool _handle_getup();
 	virtual void enter(const Dictionary &p_args) override;
 	virtual void exit() override;
 	virtual void physics_process(float p_delta) override;

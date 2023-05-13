@@ -678,7 +678,7 @@ void HBAgentWallGrabbedState::_init_ik_points() {
 	ik_points[LedgePoint::LEDGE_POINT_RIGHT_HAND].bone_name = "hand.R";
 	ik_points[LedgePoint::LEDGE_POINT_RIGHT_HAND].epas_node_name = "RightHandIK";
 
-	Vector3 foot_trg = Vector3(0.02f, 0.1, -0.2f).normalized();
+	Vector3 foot_trg = Vector3(0.02f, 0.1, -0.5f).normalized();
 
 	// Left foot
 	ik_points[LedgePoint::LEDGE_POINT_LEFT_FOOT].bone_name = "foot.L";
@@ -898,24 +898,43 @@ void HBAgentWallGrabbedState::physics_process(float p_delta) {
 	// move the agent
 	Node3D *gn = get_graphics_node();
 	ERR_FAIL_COND(!gn);
-
-	Vector3 forward = get_graphics_node()->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
-	forward.y = 0.0f;
-	forward.normalize();
-	Plane plane = Plane(forward);
-	Vector3 movement_input_transformed = Quaternion(Vector3(0.0f, 0.0f, -1.0f), forward).xform(agent->get_movement_input());
-	Vector3 lateral_movement_input = plane.project(movement_input_transformed);
 	if (agent->get_movement_input().length_squared() > 0 && agent->get_movement_input().angle_to(Vector3(0.0, 0.0, -1.0f)) < Math::deg_to_rad(45.0f)) {
 		if (_handle_getup()) {
 			return;
 		}
 	}
+
+	Vector3 forward = get_graphics_node()->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
+	forward.y = 0.0f;
+	forward.normalize();
+	Plane plane = Plane(forward);
+	Vector3 movement_input_transformed = Quaternion(Vector3(0.0f, 0.0f, -1.0f), forward).xform(agent->get_desired_movement_input());
+	Vector3 lateral_movement_input = plane.project(movement_input_transformed);
 	ik_debug_info.transformed_movement_input = Vector2(lateral_movement_input.x, lateral_movement_input.z);
+
 	const float ledge_movement_max_vel = agent->get_agent_constants()->get_ledge_movement_velocity();
+
+	float velocity_goal = gn->get_global_transform().basis.xform_inv(lateral_movement_input).x * ledge_movement_max_vel;
+
+	if (SIGN(agent->get_movement_input().x) != 0) {
+		LedgePoint ledge_point_to_test = SIGN(agent->get_movement_input().x) == -1 ? LedgePoint::LEDGE_POINT_LEFT_HAND : LedgePoint::LEDGE_POINT_RIGHT_FOOT;
+		Vector3 raycast_start = Vector3(0.5f * SIGN(agent->get_movement_input().x), agent->get_height() * 0.25f, 0.5f);
+		Vector3 raycast_end = raycast_start + Vector3(0.0f, 0.0f, -1.5f);
+		raycast_start = gn->get_global_transform().xform(raycast_start);
+		raycast_end = gn->get_global_transform().xform(raycast_end);
+
+		Vector3 out_position, wall_normal, ledge_normal;
+
+		// If we are moving in a direction we can't get to start slowing down
+		if (!_find_ledge(raycast_start, raycast_end, out_position, wall_normal, ledge_normal, ledge_ik_points[ledge_point_to_test].debug_color)) {
+			velocity_goal = 0.0f;
+		}
+	}
+
 	HBUtils::velocity_spring(
 			&ledge_movement_velocity,
 			&ledge_movement_acceleration,
-			gn->get_global_transform().basis.xform_inv(lateral_movement_input).x * ledge_movement_max_vel,
+			velocity_goal,
 			0.175f,
 			p_delta);
 
