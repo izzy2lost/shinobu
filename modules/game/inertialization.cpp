@@ -47,9 +47,6 @@ Ref<RotationInertializer> RotationInertializer::create(const Quaternion &p_prev_
 		in->rotation_velocity = MIN((x0_angle - q_x_m_1) / p_delta, 0.0f);
 		in->rotation_offset_angle = x0_angle;
 		in->rotation_offset_axis = x0_axis;
-		if (Math::is_nan(x0_angle) || !x0_axis.is_normalized()) {
-			print_line("WTF!");
-		}
 		in->transition_duration = p_duration;
 		in->qpr = q_prev;
 		if (in->rotation_velocity != 0.0f) {
