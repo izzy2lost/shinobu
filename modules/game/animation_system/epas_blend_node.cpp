@@ -11,19 +11,12 @@ void EPASBlendNode::_bind_methods() {
 }
 
 void EPASBlendNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) {
-	if (blend_amount == 0.0f) {
-		// Fast path for 0 addition
-		process_input_pose(0, p_base_pose, p_target_pose, p_delta);
-		return;
-	} else {
-		// Ideas for second pose
-		// keep our own epaspose object that we fill up once and then we just modify
-		process_input_pose(0, p_base_pose, p_target_pose, p_delta);
-		Ref<EPASPose> second_pose = memnew(EPASPose);
-		process_input_pose(1, p_base_pose, second_pose, p_delta);
+	process_input_pose(0, p_base_pose, p_target_pose, p_delta);
+	Ref<EPASPose> second_pose = memnew(EPASPose);
+	// The reason we process the second node even if the blend is 0 is to keep them in sync in case that's our intention
+	process_input_pose(1, p_base_pose, second_pose, p_delta);
 
-		p_target_pose->blend(second_pose, p_base_pose, p_target_pose, blend_amount, bone_filter);
-	}
+	p_target_pose->blend(second_pose, p_base_pose, p_target_pose, blend_amount, bone_filter);
 }
 
 void EPASBlendNode::set_blend_amount(float p_blend_amount) {

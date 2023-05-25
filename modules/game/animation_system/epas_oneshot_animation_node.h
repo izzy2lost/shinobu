@@ -20,12 +20,14 @@ class EPASOneshotAnimationNode : public EPASNode {
 
 protected:
 	static void _bind_methods();
+	virtual void _debug_node_draw() const override;
 
 public:
 	virtual void process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) override;
 
 	void play();
 	bool is_playing() const;
+	float get_playback_position() const;
 
 	Ref<EPASAnimation> get_animation() const;
 	void set_animation(const Ref<EPASAnimation> &p_animation);

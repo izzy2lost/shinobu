@@ -81,6 +81,7 @@ public:
 	bool is_action_just_pressed(AgentInputAction p_action) const;
 	bool is_action_just_released(AgentInputAction p_action) const;
 
+	void flush_inputs();
 	void set_input_action_state(AgentInputAction p_event, bool p_state);
 	Vector3 get_desired_movement_input() const;
 	Vector3 get_desired_movement_input_transformed() const;

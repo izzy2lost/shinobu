@@ -79,6 +79,7 @@ void FABRIKSolver::_apply_fabrik() {
 		joint.global_transform.basis = Basis(Quaternion(from, to) * joint_global.basis.get_rotation_quaternion());
 
 		if (joint.rotation_limit_enabled) {
+			WARN_PRINT_ONCE("Using joint rotation limits, this is currently broken, please don't use");
 			Transform3D local = prev_global_trf.affine_inverse() * joint.global_transform;
 			Vector3 euler = local.basis.get_rotation_quaternion().get_euler();
 			euler = euler.clamp(joint.min_rotation, joint.max_rotation);
@@ -251,6 +252,12 @@ void FABRIKSolver::solve(int p_iterations) {
 	Vector3 base_pos = joints[0].working_position;
 
 	if (base_pos.distance_to(target_position) > full_chain_distance) {
+		// If we are going to be fully extended just do the full extension now and be done with it
+		for (int i = 1; i < joints.size(); i++) {
+			Vector3 parent_position = joints[i - 1].working_position;
+			joints.write[i].working_position = parent_position + parent_position.direction_to(target_position) * joints[i].distance_to_parent;
+		}
+		_apply_fabrik();
 		return;
 	}
 

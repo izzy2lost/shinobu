@@ -12,7 +12,7 @@
 #include "modules/game/animation_system/epas_animation_node.h"
 #include "modules/game/animation_system/epas_pose.h"
 #include "modules/game/resources/game_tools_theme.h"
-#include "modules/game/utils.h"
+#include "modules/game/transform_conversions.h"
 #include "modules/imgui/godot_imgui.h"
 #include "scene/3d/camera_3d.h"
 #include "scene/3d/light_3d.h"
@@ -160,7 +160,7 @@ void EPASAnimationEditor::_draw_bone_positions() {
 }
 
 void EPASAnimationEditor::_world_to_bone_trf(int p_bone_idx, const float *p_world_trf, Transform3D &p_out) {
-	HBUtils::mat_to_trf(p_world_trf, p_out);
+	HBTransformConversions::mat_to_trf(p_world_trf, p_out);
 	p_out = editing_skeleton->get_global_transform().affine_inverse() * p_out;
 	int parent = editing_skeleton->get_bone_parent(p_bone_idx);
 	if (parent != -1) {
@@ -724,7 +724,7 @@ void EPASAnimationEditor::_draw_ui() {
 			const Ref<Selection> selection_handle = selection_handles[editing_selection_handle];
 			if (selection_handle.is_valid()) {
 				Transform3D handle_trf;
-				HBUtils::mat_to_trf(current_handle_trf_matrix.ptr(), handle_trf);
+				HBTransformConversions::mat_to_trf(current_handle_trf_matrix.ptr(), handle_trf);
 				float *origin = current_handle_trf_matrix.ptrw() + 12;
 				bool pasted_pos = false;
 
@@ -761,7 +761,7 @@ void EPASAnimationEditor::_draw_ui() {
 					euler.y = Math::deg_to_rad(euler.y);
 					euler.z = Math::deg_to_rad(euler.z);
 					handle_trf.set_basis(Basis::from_euler(euler));
-					HBUtils::trf_to_mat(handle_trf, current_handle_trf_matrix.ptrw());
+					HBTransformConversions::trf_to_mat(handle_trf, current_handle_trf_matrix.ptrw());
 					_apply_handle_transform(ImGuizmo::ROTATE);
 				}
 				ImGui::Text("COPYBUFF %.2f, %.2f, %.2f", ui_info.copy_buffer.x, ui_info.copy_buffer.y, ui_info.copy_buffer.z);
@@ -810,7 +810,7 @@ void EPASAnimationEditor::_draw_ui() {
 						}
 						if (current_pose->get_bone_has_rotation(bone_name)) {
 							ImGui::AlignTextToFramePadding();
-							ImGui::TextUnformatted(vformat("Rot %s", current_pose->get_bone_rotation(bone_name)).utf8().ptr());
+							ImGui::TextUnformatted(vformat("Rot %s", current_pose->get_bone_rotation(bone_name).get_euler(EulerOrder::XYZ) * 180.0f / Math_PI).utf8().ptr());
 							ImGui::SameLine();
 							if (ImGui::Button("X##rot")) {
 								undo_redo->create_action("Remove rotation from keyframe");
@@ -964,19 +964,19 @@ void EPASAnimationEditor::_draw_ui() {
 		}
 
 		Transform3D view_trf = cam->get_global_transform().inverse();
-		HBUtils::trf_to_mat(view_trf, view_matrix.ptrw());
+		HBTransformConversions::trf_to_mat(view_trf, view_matrix.ptrw());
 
 		Projection proj;
 		float aspect = io.DisplaySize.x / io.DisplaySize.y;
 		proj.set_perspective(cam->get_fov(), aspect, cam->get_near(), cam->get_far(), cam->get_keep_aspect_mode() == Camera3D::KEEP_WIDTH);
-		HBUtils::proj_to_mat(proj, projection_matrix.ptrw());
+		HBTransformConversions::proj_to_mat(proj, projection_matrix.ptrw());
 
 		ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
 		if (editing_selection_handle != -1) {
 			const Ref<Selection> selection_handle = selection_handles[editing_selection_handle];
 			manipulated = ImGuizmo::Manipulate(view_matrix.ptr(), projection_matrix.ptr(), guizmo_operation, guizmo_mode, current_handle_trf_matrix.ptrw());
 			Transform3D trf;
-			HBUtils::mat_to_trf(current_handle_trf_matrix.ptr(), trf);
+			HBTransformConversions::mat_to_trf(current_handle_trf_matrix.ptr(), trf);
 			if (manipulated || ImGuizmo::IsUsing()) {
 				_apply_handle_transform(guizmo_operation);
 			}
@@ -1086,8 +1086,8 @@ void EPASAnimationEditor::_apply_handle_transform(ImGuizmo::OPERATION p_operatio
 		created_action = true;
 		Transform3D new_trf;
 		Transform3D prev_trf;
-		HBUtils::mat_to_trf(current_handle_trf_matrix.ptr(), new_trf);
-		HBUtils::mat_to_trf(prev_handle_trf_matrix.ptr(), prev_trf);
+		HBTransformConversions::mat_to_trf(current_handle_trf_matrix.ptr(), new_trf);
+		HBTransformConversions::mat_to_trf(prev_handle_trf_matrix.ptr(), prev_trf);
 		undo_redo->create_action("Change warp point transform", UndoRedo::MERGE_ENDS);
 		Ref<EPASWarpPoint> warp_point = selection_handle->warp_point;
 		undo_redo->add_do_method(callable_mp(warp_point.ptr(), &EPASWarpPoint::set_transform).bind(new_trf));
@@ -1269,7 +1269,7 @@ void EPASAnimationEditor::_update_editing_handle_trf() {
 			} break;
 		}
 
-		HBUtils::trf_to_mat(handle_trf, current_handle_trf_matrix.ptrw());
+		HBTransformConversions::trf_to_mat(handle_trf, current_handle_trf_matrix.ptrw());
 		prev_handle_trf_matrix = current_handle_trf_matrix.duplicate();
 		queue_redraw();
 	}
@@ -1475,7 +1475,7 @@ EPASAnimationEditor::EPASAnimationEditor() {
 		projection_matrix.resize_zeroed(16);
 		current_handle_trf_matrix.resize_zeroed(16);
 		identity_matrix.resize_zeroed(16);
-		HBUtils::trf_to_mat(Transform3D(), identity_matrix.ptrw());
+		HBTransformConversions::trf_to_mat(Transform3D(), identity_matrix.ptrw());
 
 		camera = memnew(EPASEditorCamera);
 		editor_3d_root->add_child(camera);

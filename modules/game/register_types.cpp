@@ -4,13 +4,13 @@
 
 #include "agent.h"
 #include "agent_constants.h"
+#include "agent_parkour.h"
 #include "agent_state.h"
 #include "core/object/class_db.h"
 #include "fabrik/fabrik.h"
 #include "game_main_loop.h"
 #include "modules/game/animation_system/epas_animation.h"
 #include "modules/game/animation_system/epas_ik_node.h"
-#include "modules/game/utils.h"
 #include "player_agent.h"
 #include "player_camera_arm.h"
 #include "scene/main/scene_tree.h"
@@ -43,6 +43,7 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(HBAgentConstants);
 		GDREGISTER_CLASS(HBPlayerAgent);
 		GDREGISTER_CLASS(HBPlayerAgentController);
+		GDREGISTER_CLASS(HBAgentParkourPoint);
 		// Agent states
 		GDREGISTER_ABSTRACT_CLASS(HBAgentState);
 		GDREGISTER_CLASS(HBAgentMoveState);
@@ -52,6 +53,7 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(HBAgentWallGrabbedState);
 		GDREGISTER_CLASS(HBAgentFallState);
 		GDREGISTER_CLASS(HBAgentLedgeGetUpState);
+		GDREGISTER_CLASS(HBAgentWallParkourState);
 		// State machine stuff
 		GDREGISTER_CLASS(HBStateMachine);
 		GDREGISTER_ABSTRACT_CLASS(HBStateMachineState);
@@ -76,7 +78,6 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(EPASOneshotAnimationNode);
 		GDREGISTER_CLASS(EPASOneshotAnimationNodeDebug);
 		GDREGISTER_CLASS(EPASIKNode);
-		GDREGISTER_CLASS(HBUtils);
 		GDREGISTER_CLASS(FABRIKSolver);
 #ifdef DEBUG_ENABLED
 		GDREGISTER_CLASS(EPASAnimationEditor);

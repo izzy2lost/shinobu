@@ -1,5 +1,4 @@
 #include "epas_inertialization_node.h"
-#include "../utils.h"
 
 void EPASInertializationNode::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("inertialize", "transition_duration", "bone_filter"), &EPASInertializationNode::inertialize, DEFVAL(0.25f), DEFVAL(TypedArray<StringName>()));
@@ -52,6 +51,10 @@ void EPASInertializationNode::inertialize(float p_transition_duration, TypedArra
 	inertialization_queued = true;
 	desired_blend_time = p_transition_duration;
 	bone_filter = p_bone_filter;
+}
+
+bool EPASInertializationNode::is_inertializing() const {
+	return pose_inertializer.is_valid() || inertialization_queued;
 }
 
 EPASInertializationNode::EPASInertializationNode() {

@@ -1,6 +1,6 @@
 #include "player_camera_arm.h"
 #include "scene/main/viewport.h"
-#include "utils.h"
+#include "springs.h"
 
 void HBPlayerCameraArm::_update_target_skeleton_node_cache() {
 	target_skeleton_node_cache = ObjectID();
@@ -76,7 +76,7 @@ void HBPlayerCameraArm::_notification(int p_what) {
 			Vector2 camera_look = Input::get_singleton()->get_vector("look_left", "look_right", "look_down", "look_up");
 			float delta = get_physics_process_delta_time();
 			Vector2 target_velocity = Vector2(Math::deg_to_rad(max_velocity), Math::deg_to_rad(max_velocity)) * camera_look;
-			HBUtils::velocity_spring_vector2(velocity, acceleration, target_velocity, 0.025f, delta);
+			HBSprings::velocity_spring_vector2(velocity, acceleration, target_velocity, 0.025f, delta);
 			Vector3 rotation = get_rotation();
 			rotation.y = rotation.y - velocity.x * delta;
 			rotation.x = CLAMP(rotation.x + velocity.y * delta, Math::deg_to_rad(min_pitch_degrees), Math::deg_to_rad(max_pitch_degrees));
@@ -84,7 +84,7 @@ void HBPlayerCameraArm::_notification(int p_what) {
 
 			Vector3 target_pos = get_target_position();
 			Vector3 pos = get_global_position();
-			HBUtils::critical_spring_damper_exact_vector3(pos, position_spring_velocity, target_pos, .25, delta);
+			HBSprings::critical_spring_damper_exact_vector3(pos, position_spring_velocity, target_pos, .25, delta);
 			set_global_position(pos);
 
 		} break;

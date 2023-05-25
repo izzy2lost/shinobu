@@ -1,4 +1,5 @@
 #include "epas_oneshot_animation_node.h"
+#include "modules/imgui/godot_imgui.h"
 
 void EPASOneshotAnimationNode::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_root_bone", "root_bone"), &EPASOneshotAnimationNode::set_root_bone);
@@ -32,6 +33,25 @@ void EPASOneshotAnimationNode::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("playback_finished"));
 }
 
+void EPASOneshotAnimationNode::_debug_node_draw() const {
+	String interp_type;
+	switch (interpolation_method) {
+		case EPASAnimation::InterpolationMethod::STEP: {
+			interp_type = "Step";
+		} break;
+		case EPASAnimation::InterpolationMethod::LINEAR: {
+			interp_type = "Linear";
+		} break;
+		case EPASAnimation::InterpolationMethod::BICUBIC_SPLINE: {
+			interp_type = "Bicubic";
+		} break;
+		case EPASAnimation::InterpolationMethod::BICUBIC_SPLINE_CLAMPED: {
+			interp_type = "Bicubic Clamped";
+		} break;
+	}
+	ImGui::Text("Interp: %s", interp_type.utf8().get_data());
+}
+
 void EPASOneshotAnimationNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) {
 	if (animation.is_valid() && playing) {
 		time += p_delta;
@@ -52,6 +72,10 @@ void EPASOneshotAnimationNode::play() {
 
 bool EPASOneshotAnimationNode::is_playing() const {
 	return playing;
+}
+
+float EPASOneshotAnimationNode::get_playback_position() const {
+	return time;
 }
 
 Ref<EPASAnimation> EPASOneshotAnimationNode::get_animation() const {

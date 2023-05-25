@@ -84,9 +84,6 @@ public:
 			FABRIKSolver() {
 		set_joint_count(3);
 		set_joint_hinge_enabled(1, true);
-		set_joint_rotation_limit_enabled(1, true);
-		set_joint_rotation_limit_min(1, Vector3(Math::deg_to_rad(10.0f), Math::deg_to_rad(-180.0f), Math::deg_to_rad(-180.0f)));
-		set_joint_rotation_limit_max(1, Vector3(Math::deg_to_rad(180.0f), Math::deg_to_rad(180.0f), Math::deg_to_rad(180.0f)));
 		set_use_pole_constraint(true);
 	}
 };

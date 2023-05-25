@@ -24,7 +24,7 @@ public:
 	void clear();
 	void debug_raycast(const PhysicsDirectSpaceState3D::RayParameters &p_params, const Color &p_color = Color());
 	void debug_line(const Vector3 &p_from, const Vector3 &p_to, const Color &p_color = Color());
-	void debug_shape(Ref<Shape3D> p_shape, const Vector3 &p_position, const Color &p_color = Color());
+	void debug_shape(Ref<Shape3D> p_shape, const Transform3D &p_trf, const Color &p_color = Color());
 	void debug_sphere(const Vector3 &p_position, float p_radius = 0.05f, const Color &p_color = Color());
 	void debug_cast_motion(const Ref<Shape3D> &p_shape, const PhysicsDirectSpaceState3D::ShapeParameters &p_shape_cast_3d, const Color &p_color = Color());
 	HBDebugGeometry();

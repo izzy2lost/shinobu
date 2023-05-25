@@ -3,4 +3,4 @@
 	url = https://github.com/wolfpld/tracy.git
 [submodule "modules/tbloader"]
 	path = modules/tbloader
-	url = https://github.com/codecat/godot-tbloader.git
+	url = https://github.com/EIRTeam/godot-tbloader

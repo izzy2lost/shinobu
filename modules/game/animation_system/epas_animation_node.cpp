@@ -40,6 +40,22 @@ void EPASAnimationNode::_debug_node_draw() const {
 		ImGui::PopStyleColor();
 	}
 	ImGui::Text("Time: %.2f s", time);
+	String interp_type;
+	switch (interpolation_method) {
+		case EPASAnimation::InterpolationMethod::STEP: {
+			interp_type = "Step";
+		} break;
+		case EPASAnimation::InterpolationMethod::LINEAR: {
+			interp_type = "Linear";
+		} break;
+		case EPASAnimation::InterpolationMethod::BICUBIC_SPLINE: {
+			interp_type = "Bicubic";
+		} break;
+		case EPASAnimation::InterpolationMethod::BICUBIC_SPLINE_CLAMPED: {
+			interp_type = "Bicubic Clamped";
+		} break;
+	}
+	ImGui::Text("Interp: %s", interp_type.utf8().get_data());
 }
 #endif
 

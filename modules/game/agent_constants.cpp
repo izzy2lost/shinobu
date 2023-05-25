@@ -36,6 +36,10 @@ void HBAgentConstants::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_ledge_movement_velocity"), &HBAgentConstants::get_ledge_movement_velocity);
 	ClassDB::bind_method(D_METHOD("set_ledge_movement_velocity", "ledge_movement_velocity"), &HBAgentConstants::set_ledge_movement_velocity);
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "ledge_movement_velocity"), "set_ledge_movement_velocity", "get_ledge_movement_velocity");
+
+	ClassDB::bind_method(D_METHOD("get_default_inertialization_transition_duration"), &HBAgentConstants::get_default_inertialization_transition_duration);
+	ClassDB::bind_method(D_METHOD("set_default_inertialization_transition_duration", "default_inertialization_transition_duration"), &HBAgentConstants::set_default_inertialization_transition_duration);
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "default_inertialization_transition_duration"), "set_default_inertialization_transition_duration", "get_default_inertialization_transition_duration");
 }
 
 float HBAgentConstants::get_max_move_velocity() const {
@@ -124,4 +128,12 @@ float HBAgentConstants::get_ledge_movement_velocity() const {
 
 void HBAgentConstants::set_ledge_movement_velocity(float p_ledge_movement_velocity) {
 	ledge_movement_velocity = p_ledge_movement_velocity;
+}
+
+float HBAgentConstants::get_default_inertialization_transition_duration() const {
+	return default_inertialization_transition_duration;
+}
+
+void HBAgentConstants::set_default_inertialization_transition_duration(float p_default_inertialization_transition_duration) {
+	default_inertialization_transition_duration = p_default_inertialization_transition_duration;
 }

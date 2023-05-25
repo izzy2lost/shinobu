@@ -24,6 +24,7 @@ public:
 #endif
 	virtual void process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) override;
 	void inertialize(float p_transition_duration = 0.25f, TypedArray<StringName> p_bone_filter = TypedArray<StringName>());
+	bool is_inertializing() const;
 	EPASInertializationNode();
 };
 

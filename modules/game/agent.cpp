@@ -1,5 +1,5 @@
 #include "agent.h"
-#include "utils.h"
+#include "springs.h"
 
 #ifdef DEBUG_ENABLED
 #include "implot.h"
@@ -94,7 +94,12 @@ void HBAgent::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_movement_input_rotation"), &HBAgent::get_movement_input_rotation);
 	ADD_PROPERTY(PropertyInfo(Variant::QUATERNION, "movement_input_rotation", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NONE), "set_movement_input_rotation", "get_movement_input_rotation");
 
+	ClassDB::bind_method(D_METHOD("flush_inputs"), &HBAgent::flush_inputs);
+
 	BIND_ENUM_CONSTANT(INPUT_ACTION_RUN);
+	BIND_ENUM_CONSTANT(INPUT_ACTION_PARKOUR_DOWN);
+	BIND_ENUM_CONSTANT(INPUT_ACTION_PARKOUR_UP);
+	BIND_ENUM_CONSTANT(INPUT_ACTION_MAX);
 }
 
 void HBAgent::_rotate_towards_velocity(float p_delta) {
@@ -102,8 +107,26 @@ void HBAgent::_rotate_towards_velocity(float p_delta) {
 	Node3D *gn = _get_graphics_node();
 
 	if (gn && agent_constants.is_valid()) {
+		if (input_vector.length_squared() > 0 && get_velocity().length_squared() > 0) {
+			Vector3 new_dir = get_velocity();
+			new_dir.y = 0.0f;
+			new_dir.normalize();
+			Transform3D gn_trf = gn->get_global_transform();
+			Vector3 curr_dir = gn->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
+
+			Quaternion rot = Quaternion(curr_dir, new_dir);
+			if (!rot.get_axis().is_normalized()) {
+				// Two very similar vectors cannot be decomposed into axis and angle of rotation
+				return;
+			}
+			float angle = MIN(Math::deg_to_rad(720.0f) * p_delta, rot.get_angle());
+			rot = Quaternion(rot.get_axis(), angle);
+
+			gn_trf.basis = rot * gn_trf.basis;
+			gn->set_global_transform(gn_trf);
+		}
 		// Handle horizontal rotation of the actor
-		if (input_vector.length() > 0.0) {
+		/*if (input_vector.length() > 0.0) {
 			Vector3 desired_look_normal = get_velocity();
 			desired_look_normal.y = 0.0f;
 			desired_look_normal.normalize();
@@ -121,7 +144,7 @@ void HBAgent::_rotate_towards_velocity(float p_delta) {
 				global_trf.basis.set_quaternion(rot);
 				gn->set_global_transform(global_trf);
 			}
-		}
+		}*/
 	}
 
 	last_last_rotation = last_rotation;
@@ -156,7 +179,7 @@ void HBAgent::_tilt_towards_acceleration(float p_delta) {
 
 		Quaternion current_rot = tn->get_global_transform().basis.get_rotation_quaternion();
 		rotation_goal = rotation_goal * tn->get_parent_node_3d()->get_global_transform().get_basis().get_rotation_quaternion();
-		HBUtils::simple_spring_damper_exact_quat(current_rot, tilt_spring_velocity, rotation_goal, agent_constants->get_tilt_spring_halflife(), p_delta);
+		HBSprings::simple_spring_damper_exact_quat(current_rot, tilt_spring_velocity, rotation_goal, agent_constants->get_tilt_spring_halflife(), p_delta);
 		global_trf.basis = Basis(current_rot);
 		tn->set_global_transform(global_trf);
 	}
@@ -174,7 +197,7 @@ void HBAgent::_physics_process(float p_delta) {
 		case MovementMode::MOVE_GROUNDED: {
 			Vector3 input_vector = get_desired_movement_input_transformed();
 			Vector3 desired_velocity = input_vector * agent_constants->get_max_move_velocity();
-			HBUtils::velocity_spring_vector3(
+			HBSprings::velocity_spring_vector3(
 					vel,
 					velocity_spring_acceleration,
 					desired_velocity,
@@ -193,8 +216,6 @@ void HBAgent::_physics_process(float p_delta) {
 			tilt_spring_velocity = Vector3();
 		} break;
 	}
-
-	prev_input_state = current_input_state;
 }
 
 bool HBAgent::is_action_pressed(AgentInputAction p_action) const {
@@ -207,6 +228,10 @@ bool HBAgent::is_action_just_pressed(AgentInputAction p_action) const {
 
 bool HBAgent::is_action_just_released(AgentInputAction p_action) const {
 	return !current_input_state.action_states[p_action] && prev_input_state.action_states[p_action];
+}
+
+void HBAgent::flush_inputs() {
+	prev_input_state = current_input_state;
 }
 
 void HBAgent::_update_graphics_node_cache() {

@@ -184,8 +184,8 @@ void GodotImGui::_begin_frame() {
 void GodotImGui::_show_overlay() {
 	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
 	const float PAD = 10.0f;
-	const ImGuiViewport *viewport = ImGui::GetMainViewport();
-	ImVec2 work_pos = viewport->WorkPos; // Use work area to avoid menu-bar/task-bar, if any!
+	const ImGuiViewport *imgui_viewport = ImGui::GetMainViewport();
+	ImVec2 work_pos = imgui_viewport->WorkPos; // Use work area to avoid menu-bar/task-bar, if any!
 	ImVec2 window_pos, window_pos_pivot;
 	window_pos.x = work_pos.x + PAD;
 	window_pos.y = work_pos.y + PAD;

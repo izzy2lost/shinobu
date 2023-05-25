@@ -66,7 +66,7 @@ void HBDebugGeometry::debug_line(const Vector3 &p_from, const Vector3 &p_to, con
 	im->surface_end();
 }
 
-void HBDebugGeometry::debug_shape(Ref<Shape3D> p_shape, const Vector3 &p_position, const Color &p_color) {
+void HBDebugGeometry::debug_shape(Ref<Shape3D> p_shape, const Transform3D &p_trf, const Color &p_color) {
 	ERR_FAIL_COND(!p_shape.is_valid());
 	if (!shape_map.has(p_shape)) {
 		Ref<MultiMesh> mm;
@@ -90,9 +90,7 @@ void HBDebugGeometry::debug_shape(Ref<Shape3D> p_shape, const Vector3 &p_positio
 	}
 	Ref<MultiMesh> mm = shape_map[p_shape]->get_multimesh();
 	mm->set_visible_instance_count(mm->get_visible_instance_count() + 1);
-	Transform3D trf;
-	trf.origin = p_position;
-	mm->set_instance_transform(mm->get_visible_instance_count() - 1, trf);
+	mm->set_instance_transform(mm->get_visible_instance_count() - 1, p_trf);
 	mm->set_instance_color(mm->get_visible_instance_count() - 1, p_color);
 }
 
@@ -128,10 +126,12 @@ void HBDebugGeometry::debug_sphere(const Vector3 &p_position, float p_radius, co
 }
 
 void HBDebugGeometry::debug_cast_motion(const Ref<Shape3D> &p_shape, const PhysicsDirectSpaceState3D::ShapeParameters &p_shape_cast_3d, const Color &p_color) {
-	im->surface_begin(Mesh::PRIMITIVE_LINES);
-	_draw_arrow(p_shape_cast_3d.transform.origin, p_shape_cast_3d.transform.origin + p_shape_cast_3d.motion);
-	debug_shape(p_shape, p_shape_cast_3d.transform.origin, p_color);
-	im->surface_end();
+	if (!p_shape_cast_3d.motion.is_zero_approx()) {
+		im->surface_begin(Mesh::PRIMITIVE_LINES);
+		_draw_arrow(p_shape_cast_3d.transform.origin, p_shape_cast_3d.transform.origin + p_shape_cast_3d.motion);
+		im->surface_end();
+	}
+	debug_shape(p_shape, p_shape_cast_3d.transform, p_color);
 }
 
 HBDebugGeometry::HBDebugGeometry() {

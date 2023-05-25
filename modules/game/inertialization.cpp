@@ -1,12 +1,21 @@
 #include "inertialization.h"
 #include "animation_system/epas_animation.h"
-#include "utils.h"
 
 static String rot = "";
 
+static float inertialize(float p_x0, float p_v0, float p_blend_time, float p_t) {
+	float accel = MAX(-8.0f * p_v0 * p_blend_time - 20.0f * p_x0, 0.0f);
+	accel = -8.0f * p_v0 * p_blend_time - 20.0f * p_x0;
+	float A = -((accel * Math::pow(p_blend_time, 2.0f) + 6.0f * p_v0 * p_blend_time + 12.0f * p_x0) / (2.0f * Math::pow(p_blend_time, 5.0f)));
+	float B = (3.0f * accel * Math::pow(p_blend_time, 2.0f) + 16.0f * p_v0 * p_blend_time + 30.0f * p_x0) / (2.0f * Math::pow(p_blend_time, 4.0f));
+	float C = -((3.0f * accel * Math::pow(p_blend_time, 2.0f) + 12.0f * p_v0 * p_blend_time + 20.0f * p_x0) / (2.0f * Math::pow(p_blend_time, 3.0f)));
+
+	return A * Math::pow(p_t, 5.0f) + B * Math::pow(p_t, 4.0f) + C * Math::pow(p_t, 3.0f) + (accel * 0.5f) * Math::pow(p_t, 2.0f) + p_v0 * p_t + p_x0;
+}
+
 Quaternion RotationInertializer::advance(float p_delta) {
 	current_transition_time += p_delta;
-	float rot_x = HBUtils::inertialize(rotation_offset_angle, rotation_velocity, transition_duration, current_transition_time);
+	float rot_x = inertialize(rotation_offset_angle, rotation_velocity, transition_duration, current_transition_time);
 	Quaternion rot_off = Quaternion(rotation_offset_axis, rot_x);
 	return rot_off;
 }
@@ -59,7 +68,7 @@ Ref<RotationInertializer> RotationInertializer::create(const Quaternion &p_prev_
 
 Vector3 PositionInertializer::advance(float p_delta) {
 	current_transition_time += p_delta;
-	float pos_x = HBUtils::inertialize(position_offset.length(), position_velocity, transition_duration, current_transition_time);
+	float pos_x = inertialize(position_offset.length(), position_velocity, transition_duration, current_transition_time);
 	Vector3 pos_off = position_offset.normalized() * pos_x;
 	return pos_off;
 }

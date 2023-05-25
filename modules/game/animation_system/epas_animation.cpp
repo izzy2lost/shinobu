@@ -1,5 +1,4 @@
 #include "epas_animation.h"
-#include "../utils.h"
 #include "core/error/error_macros.h"
 #include "core/object/callable_method_pointer.h"
 #include "core/object/class_db.h"
@@ -148,6 +147,16 @@ struct EPASWPComparator {
 	}
 };
 
+static void get_cubic_spline_weights(float interp, float *weights) {
+	// Lifted straight from overgrwoth, no idea what this is
+	float interp_squared = interp * interp;
+	float interp_cubed = interp_squared * interp;
+	weights[0] = 0.5f * (-interp_cubed + 2.0f * interp_squared - interp);
+	weights[1] = 0.5f * (3.0f * interp_cubed - 5.0f * interp_squared + 2.0f);
+	weights[2] = 0.5f * (-3.0f * interp_cubed + 4.0f * interp_squared + interp);
+	weights[3] = 0.5f * (interp_cubed - interp_squared);
+}
+
 void EPASAnimation::interpolate(float p_time, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, InterpolationMethod p_interp_method, EPASAnimationPlaybackInfo *p_playback_info) const {
 	if (keyframes.size() == 0) {
 		// do nothing
@@ -189,7 +198,7 @@ void EPASAnimation::interpolate(float p_time, const Ref<EPASPose> &p_base_pose, 
 			// Do a cubic spline interpolation thingy
 			// gotta be honest with you i have no idea how this works
 			float weights[4];
-			HBUtils::get_cubic_spline_weights(blend, weights);
+			get_cubic_spline_weights(blend, weights);
 			float total_weight = weights[0] + weights[1];
 			int frames[4];
 			if (p_interp_method == BICUBIC_SPLINE) {

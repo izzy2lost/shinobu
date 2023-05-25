@@ -152,7 +152,6 @@ namespace
 
     bool FreeTypeFont::InitFont(FT_Library ft_library, const ImFontConfig& cfg, unsigned int extra_font_builder_flags)
     {
-        printf("OPEN FONT!\n");
         FT_Error error = FT_New_Memory_Face(ft_library, (uint8_t*)cfg.FontData, (uint32_t)cfg.FontDataSize, (uint32_t)cfg.FontNo, &Face);
         if (error != 0)
             return false;

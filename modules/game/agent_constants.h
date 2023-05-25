@@ -16,7 +16,7 @@ class HBAgentConstants : public Resource {
 	// General parkour
 	float parkour_max_wall_facing_angle_degrees = 60.0f; // Maximum degrees between the desired character movement and the wall's normal to count as facing it
 	float parkour_wall_check_distance = 1.25f; // Distance to use for checking for a wall in front of the player
-	float parkour_max_ledge_height = 3.0f; // Maximum height a ledge can be directly grabbed from the ground
+	float parkour_max_ledge_height = 2.0f; // Maximum height a ledge can be directly grabbed from the ground
 
 	// Vault specific
 	float vault_max_obstacle_width = 1.0f; // Maximum width of the vaultable obstacle
@@ -25,6 +25,8 @@ class HBAgentConstants : public Resource {
 
 	// Wall movement
 	float ledge_movement_velocity = 0.4f;
+
+	float default_inertialization_transition_duration = 0.35f;
 
 protected:
 	static void _bind_methods();
@@ -38,6 +40,7 @@ public:
 		MOVEMENT_WALLGRABBED = 5,
 		MOVEMENT_FALL = 6,
 		MOVEMENT_LEDGE_GETUP = 7,
+		MOVEMENT_PARKOUR_CAT = 8
 	};
 
 	float get_max_move_velocity() const;
@@ -72,6 +75,9 @@ public:
 
 	float get_ledge_movement_velocity() const;
 	void set_ledge_movement_velocity(float p_ledge_movement_velocity);
+
+	float get_default_inertialization_transition_duration() const;
+	void set_default_inertialization_transition_duration(float p_default_inertialization_transition_duration);
 };
 
 #endif // AGENT_CONSTANTS_H

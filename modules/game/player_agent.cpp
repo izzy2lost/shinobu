@@ -51,6 +51,8 @@ void HBPlayerAgentController::_notification(int p_what) {
 		case NOTIFICATION_PHYSICS_PROCESS: {
 			HBAgent *agent = _get_agent();
 			if (agent) {
+				agent->flush_inputs();
+
 				Input *input = Input::get_singleton();
 				agent->set_input_action_state(HBAgent::AgentInputAction::INPUT_ACTION_RUN, input->is_action_pressed(SNAME("move_run")));
 				agent->set_input_action_state(HBAgent::AgentInputAction::INPUT_ACTION_PARKOUR_DOWN, input->is_action_pressed(SNAME("move_parkour_down")));

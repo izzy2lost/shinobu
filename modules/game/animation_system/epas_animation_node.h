@@ -12,6 +12,7 @@ public:
 	enum PlaybackMode {
 		AUTOMATIC = 0,
 		MANUAL,
+		GLOBAL_TIME
 	};
 
 private:
