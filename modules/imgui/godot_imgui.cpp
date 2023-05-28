@@ -101,11 +101,6 @@ static void embrace_the_darkness() {
 
 GodotImGui::GodotImGui() {
 	singleton = this;
-
-	// Makes the node process last
-	set_process_priority(INT_MAX);
-	set_process(true);
-
 	set_mouse_filter(MouseFilter::MOUSE_FILTER_PASS);
 
 	set_stretch(true);
@@ -168,6 +163,13 @@ GodotImGui::GodotImGui() {
 
 	config_file.instantiate();
 	config_file->load(CONFIG_FILE_PATH);
+}
+
+void GodotImGui::_end_frame_callback() {
+	GodotImGui *gim = GodotImGui::get_singleton();
+	if (gim && !Engine::get_singleton()->is_in_physics_frame()) {
+		gim->_end_frame();
+	}
 }
 
 void GodotImGui::_begin_frame() {
@@ -718,8 +720,8 @@ GodotImGui::~GodotImGui() {
 void GodotImGui::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_READY: {
-			// Not sure why but putting this in the constructor doesn't really work
 			SceneTree::get_singleton()->connect("process_frame", callable_mp(this, &GodotImGui::_begin_frame));
+			SceneTree::get_singleton()->add_idle_callback(&_end_frame_callback);
 		} break;
 		case NOTIFICATION_PROCESS: {
 			if (debug_active) {

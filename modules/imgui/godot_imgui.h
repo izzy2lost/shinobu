@@ -45,7 +45,9 @@ private:
 	PackedFloat32Array push_constant_buffer;
 	RenderingDevice::VertexFormatID vertex_format;
 	Ref<ConfigFile> config_file;
-
+	// If godot process priorities weren't more broken than my love life I wouldn't need this ugly hack
+	// uses scenetree's add_idle_callback to call this, which then calls _end_frame
+	static void _end_frame_callback();
 	void _init_imgui();
 	void _begin_frame();
 	void _end_frame();
