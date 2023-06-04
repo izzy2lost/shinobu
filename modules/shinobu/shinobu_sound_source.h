@@ -19,7 +19,6 @@ protected:
 	String name;
 	ma_result result;
 
-	virtual std::unique_ptr<ma_sound> instantiate_sound(Ref<ShinobuGroup> m_group, bool use_source_channel_count) = 0;
 	static void _bind_methods();
 
 public:
@@ -31,6 +30,7 @@ public:
 	ShinobuSoundPlayer *instantiate(Ref<ShinobuGroup> m_group, bool m_use_source_channel_count = false);
 
 	ShinobuSoundSource(String m_name);
+	virtual Error instantiate_sound(Ref<ShinobuGroup> m_group, bool use_source_channel_count, ma_sound *p_sound) = 0;
 	virtual ~ShinobuSoundSource();
 };
 
@@ -38,10 +38,8 @@ class ShinobuSoundSourceMemory : public ShinobuSoundSource {
 	GDCLASS(ShinobuSoundSourceMemory, ShinobuSoundSource);
 	PoolByteArray data;
 
-protected:
-	std::unique_ptr<ma_sound> instantiate_sound(Ref<ShinobuGroup> m_group, bool m_use_source_channel_count = false);
-
 public:
+	virtual Error instantiate_sound(Ref<ShinobuGroup> m_group, bool use_source_channel_count, ma_sound *p_sound);
 	ShinobuSoundSourceMemory(String name, PoolByteArray in_data);
 	~ShinobuSoundSourceMemory();
 	friend class ShinobuSoundPlayer;

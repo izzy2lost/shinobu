@@ -28,7 +28,7 @@ public:
 
 class ShinobuChannelRemapEffect : public ShinobuEffect {
 	GDCLASS(ShinobuChannelRemapEffect, ShinobuEffect);
-	std::unique_ptr<ma_channel_remap_node> remap_node;
+	ma_channel_remap_node remap_node;
 
 protected:
 	static void _bind_methods();
@@ -43,7 +43,7 @@ public:
 
 class ShinobuPitchShiftEffect : public ShinobuEffect {
 	GDCLASS(ShinobuPitchShiftEffect, ShinobuEffect);
-	std::unique_ptr<ma_pitch_shift_node> pitch_shift_node;
+	ma_pitch_shift_node pitch_shift_node;
 
 protected:
 	static void _bind_methods();
@@ -53,14 +53,14 @@ public:
 	~ShinobuPitchShiftEffect();
 
 	void set_pitch_scale(float m_pitch_scale);
-	float get_pitch_scale() const;
+	float get_pitch_scale();
 
 	ma_node *get_node();
 };
 
 class ShinobuSpectrumAnalyzerEffect : public ShinobuEffect {
 	GDCLASS(ShinobuSpectrumAnalyzerEffect, ShinobuEffect);
-	std::unique_ptr<ma_spectrum_analyzer_node> analyzer_node;
+	ma_spectrum_analyzer_node analyzer_node;
 
 protected:
 	static void _bind_methods();

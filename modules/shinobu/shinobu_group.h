@@ -12,7 +12,7 @@ class ShinobuGroup : public Reference {
 	GDCLASS(ShinobuGroup, Reference);
 	String name;
 	String error_message;
-	std::unique_ptr<ma_sound_group> group;
+	ma_sound_group group;
 
 protected:
 	static void _bind_methods();

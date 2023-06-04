@@ -14,7 +14,7 @@ class ShinobuSoundPlayer : public Node {
 	// Forward declare shinobu sound source
 
 	Ref<ShinobuSoundSource> sound_source;
-	std::unique_ptr<ma_sound> sound;
+	ma_sound sound;
 	String error_message;
 	uint64_t start_time_msec = 0;
 	uint64_t cached_length = -1;
@@ -34,8 +34,8 @@ public:
 	void schedule_start_time(uint64_t m_global_time_msec);
 	void schedule_stop_time(uint64_t m_global_time_msec);
 
-	int64_t get_playback_position_nsec() const;
-	int64_t get_playback_position_msec() const;
+	int64_t get_playback_position_nsec();
+	int64_t get_playback_position_msec();
 	bool is_at_stream_end() const;
 	bool is_playing() const;
 
@@ -50,9 +50,9 @@ public:
 	Error connect_sound_to_effect(Ref<ShinobuEffect> m_effect);
 	Error connect_sound_to_group(Ref<ShinobuGroup> m_group);
 
-	uint64_t get_channel_count() const;
+	uint64_t get_channel_count();
 
-	ShinobuSoundPlayer(Ref<ShinobuSoundSource> m_sound_source, std::unique_ptr<ma_sound> m_sound);
+	ShinobuSoundPlayer(Ref<ShinobuSoundSource> m_sound_source, Ref<ShinobuGroup> m_group, bool m_use_source_channel_count);
 	~ShinobuSoundPlayer();
 };
 

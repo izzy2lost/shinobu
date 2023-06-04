@@ -11,12 +11,12 @@
 #include "shinobu_pitch_shift.h"
 #include "shinobu_spectrum_analyzer.h"
 
-#include "core/os/file_access.h"
 #include "core/os/os.h"
 #include "miniaudio/extras/miniaudio_libvorbis.h"
+#include "shinobu_macros.h"
 
 Shinobu *Shinobu::singleton = nullptr;
-uint64_t Shinobu::sound_source_uid = 0;
+SafeNumeric<uint64_t> Shinobu::sound_source_uid;
 
 void Shinobu::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("create_group", "group_name", "parent_group"), &Shinobu::create_group);
@@ -182,18 +182,18 @@ Error Shinobu::initialize(ma_backend forced_backend) {
 		backends = new ma_backend[1]{ forced_backend };
 	}
 
-	result = ma_context_init(backends, 1, NULL, context.get());
+	result = ma_context_init(backends, 1, NULL, &context);
 	MA_ERR_RET(result, "Context init failed");
 
 	delete[] backends;
 
-	result = ma_device_init(context.get(), &device_config, device.get());
+	result = ma_device_init(&context, &device_config, &device);
 	MA_ERR_RET(result, "Device init failed");
 
 	ma_engine_config engine_config = ma_engine_config_init();
-	engine_config.pDevice = device.get();
+	engine_config.pDevice = &device;
 	engine_config.channels = 2;
-	engine_config.pContext = context.get();
+	engine_config.pContext = &context;
 	if (desired_buffer_size_msec > 0) {
 		engine_config.periodSizeInMilliseconds = desired_buffer_size_msec;
 	}
@@ -216,15 +216,15 @@ Error Shinobu::initialize(ma_backend forced_backend) {
 	resourceManagerConfig.pCustomDecodingBackendUserData = NULL;
 	resourceManagerConfig.decodedFormat = ma_format_f32;
 
-	resourceManagerConfig.decodedSampleRate = device->sampleRate;
+	resourceManagerConfig.decodedSampleRate = device.sampleRate;
 
-	result = ma_resource_manager_init(&resourceManagerConfig, resource_manager.get());
+	result = ma_resource_manager_init(&resourceManagerConfig, &resource_manager);
 
 	MA_ERR_RET(result, "Resource manager init failed!");
 
-	engine_config.pResourceManager = resource_manager.get();
+	engine_config.pResourceManager = &resource_manager;
 
-	result = ma_engine_init(&engine_config, engine.get());
+	result = ma_engine_init(&engine_config, &engine);
 
 	MA_ERR_RET(result, "Audio engine init failed!");
 
@@ -236,19 +236,15 @@ Error Shinobu::initialize(ma_backend forced_backend) {
 void Shinobu::ma_data_callback(ma_device *pDevice, void *pOutput, const void *pInput, ma_uint32 frameCount) {
 	Shinobu *shinobu = (Shinobu *)pDevice->pUserData;
 	if (shinobu != NULL) {
-		ma_engine_read_pcm_frames(shinobu->engine.get(), pOutput, frameCount, NULL);
+		ma_engine_read_pcm_frames(&shinobu->engine, pOutput, frameCount, NULL);
 		shinobu->clock->measure();
 	}
 }
 
 Shinobu::Shinobu() {
-	clock = Ref<ShinobuClock>(memnew(ShinobuClock));
-	engine = std::make_unique<ma_engine>();
-	device = std::make_unique<ma_device>();
-	resource_manager = std::make_unique<ma_resource_manager>();
-	context = std::make_unique<ma_context>();
+	clock.instance();
 	singleton = this;
-	sound_source_uid = 0;
+	sound_source_uid.set(0);
 }
 
 Ref<ShinobuClock> Shinobu::get_clock() {
@@ -256,7 +252,7 @@ Ref<ShinobuClock> Shinobu::get_clock() {
 }
 
 ma_engine *Shinobu::get_engine() {
-	return engine.get();
+	return &engine;
 }
 
 Ref<ShinobuSoundSourceMemory> Shinobu::register_sound_from_memory(String m_name_hint, PoolByteArray m_data) {
@@ -265,7 +261,7 @@ Ref<ShinobuSoundSourceMemory> Shinobu::register_sound_from_memory(String m_name_
 
 Ref<ShinobuGroup> Shinobu::create_group(String m_group_name, Ref<ShinobuGroup> m_parent_group) {
 	Ref<ShinobuGroup> out_group = memnew(ShinobuGroup(m_group_name, m_parent_group));
-	groups.emplace_back(out_group);
+	groups.push_back(out_group);
 	return out_group;
 }
 
@@ -290,38 +286,38 @@ uint64_t Shinobu::get_desired_buffer_size_msec() const {
 }
 
 Error Shinobu::set_master_volume(float m_linear_volume) {
-	MA_ERR_RET(ma_engine_set_volume(engine.get(), m_linear_volume), "Error setting volume");
+	MA_ERR_RET(ma_engine_set_volume(&engine, m_linear_volume), "Error setting volume");
 	return OK;
 }
 
-float Shinobu::get_master_volume() const {
-	ma_node *endpoint = ma_engine_get_endpoint(engine.get());
+float Shinobu::get_master_volume() {
+	ma_node *endpoint = ma_engine_get_endpoint(&engine);
 	return ma_node_get_output_bus_volume(endpoint, 0);
 }
 
 uint64_t Shinobu::get_dsp_time() const {
-	return ma_engine_get_time(engine.get()) / (float)(ma_engine_get_sample_rate(engine.get()) / 1000.0f);
+	return ma_engine_get_time(&engine) / (float)(ma_engine_get_sample_rate(&engine) / 1000.0f);
 }
 
 Error Shinobu::set_dsp_time(uint64_t m_new_time_msec) {
-	ma_result result = ma_engine_set_time(engine.get(), m_new_time_msec * (float)(ma_engine_get_sample_rate(engine.get()) / 1000.0f));
+	ma_result result = ma_engine_set_time(&engine, m_new_time_msec * (float)(ma_engine_get_sample_rate(&engine) / 1000.0f));
 	MA_ERR_RET(result, "Error setting DSP time");
 	return OK;
 }
 
 String Shinobu::get_current_backend_name() const {
-	return ma_get_backend_name(context->backend);
+	return ma_get_backend_name(context.backend);
 }
 
 uint64_t Shinobu::get_actual_buffer_size() const {
-	return device->playback.internalPeriodSizeInFrames / (double)(device->playback.internalSampleRate / 1000.0);
+	return device.playback.internalPeriodSizeInFrames / (double)(device.playback.internalSampleRate / 1000.0);
 }
 
 Shinobu::~Shinobu() {
 	if (initialized) {
-		ma_engine_uninit(engine.get());
-		ma_resource_manager_uninit(resource_manager.get());
-		ma_device_uninit(device.get());
-		ma_context_uninit(context.get());
+		ma_engine_uninit(&engine);
+		ma_resource_manager_uninit(&resource_manager);
+		ma_device_uninit(&device);
+		ma_context_uninit(&context);
 	}
 }

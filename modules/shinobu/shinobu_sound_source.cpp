@@ -1,5 +1,6 @@
 #include "shinobu_sound_source.h"
 #include "shinobu.h"
+#include "shinobu_macros.h"
 
 void ShinobuSoundSource::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("instantiate", "group", "use_source_channel_count"), &ShinobuSoundSource::instantiate, DEFVAL(false));
@@ -22,17 +23,16 @@ const uint64_t ShinobuSoundSource::get_fixed_length() const {
 }
 
 ShinobuSoundPlayer *ShinobuSoundSource::instantiate(Ref<ShinobuGroup> m_group, bool m_use_source_channel_count) {
-	return memnew(ShinobuSoundPlayer(Ref<ShinobuSoundSource>(this), instantiate_sound(m_group, m_use_source_channel_count)));
+	return memnew(ShinobuSoundPlayer(this, m_group, m_use_source_channel_count));
 }
 
 ShinobuSoundSource::~ShinobuSoundSource(){};
 
-std::unique_ptr<ma_sound> ShinobuSoundSourceMemory::instantiate_sound(Ref<ShinobuGroup> m_group, bool m_use_source_channel_count) {
-	std::unique_ptr<ma_sound> sound = std::make_unique<ma_sound>();
+Error ShinobuSoundSourceMemory::instantiate_sound(Ref<ShinobuGroup> m_group, bool use_source_channel_count, ma_sound *p_sound) {
 	ma_sound_config config = ma_sound_config_init();
 	config.pFilePath = name.utf8();
 	config.flags = config.flags | MA_SOUND_FLAG_NO_SPATIALIZATION;
-	if (m_use_source_channel_count) {
+	if (use_source_channel_count) {
 		config.flags = config.flags | MA_SOUND_FLAG_NO_DEFAULT_ATTACHMENT;
 		config.channelsOut = MA_SOUND_SOURCE_CHANNEL_COUNT;
 	} else {
@@ -41,8 +41,8 @@ std::unique_ptr<ma_sound> ShinobuSoundSourceMemory::instantiate_sound(Ref<Shinob
 
 	ma_engine *engine = Shinobu::get_singleton()->get_engine();
 
-	MA_ERR(ma_sound_init_ex(engine, &config, sound.get()), "Error initializing sound");
-	return sound;
+	MA_ERR_RET(ma_sound_init_ex(engine, &config, p_sound), "Error initializing sound");
+	return OK;
 }
 
 ShinobuSoundSourceMemory::ShinobuSoundSourceMemory(String m_name, PoolByteArray m_in_data) :
