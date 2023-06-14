@@ -13,6 +13,22 @@
 #include "scene/resources/cylinder_shape_3d.h"
 #include "state_machine.h"
 
+enum AgentIKLimbType {
+	HAND_LEFT,
+	HAND_RIGHT,
+	FOOT_LEFT,
+	FOOT_RIGHT,
+	LIMB_TYPE_MAX
+};
+
+struct AgentIKPose {
+	Transform3D target_transforms[AgentIKLimbType::LIMB_TYPE_MAX];
+	// Magnet positions, in skeleton space
+	Vector3 magnet_positions[AgentIKLimbType::LIMB_TYPE_MAX];
+	Transform3D actor_transform;
+	bool valid = false;
+};
+
 class HBAgentState : public HBStateMachineState {
 	GDCLASS(HBAgentState, HBStateMachineState);
 	HBDebugGeometry *debug_geo = nullptr;
@@ -28,6 +44,8 @@ protected:
 	void debug_draw_sphere(const Vector3 &p_position, float p_radius = 0.05f, const Color &p_color = Color());
 	void debug_draw_line(const Vector3 &p_from, const Vector3 &p_to, const Color &p_color = Color());
 	void debug_draw_cast_motion(const Ref<Shape3D> &p_shape, const PhysicsDirectSpaceState3D::ShapeParameters &p_shape_cast_3d, const Color &p_color = Color());
+	bool find_facing_wall(PhysicsDirectSpaceState3D::RayResult &p_result);
+	bool find_ledge(const Vector3 &p_wall_base_point, const Vector3 &p_wall_normal, Transform3D &p_ledge_transform);
 
 public:
 	HBAgent *get_agent() const;
@@ -35,7 +53,7 @@ public:
 	Ref<EPASTransitionNode> get_movement_transition_node() const;
 	Ref<EPASInertializationNode> get_inertialization_node() const;
 	Skeleton3D *get_skeleton() const;
-	Node3D *get_graphics_node();
+	Node3D *get_graphics_node() const;
 	virtual void debug_ui_draw() override;
 	friend class HBStateMachine;
 };
@@ -86,6 +104,7 @@ class HBAgentWallrunState : public HBAgentState {
 	Vector3 ledge_position;
 	Vector3 ledge_normal;
 	StaticBody3D *parkour_point_target = nullptr;
+	Transform3D ledge_transform;
 
 public:
 	enum WallrunParams {
@@ -110,12 +129,19 @@ protected:
 
 class HBAgentWallGrabbedState : public HBAgentState {
 	GDCLASS(HBAgentWallGrabbedState, HBAgentState);
+
+public:
+	enum WallGrabbedParams {
+		PARAM_LEDGE_TRF,
+	};
+
+private:
 	enum LedgeIKPointRaycastType {
 		RAYCAST_HAND,
 		RAYCAST_FOOT,
 		RAYCAST_MAX
 	};
-	struct LedgeIKPoint {
+	struct LedgeIKLimb {
 		Ref<EPASIKNode> ik_node;
 		Vector3 position;
 		Vector3 target_position;
@@ -136,6 +162,8 @@ class HBAgentWallGrabbedState : public HBAgentState {
 		Vector3 wall_normal;
 		// For hands we also know the normal of the ledge (AKA pointing up)
 		Vector3 ledge_normal;
+		// Bone transform in skeleton space, used to aim stuff
+		Transform3D bone_base_trf;
 		float start_time = 0.0f;
 		float end_time = 0.0f;
 		Color debug_color;
@@ -158,48 +186,61 @@ class HBAgentWallGrabbedState : public HBAgentState {
 	float ledge_movement_velocity = 0.0f;
 	float ledge_movement_acceleration = 0.0f;
 
-	enum LedgePoint {
-		LEDGE_POINT_LEFT_HAND,
-		LEDGE_POINT_RIGHT_HAND,
-		LEDGE_POINT_LEFT_FOOT,
-		LEDGE_POINT_RIGHT_FOOT,
-		LEDGE_POINT_MAX
-	};
+	Vector<LedgeIKLimb> ledge_ik_points;
 
-	Vector<LedgeIKPoint> ledge_ik_points;
-
+	Vector3 animation_root_offset;
 	Vector3 target_agent_position;
 	float target_spring_halflife = 0.175f;
 	Vector3 target_agent_spring_velocity;
+	Vector3 limb_rotation_spring_velocity;
+	float limb_rotation_spring_halflife = 0.175;
 
 	struct IKDebugInfo { // Debug graph info
 		bool ui_config_init = false;
 		static const int IK_OFFSET_PLOT_SIZE = 90;
 		float plot_time = 0.0f;
 		float graph_x_time[IK_OFFSET_PLOT_SIZE] = { 0.0f };
-		float ik_tip_influence_y_graph[LedgePoint::LEDGE_POINT_MAX][IK_OFFSET_PLOT_SIZE] = { { 0.0f } };
+		float ik_tip_influence_y_graph[AgentIKLimbType::LIMB_TYPE_MAX][IK_OFFSET_PLOT_SIZE] = { { 0.0f } };
 		float ik_hip_offset_graph[IK_OFFSET_PLOT_SIZE] = { 0.0f };
 		// We do this because the physics threads updates at a different rate than the process thread the UI uses
 		bool last_data_is_valid = true;
 		// This is here because we migh do more than one physics step between
 		float physics_time_delta = 0.0f;
-		float last_tip_weights[LedgePoint::LEDGE_POINT_MAX] = { 0.0f };
+		float last_tip_weights[AgentIKLimbType::LIMB_TYPE_MAX] = { 0.0f };
 		float last_hip_offset_x = 0.0f;
 		Vector2 transformed_movement_input;
 		bool show_limb_raycasts = false;
 		bool show_center_raycast = false;
 	} ik_debug_info;
 
-	Transform3D _get_ledge_point_target_trf(int p_ledge_point, const Vector3 &p_position);
-	bool _find_ledge(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_wall_normal, Vector3 &p_out_ledge_normal, const Color &p_debug_color);
-	bool _find_wall_point(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_normal, const Color &p_debug_color);
+	Transform3D _get_ledge_point_target_trf(const Transform3D &p_graphics_trf, const Vector3 &p_limb_position_world, const Vector3 &p_wall_normal) const;
+	bool _find_ledge(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_wall_normal, Vector3 &p_out_ledge_normal, const Color &p_debug_color) const;
+	bool _find_wall_point(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_normal, const Color &p_debug_color) const;
 	void _init_ik_points();
 	bool _handle_getup();
 	void _debug_init_settings();
+
+protected:
 	virtual void enter(const Dictionary &p_args) override;
 	virtual void exit() override;
 	virtual void physics_process(float p_delta) override;
 	virtual void debug_ui_draw() override;
+
+public:
+	struct WallGrabbedStateInitialPoseParams {
+		Transform3D ledge_transform;
+	};
+	struct LedgeAgentIKPose {
+		AgentIKPose pose;
+		Vector3 wall_normals[AgentIKLimbType::LIMB_TYPE_MAX];
+		Vector3 ledge_normals[AgentIKLimbType::LIMB_TYPE_MAX];
+		Transform3D ledge_transforms[AgentIKLimbType::LIMB_TYPE_MAX];
+	};
+	bool find_initial_pose(LedgeAgentIKPose &p_pose, const WallGrabbedStateInitialPoseParams &p_params) const;
+	Vector3 calculate_animation_root_offset();
+	Transform3D get_limb_ledge_point_trf(int p_limb_i, Transform3D p_ledge_trf, Transform3D p_target_agent_transform) const;
+
+	Transform3D _get_limb_ik_target_trf(const Transform3D &p_graphics_trf, const Transform3D &p_ledge_trf, const Transform3D &p_bone_base_trf, const Vector3 &p_bone_offset) const;
 };
 
 class HBAgentFallState : public HBAgentState {
@@ -228,13 +269,8 @@ class HBAgentWallParkourState : public HBAgentState {
 
 	StaticBody3D *parkour_node;
 
-	enum WallParkourLimbType {
-		HAND_LEFT,
-		HAND_RIGHT,
-		FOOT_LEFT,
-		FOOT_RIGHT,
-		LIMB_TYPE_MAX
-	};
+	// Final agent target when doing a ledge transition
+	Transform3D ledge_transition_agent_target;
 
 	enum WallParkourTargetType {
 		TARGET_LOCATION, // Used for feet when a place to put them can't be found
@@ -243,64 +279,117 @@ class HBAgentWallParkourState : public HBAgentState {
 
 	float animation_time = -1.0f;
 	// automatically calculated offset from the center of all limbs, with forward being towards the wall
-	Vector3 agent_offset;
-	// Manual adjustment for agent_offset
+	Vector3 agent_offset_base;
+	// Manual adjustment for agent_offset, in skeleton space
 	const Vector3 agent_offset_adjustment = Vector3(0.0f, 0.1f, 0.15f);
+	// Current offset of the agent from the center of all limbs, in world space
 	Vector3 agent_offset_target;
 
-	// When this is not -1 we will be moving the agent (aka, the chest)
-	// independently
+	// The target position of the agent is on a spring
 	Vector3 agent_position_target;
 	Vector3 agent_position_spring_velocity;
 
-	WallParkourLimbType last_hand_move_vertical = LIMB_TYPE_MAX;
+	// Rotation spring
+	Quaternion graphics_rotation_spring_target;
+	Vector3 graphics_rotation_spring_velocity;
+	float graphics_rotation_spring_halflife = 0.1f;
+
 	Ref<EPASBlendNode> back_straightness_blend_node;
 	const float target_leg_height_from_node = 0.65f;
 
 	struct WallParkourLimb {
 		WallParkourTargetType target_type;
+		WallParkourTargetType current_type;
 		Ref<EPASIKNode> ik_node;
 		StringName bone_name;
 		// Visual offset, in graphics node space
 		Vector3 visual_offset;
+		// Base bone transform in skeleton space
+		Transform3D bone_base_trf;
 		// Magnet position, in skeleton space
 		Vector3 local_magnet_pos;
+		// Magnet position at the start of the state, in skeleton space
+		Vector3 default_magnet_pos;
+		// Transform of the current point, with forward pointing towards the agent
 		union {
 			HBAgentParkourPoint *parkour_node;
-			// Target IK position, in world space
-			Vector3 location;
+			Transform3D transform;
 		} current;
+		// Transform of the target point, with forward pointing towards the agent
 		union {
 			HBAgentParkourPoint *parkour_node;
-			// Target IK position, in world space
-			Vector3 location;
+			Transform3D transform;
 		} target;
+		// Target IK transform of the limb in world space
+		Transform3D target_ik_transform;
+		Transform3D current_ik_transform;
 		// How much to offset the position of the limb during traveling to a new destination
 		// this is in skeleton space
 		Vector3 animating_peak_offset;
 		float animation_start = 0.0f;
 		float animation_end = 0.0f;
+
 		// These are used in case we can't find a target for feet
 		// these are in graphics node space
 		Vector3 fallback_location_raycast_start;
 		Vector3 fallback_location_raycast_end;
+
+		// The position of the limb is on a spring
+		Vector3 position_spring_velocity;
+		float position_spring_halflife = 0.1f;
+
+		Transform3D get_current_transform() const {
+			switch (current_type) {
+				case WallParkourTargetType::TARGET_LOCATION: {
+					return current.transform;
+				} break;
+				case (WallParkourTargetType::TARGET_PARKOUR_NODE): {
+					return current.parkour_node->get_global_transform();
+				}
+			}
+		};
+
+		Transform3D get_target_transform() const {
+			switch (target_type) {
+				case WallParkourTargetType::TARGET_LOCATION: {
+					return target.transform;
+				} break;
+				case (WallParkourTargetType::TARGET_PARKOUR_NODE): {
+					return target.parkour_node->get_global_transform();
+				}
+			}
+		};
 	};
+
+	Transform3D target_ledge_trf;
+
+	enum ParkourStage {
+		NORMAL, // Normal character wall movement
+		TO_LEDGE_1, // Transitioning to a ledge, moving first limb
+		TO_LEDGE_2, // Transitioning to a ledge, moving second limb
+	};
+
+	ParkourStage parkour_stage;
 
 	bool limbs_init = false;
 
 	WallParkourLimb parkour_limbs[LIMB_TYPE_MAX] = {};
 
+	// Shape used to check for nodes in a certain direction
 	Ref<CylinderShape3D> dir_check_mesh;
 
 protected:
-	Transform3D _calculate_limb_target_transform(const WallParkourLimb &p_limb);
-	Transform3D _calculate_limb_current_transform(const WallParkourLimb &p_limb);
+	Transform3D _calculate_limb_target_transform(const Quaternion &p_target_graphics_rot, const Transform3D &p_target_point_trf, const Transform3D &p_bone_base_trf, Vector3 p_visual_offset = Vector3());
+	Vector3 _calculate_limb_current_position(const WallParkourLimb &p_limb, bool p_use_visual_offset = true);
+	Quaternion _calculate_target_graphics_node_rotation(const Transform3D &left_hand_target_transform, const Transform3D &right_hand_target_transform) const;
 	void _handle_horizontal_parkour_movement(const Vector3 &p_movement_input);
-	void _handle_vertical_parkour_movement(const Vector3 &p_movement_input);
+	bool _handle_vertical_parkour_movement(const Vector3 &p_movement_input);
+	bool _try_reach_ledge(WallParkourLimb *p_hand_to_move, WallParkourLimb *p_foot_to_move);
 	virtual void enter(const Dictionary &p_args) override;
 	virtual void exit() override;
 	virtual void physics_process(float p_delta) override;
 	virtual void debug_ui_draw() override;
+	void _notification(int p_what);
 
 public:
 	enum WallParkourParams {

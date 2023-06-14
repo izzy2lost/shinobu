@@ -14,6 +14,7 @@ private:
 
 	float ik_influence = 1.0f;
 	Transform3D target_transform;
+	bool use_target_basis = true;
 	bool use_magnet = false;
 	Vector3 magnet_position;
 	StringName ik_end;

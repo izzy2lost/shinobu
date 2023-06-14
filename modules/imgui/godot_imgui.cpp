@@ -181,6 +181,55 @@ void GodotImGui::_begin_frame() {
 	if (show_overlay) {
 		_show_overlay();
 	}
+	_draw_debug_ui();
+}
+
+void GodotImGui::_draw_debug_ui() {
+	if (debug_active) {
+		if (ImGui::Begin("Game Debug", &debug_active)) {
+			if (ImGui::BeginTabBar("DebugTabBar")) {
+				if (ImGui::BeginTabItem("Objects")) {
+					for (KeyValue<ObjectID, ObjectDebugInfo> kv : debug_status) {
+						if (kv.value.is_root) {
+							_draw_debug_object_tree(kv.key);
+						}
+					}
+					ImGui::EndTabItem();
+				}
+
+				if (ImGui::BeginTabItem("Other")) {
+					if (ImGui::Button("Toggle ImGui demo window")) {
+						show_demo_window = !show_demo_window;
+					}
+					ImGui::AlignTextToFramePadding();
+					ImGui::TextUnformatted("Timescale");
+					ImGui::SameLine();
+					if (ImGui::Button("1x")) {
+						Engine::get_singleton()->set_time_scale(1.0);
+					}
+					ImGui::SameLine();
+					if (ImGui::Button("0.5x")) {
+						Engine::get_singleton()->set_time_scale(0.5);
+					}
+					ImGui::SameLine();
+					if (ImGui::Button("0.25x")) {
+						Engine::get_singleton()->set_time_scale(0.25);
+					}
+					if (ImGui::Button("Enable FP exceptions")) {
+						HBGameMainLoop *ml = (HBGameMainLoop *)HBGameMainLoop::get_singleton();
+						ml->enable_fp_exceptions();
+					}
+					ImGui::EndTabItem();
+				}
+
+				ImGui::EndTabBar();
+			}
+		}
+		ImGui::End();
+		if (show_demo_window) {
+			ImGui::ShowDemoWindow(&show_demo_window);
+		}
+	}
 }
 
 void GodotImGui::_show_overlay() {
@@ -601,6 +650,7 @@ static uint32_t __glsl_shader_frag_spv[] = {
 };
 
 void GodotImGui::_init_imgui() {
+	print_verbose("Imgui init");
 	ImGuiIO &io = ImGui::GetIO();
 	IM_ASSERT(io.BackendPlatformUserData == nullptr && "Already initialized a platform backend!");
 
@@ -684,6 +734,7 @@ void GodotImGui::_init_imgui() {
 			pmss,
 			pdss,
 			blend_state);
+	print_line("MADE PIPELINE", pipeline);
 	RenderingDevice::SamplerState sampler_state;
 	sampler_state.min_filter = RenderingDevice::SamplerFilter::SAMPLER_FILTER_LINEAR;
 	sampler_state.mag_filter = RenderingDevice::SamplerFilter::SAMPLER_FILTER_LINEAR;
@@ -712,6 +763,7 @@ GodotImGui::~GodotImGui() {
 	if (vertex_buffer.is_valid()) {
 		rd->free(vertex_buffer);
 	}
+	print_line("FREE");
 	ImNodes::DestroyContext();
 	ImPlot::DestroyContext();
 	ImGui::DestroyContext();
@@ -722,54 +774,6 @@ void GodotImGui::_notification(int p_what) {
 		case NOTIFICATION_READY: {
 			SceneTree::get_singleton()->connect("process_frame", callable_mp(this, &GodotImGui::_begin_frame));
 			SceneTree::get_singleton()->add_idle_callback(&_end_frame_callback);
-		} break;
-		case NOTIFICATION_PROCESS: {
-			if (debug_active) {
-				if (ImGui::Begin("Game Debug", &debug_active)) {
-					if (ImGui::BeginTabBar("DebugTabBar")) {
-						if (ImGui::BeginTabItem("Objects")) {
-							for (KeyValue<ObjectID, ObjectDebugInfo> kv : debug_status) {
-								if (kv.value.is_root) {
-									_draw_debug_object_tree(kv.key);
-								}
-							}
-							ImGui::EndTabItem();
-						}
-
-						if (ImGui::BeginTabItem("Other")) {
-							if (ImGui::Button("Toggle ImGui demo window")) {
-								show_demo_window = !show_demo_window;
-							}
-							ImGui::AlignTextToFramePadding();
-							ImGui::TextUnformatted("Timescale");
-							ImGui::SameLine();
-							if (ImGui::Button("1x")) {
-								Engine::get_singleton()->set_time_scale(1.0);
-							}
-							ImGui::SameLine();
-							if (ImGui::Button("0.5x")) {
-								Engine::get_singleton()->set_time_scale(0.5);
-							}
-							ImGui::SameLine();
-							if (ImGui::Button("0.25x")) {
-								Engine::get_singleton()->set_time_scale(0.25);
-							}
-							if (ImGui::Button("Enable FP exceptions")) {
-								HBGameMainLoop *ml = (HBGameMainLoop *)HBGameMainLoop::get_singleton();
-								ml->enable_fp_exceptions();
-							}
-						}
-
-						ImGui::EndTabBar();
-					}
-				}
-				ImGui::End();
-				if (show_demo_window) {
-					ImGui::ShowDemoWindow(&show_demo_window);
-				}
-			}
-
-			_end_frame();
 		} break;
 	}
 }

@@ -33,34 +33,28 @@ void HBStateMachine::_notification(int p_what) {
 			}
 #ifdef DEBUG_ENABLED
 			GodotImGui *gim = GodotImGui::get_singleton();
-			if (gim->is_debug_enabled(this) && gim->begin_debug_window(this)) {
-				HBStateMachineState *st = _get_current_state();
-				if (st) {
-					ImGui::Text("Current state: %s", String(st->get_name()).utf8().get_data());
-				}
-				HBStateMachineState *selected_state_ptr = nullptr;
-				if (ImGui::BeginListBox("##States", ImVec2(250, 100))) {
-					for (int i = 0; i < get_child_count(); i++) {
-						HBStateMachineState *state = Object::cast_to<HBStateMachineState>(get_child(i));
-						if (!state) {
-							continue;
-						}
-						String state_name = state->get_name();
-						if (ImGui::Selectable(state_name.utf8().get_data(), state->get_index() == selected_state)) {
-							selected_state = state->get_index();
-						}
-						if (state->get_index() == selected_state) {
-							selected_state_ptr = state;
-						}
+			if (gim->is_debug_enabled(this)) {
+				if (gim->begin_debug_window(this)) {
+					HBStateMachineState *st = _get_current_state();
+					if (st) {
+						ImGui::Text("Current state: %s", String(st->get_name()).utf8().get_data());
 					}
-					ImGui::EndListBox();
+					if (ImGui::BeginTabBar("##States")) {
+						for (int i = 0; i < get_child_count(); i++) {
+							HBStateMachineState *state = Object::cast_to<HBStateMachineState>(get_child(i));
+							ERR_CONTINUE(!state);
+							String state_name = state->get_name();
+							if (ImGui::BeginTabItem(state_name.capitalize().utf8().get_data())) {
+								state->debug_ui_draw();
+								ImGui::EndTabItem();
+							}
+						}
+						ImGui::EndTabBar();
+					}
 				}
-				ImGui::SameLine();
-				if (selected_state_ptr != nullptr) {
-					selected_state_ptr->debug_ui_draw();
-				}
+				ImGui::End();
 			}
-			ImGui::End();
+
 #endif
 		} break;
 	}
@@ -165,6 +159,10 @@ String HBStateMachine::get_default_state() const {
 
 void HBStateMachine::set_default_state(const String &p_default_state) {
 	default_state = p_default_state;
+}
+
+HBStateMachineState *HBStateMachine::get_state(const String &p_state_name) const {
+	return Object::cast_to<HBStateMachineState>(get_node(p_state_name));
 }
 
 void HBStateMachineState::_bind_methods() {

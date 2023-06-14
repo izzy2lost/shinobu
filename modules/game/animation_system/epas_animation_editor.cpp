@@ -518,7 +518,7 @@ void EPASAnimationEditor::_draw_ui() {
 		ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize;
 		if (ImGui::Begin("ToolDock", nullptr, window_flags)) {
 			ImGui::SetNextItemWidth(70);
-			ImGui::Combo("", (int *)&guizmo_mode, "Local\0Global\0\0");
+			ImGui::Combo("##Guizmo mode combo", (int *)&guizmo_mode, "Local\0Global\0\0");
 			ImGui::SameLine();
 			if (ImGui::Button("GroupVis")) {
 				ImGui::OpenPopup("GroupVisPopup");
@@ -953,6 +953,7 @@ void EPASAnimationEditor::_draw_ui() {
 			}
 		}
 	}
+	ImGui::End();
 
 	Ref<World3D> world = editor_3d_root->get_world_3d();
 

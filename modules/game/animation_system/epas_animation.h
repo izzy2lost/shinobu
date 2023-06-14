@@ -118,6 +118,7 @@ public:
 	void erase_warp_point(Ref<EPASWarpPoint> p_warp_point);
 	int get_warp_point_count() const;
 	Ref<EPASWarpPoint> get_warp_point(int p_idx) const;
+	int find_warp_point(const StringName &p_name) const;
 	void clear_keyframes();
 };
 

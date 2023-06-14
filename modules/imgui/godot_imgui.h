@@ -50,6 +50,7 @@ private:
 	static void _end_frame_callback();
 	void _init_imgui();
 	void _begin_frame();
+	void _draw_debug_ui();
 	void _end_frame();
 	void _recreate_framebuffer();
 	void _render_draw_data(ImDrawData *p_draw_data);

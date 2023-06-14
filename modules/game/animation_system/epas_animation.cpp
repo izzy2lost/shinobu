@@ -366,6 +366,17 @@ Ref<EPASWarpPoint> EPASAnimation::get_warp_point(int p_idx) const {
 	return warp_points[p_idx];
 }
 
+int EPASAnimation::find_warp_point(const StringName &p_name) const {
+	int wp_idx = -1;
+	for (int i = 0; i < get_warp_point_count(); i++) {
+		if (get_warp_point(i)->get_point_name() == p_name) {
+			wp_idx = i;
+			break;
+		}
+	}
+	return wp_idx;
+}
+
 void EPASAnimation::clear_keyframes() {
 	for (int i = 0; i < keyframes.size(); i++) {
 		keyframes.get(i)->disconnect("time_changed", callable_mp(this, &EPASAnimation::_keyframe_time_changed));

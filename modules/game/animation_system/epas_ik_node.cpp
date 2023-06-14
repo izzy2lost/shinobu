@@ -101,6 +101,11 @@ void EPASIKNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_
 
 	Quaternion c_rot = b_final_global_rot.inverse() * p_target_pose->calculate_bone_global_transform(c_bone_name, skel, p_base_pose).basis.get_rotation_quaternion();
 
+	if (use_target_basis) {
+		c_rot = skel->get_global_transform().basis.inverse() * target_transform.basis;
+		c_rot = b_final_global_rot.inverse() * c_rot;
+	}
+
 	p_target_pose->set_bone_rotation(a_bone_name, a_final_rot);
 	p_target_pose->set_bone_rotation(b_bone_name, b_final_rot);
 	p_target_pose->set_bone_rotation(c_bone_name, c_rot);

@@ -44,10 +44,6 @@ class HBStateMachine : public Node {
 
 	void _update_agent_node_cache();
 
-#ifdef DEBUG_ENABLED
-	int selected_state = 0;
-#endif
-
 private:
 	HBStateMachineState *_get_current_state();
 	void _on_child_entered_tree(Node *p_child);
@@ -64,6 +60,7 @@ public:
 	void set_agent_node(const NodePath &p_actor_node);
 	String get_default_state() const;
 	void set_default_state(const String &p_default_state);
+	HBStateMachineState *get_state(const String &p_state_name) const;
 
 	HBStateMachine();
 	~HBStateMachine();
