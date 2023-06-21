@@ -5,56 +5,10 @@
 #include "core/math/transform_3d.h"
 
 void EPASPose::_bind_methods() {
-	ClassDB::bind_static_method("EPASPose", D_METHOD("from_animation", "animation"), &EPASPose::from_animation);
 	ClassDB::bind_method(D_METHOD("set_bone_position", "bone_name", "position"), &EPASPose::set_bone_position);
 	ClassDB::bind_method(D_METHOD("set_bone_rotation", "bone_name", "rotation"), &EPASPose::set_bone_rotation);
 	ClassDB::bind_method(D_METHOD("set_bone_scale", "bone_name", "scale"), &EPASPose::set_bone_scale);
 	ClassDB::bind_method(D_METHOD("create_bone", "bone_name"), &EPASPose::create_bone_gd);
-}
-
-Ref<EPASPose> EPASPose::from_animation(Ref<Animation> p_animation) {
-	HashMap<String, BoneData *> bone_poses;
-	for (int ti = 0; ti < p_animation->get_track_count(); ti++) {
-		NodePath track_path = p_animation->track_get_path(ti);
-
-		if (track_path.get_subname_count() == 0) {
-			continue;
-		}
-
-		// TODO: is it fine that we assume that the first subname is the
-		// bone name?
-
-		String bone_name = p_animation->track_get_path(ti).get_subname(0);
-
-		if (!bone_poses.has(bone_name)) {
-			bone_poses[bone_name] = memnew(BoneData(bone_name));
-			bone_poses[bone_name]->bone_name = bone_name;
-		}
-
-		switch (p_animation->track_get_type(ti)) {
-			case Animation::TrackType::TYPE_POSITION_3D: {
-				bone_poses[bone_name]->has_position = true;
-				p_animation->position_track_get_key(ti, 0, &(bone_poses[bone_name]->position));
-			} break;
-			case Animation::TrackType::TYPE_ROTATION_3D: {
-				bone_poses[bone_name]->has_rotation = true;
-				p_animation->rotation_track_get_key(ti, 0, &(bone_poses[bone_name]->rotation));
-			} break;
-			case Animation::TrackType::TYPE_SCALE_3D: {
-				bone_poses[bone_name]->has_scale = true;
-				p_animation->scale_track_get_key(ti, 0, &(bone_poses[bone_name]->scale));
-			} break;
-			default: {
-			}; break;
-		}
-	}
-
-	Ref<EPASPose> out_pose = memnew(EPASPose);
-	for (const KeyValue<String, BoneData *> &pose : bone_poses) {
-		if (pose.value->has_position || pose.value->has_rotation || pose.value->has_scale) {
-			out_pose->bone_datas.insert(pose.key, pose.value);
-		}
-	}
 }
 
 void EPASPose::_get_property_list(List<PropertyInfo> *p_list) const {

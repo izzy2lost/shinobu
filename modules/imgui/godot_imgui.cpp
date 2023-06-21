@@ -395,7 +395,7 @@ void GodotImGui::_setup_buffers(ImDrawData *p_draw_data) {
 	int vertex_size = sizeof(ImDrawVert);
 
 	PackedByteArray index_buffer_data;
-	index_buffer_data.resize(p_draw_data->TotalIdxCount * sizeof(ushort));
+	index_buffer_data.resize(p_draw_data->TotalIdxCount * sizeof(uint16_t));
 	PackedByteArray vertex_buffer_data;
 	vertex_buffer_data.resize(p_draw_data->TotalVtxCount * vertex_size);
 

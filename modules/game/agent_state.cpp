@@ -1614,7 +1614,7 @@ Vector3 HBAgentWallParkourState::_calculate_limb_current_position(const WallPark
 	Vector3 base_position = p_limb.get_current_transform().origin;
 	Vector3 forward;
 
-	switch (p_limb.current_type) {
+	switch (p_limb.current.type) {
 		case WallParkourTargetType::TARGET_PARKOUR_NODE: {
 			HBAgentParkourPoint *point = p_limb.current.parkour_node;
 			forward = point->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, 1.0f));
@@ -1948,7 +1948,7 @@ bool HBAgentWallParkourState::_try_reach_ledge(WallParkourLimb *p_hand_to_move, 
 	}
 
 	for (int i = 0; i < AgentIKLimbType::LIMB_TYPE_MAX; i++) {
-		parkour_limbs[i].target_type = WallParkourTargetType::TARGET_LOCATION;
+		parkour_limbs[i].target.type = WallParkourTargetType::TARGET_LOCATION;
 		if (i == FOOT_LEFT || i == FOOT_RIGHT) {
 			parkour_limbs[i].position_spring_halflife = 0.09f;
 		} else {
@@ -2050,15 +2050,15 @@ void HBAgentWallParkourState::enter(const Dictionary &p_args) {
 		}
 	}
 
-	parkour_limbs[AgentIKLimbType::HAND_LEFT].target_type = WallParkourTargetType::TARGET_PARKOUR_NODE;
-	parkour_limbs[AgentIKLimbType::HAND_LEFT].current_type = WallParkourTargetType::TARGET_PARKOUR_NODE;
+	parkour_limbs[AgentIKLimbType::HAND_LEFT].target.type = WallParkourTargetType::TARGET_PARKOUR_NODE;
+	parkour_limbs[AgentIKLimbType::HAND_LEFT].current.type = WallParkourTargetType::TARGET_PARKOUR_NODE;
 	parkour_limbs[AgentIKLimbType::HAND_LEFT].target.parkour_node = starting_parkour_node;
 	parkour_limbs[AgentIKLimbType::HAND_LEFT].current.parkour_node = starting_parkour_node;
 	parkour_limbs[AgentIKLimbType::HAND_LEFT].animating_peak_offset = Vector3(0.0, 0.0, -0.1f);
 	parkour_limbs[AgentIKLimbType::HAND_LEFT].visual_offset = Vector3(-0.05f, 0.05f, 0.125f);
 
-	parkour_limbs[AgentIKLimbType::HAND_RIGHT].target_type = WallParkourTargetType::TARGET_PARKOUR_NODE;
-	parkour_limbs[AgentIKLimbType::HAND_RIGHT].current_type = WallParkourTargetType::TARGET_PARKOUR_NODE;
+	parkour_limbs[AgentIKLimbType::HAND_RIGHT].target.type = WallParkourTargetType::TARGET_PARKOUR_NODE;
+	parkour_limbs[AgentIKLimbType::HAND_RIGHT].current.type = WallParkourTargetType::TARGET_PARKOUR_NODE;
 	parkour_limbs[AgentIKLimbType::HAND_RIGHT].target.parkour_node = starting_parkour_node;
 	parkour_limbs[AgentIKLimbType::HAND_RIGHT].current.parkour_node = starting_parkour_node;
 	parkour_limbs[AgentIKLimbType::HAND_RIGHT].animating_peak_offset = Vector3(0.0, 0.0, -0.1f);
@@ -2079,7 +2079,7 @@ void HBAgentWallParkourState::enter(const Dictionary &p_args) {
 
 	const float floor_max_angle = agent->get_floor_max_angle();
 	for (int i = 0; i < AgentIKLimbType::LIMB_TYPE_MAX; i++) {
-		if (parkour_limbs[i].target_type == TARGET_LOCATION) {
+		if (parkour_limbs[i].target.type == TARGET_LOCATION) {
 			PhysicsDirectSpaceState3D *dss = agent->get_world_3d()->get_direct_space_state();
 
 			PhysicsDirectSpaceState3D::RayParameters ray_params;
@@ -2094,7 +2094,7 @@ void HBAgentWallParkourState::enter(const Dictionary &p_args) {
 				parkour_limbs[i].target.transform.origin = ray_result.position;
 				parkour_limbs[i].target.transform.basis = Quaternion(Vector3(0.0f, 0.0f, -1.0f), ray_result.normal);
 				parkour_limbs[i].current.transform = parkour_limbs[i].target.transform;
-				parkour_limbs[i].current_type = WallParkourTargetType::TARGET_LOCATION;
+				parkour_limbs[i].current.type = WallParkourTargetType::TARGET_LOCATION;
 			}
 		}
 		// Setup magnet (common for both target types)
@@ -2296,8 +2296,8 @@ void HBAgentWallParkourState::physics_process(float p_delta) {
 				continue;
 			}
 			parkour_limbs[i].current_ik_transform = parkour_limbs[i].target_ik_transform;
-			parkour_limbs[i].current_type = parkour_limbs[i].target_type;
-			switch (parkour_limbs[i].target_type) {
+			parkour_limbs[i].current.type = parkour_limbs[i].target.type;
+			switch (parkour_limbs[i].target.type) {
 				case WallParkourTargetType::TARGET_PARKOUR_NODE: {
 					parkour_limbs[i].current.parkour_node = parkour_limbs[i].target.parkour_node;
 				} break;

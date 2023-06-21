@@ -298,8 +298,6 @@ class HBAgentWallParkourState : public HBAgentState {
 	const float target_leg_height_from_node = 0.65f;
 
 	struct WallParkourLimb {
-		WallParkourTargetType target_type;
-		WallParkourTargetType current_type;
 		Ref<EPASIKNode> ik_node;
 		StringName bone_name;
 		// Visual offset, in graphics node space
@@ -311,12 +309,14 @@ class HBAgentWallParkourState : public HBAgentState {
 		// Magnet position at the start of the state, in skeleton space
 		Vector3 default_magnet_pos;
 		// Transform of the current point, with forward pointing towards the agent
-		union {
+		struct {
+			WallParkourTargetType type;
 			HBAgentParkourPoint *parkour_node;
 			Transform3D transform;
 		} current;
 		// Transform of the target point, with forward pointing towards the agent
-		union {
+		struct {
+			WallParkourTargetType type;
 			HBAgentParkourPoint *parkour_node;
 			Transform3D transform;
 		} target;
@@ -339,7 +339,7 @@ class HBAgentWallParkourState : public HBAgentState {
 		float position_spring_halflife = 0.1f;
 
 		Transform3D get_current_transform() const {
-			switch (current_type) {
+			switch (current.type) {
 				case WallParkourTargetType::TARGET_LOCATION: {
 					return current.transform;
 				} break;
@@ -350,7 +350,7 @@ class HBAgentWallParkourState : public HBAgentState {
 		};
 
 		Transform3D get_target_transform() const {
-			switch (target_type) {
+			switch (target.type) {
 				case WallParkourTargetType::TARGET_LOCATION: {
 					return target.transform;
 				} break;
@@ -373,7 +373,7 @@ class HBAgentWallParkourState : public HBAgentState {
 
 	bool limbs_init = false;
 
-	WallParkourLimb parkour_limbs[LIMB_TYPE_MAX] = {};
+	WallParkourLimb parkour_limbs[LIMB_TYPE_MAX];
 
 	// Shape used to check for nodes in a certain direction
 	Ref<CylinderShape3D> dir_check_mesh;

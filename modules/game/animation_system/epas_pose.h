@@ -86,7 +86,6 @@ private:
 	const HashMap<StringName, BoneData *> get_bone_map() const;
 
 public:
-	static Ref<EPASPose> from_animation(Ref<Animation> p_animation);
 	int get_bone_count() const;
 	bool has_bone(const StringName &p_bone_name) const;
 	void create_bone(const StringName &p_bone_name);
