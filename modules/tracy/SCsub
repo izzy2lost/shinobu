@@ -17,9 +17,10 @@ thirdparty_sources = [thirdparty_dir + file for file in thirdparty_sources]
 
 env_tracy.Prepend(CPPPATH=[thirdparty_dir])
 
-tracy_defines = ["TRACY_ENABLE", "TRACY_ON_DEMAND", "TRACY_ONLY_IPV4", "TRACY_NO_SAMPLING"]
+tracy_defines = []
 
 if ARGUMENTS.get("tracy_enabled", "no") == "yes":
+    tracy_defines = ["TRACY_ENABLE", "TRACY_ON_DEMAND", "TRACY_ONLY_IPV4", "TRACY_NO_SAMPLING"]
     env_tracy.Append(CPPDEFINES=tracy_defines)
 
 env_thirdparty = env_tracy.Clone()
@@ -33,9 +34,11 @@ env_tracy.add_source_files(module_obj, "*.cpp")
 env.modules_sources += module_obj
 
 # Needed to force rebuilding the module files when the thirdparty library is updated.
-env_tracy.Depends("tracy.gen.h", env.Value(tracy_defines))
+env_tracy.Depends("#modules/tracy/tracy.gen.h", env_tracy.Value(tracy_defines))
 env_tracy.CommandNoCache(
-    "tracy.gen.h", "tracy_header_builder.py", env.Run(tracy_header_builder.make_tracy_header, "Generating tracy header")
+    ["#modules/tracy/tracy.gen.h"],
+    "tracy_header_builder.py",
+    env_tracy.Run(tracy_header_builder.make_tracy_header, "Generating tracy header", False),
 )
 
 env.Depends(module_obj, thirdparty_obj)
