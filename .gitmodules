@@ -4,3 +4,7 @@
 [submodule "modules/tbloader"]
 	path = modules/tbloader
 	url = https://github.com/EIRTeam/godot-tbloader
+[submodule "modules/steamworks"]
+	path = modules/steamworks
+	url = https://github.com/EIRTeam/EIRTeam.Steamworks.git
+	branch = master
