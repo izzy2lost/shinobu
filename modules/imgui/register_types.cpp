@@ -19,7 +19,7 @@ void imgui_module_post_init() {
 	gd_imgui_singleton = memnew(GodotImGui);
 	SceneTree *st = SceneTree::get_singleton();
 	if (st) {
-		st->get_root()->add_child(gd_imgui_singleton);
+		st->get_root()->add_child(gd_imgui_singleton, true, Node::INTERNAL_MODE_BACK);
 	}
 	Engine::get_singleton()->add_singleton(Engine::Singleton("GodotImGui", GodotImGui::get_singleton()));
 }

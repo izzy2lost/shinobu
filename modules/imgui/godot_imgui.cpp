@@ -2,8 +2,10 @@
 
 #include "imnodes.h"
 #include "implot.h"
+#include "input_glyph_demo_tool.h"
 #include "main/performance.h"
 #include "modules/game/game_main_loop.h"
+#include "modules/modules_enabled.gen.h"
 #include "scene/gui/label.h"
 #include "servers/rendering/rendering_device_binds.h"
 
@@ -101,12 +103,12 @@ static void embrace_the_darkness() {
 
 GodotImGui::GodotImGui() {
 	singleton = this;
-	set_mouse_filter(MouseFilter::MOUSE_FILTER_PASS);
+	set_mouse_filter(MouseFilter::MOUSE_FILTER_IGNORE);
 
-	set_stretch(true);
 	set_anchors_and_offsets_preset(Control::LayoutPreset::PRESET_FULL_RECT);
 	set_process_unhandled_key_input(true);
 	set_process_unhandled_input(true);
+	set_process_input(true);
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -163,6 +165,11 @@ GodotImGui::GodotImGui() {
 
 	config_file.instantiate();
 	config_file->load(CONFIG_FILE_PATH);
+
+	set_stretch(true);
+#ifdef MODULE_INPUT_GLYPHS_ENABLED
+	tools.push_back(memnew(InputGlyphDemoTool));
+#endif
 }
 
 void GodotImGui::_end_frame_callback() {
@@ -219,6 +226,11 @@ void GodotImGui::_draw_debug_ui() {
 						HBGameMainLoop *ml = (HBGameMainLoop *)HBGameMainLoop::get_singleton();
 						ml->enable_fp_exceptions();
 					}
+
+					for (int i = 0; i < tools.size(); i++) {
+						ImGui::Checkbox(tools[i]->get_name().utf8().get_data(), &tools[i]->is_open);
+					}
+
 					ImGui::EndTabItem();
 				}
 
@@ -228,6 +240,14 @@ void GodotImGui::_draw_debug_ui() {
 		ImGui::End();
 		if (show_demo_window) {
 			ImGui::ShowDemoWindow(&show_demo_window);
+		}
+	}
+	for (int i = 0; i < tools.size(); i++) {
+		if (tools[i]->is_open) {
+			if (ImGui::Begin(tools[i]->get_name().utf8().get_data(), &tools[i]->is_open)) {
+				tools[i]->draw_ui();
+			}
+			ImGui::End();
 		}
 	}
 }
@@ -383,7 +403,9 @@ void GodotImGui::_render_draw_data(ImDrawData *p_draw_data) {
 	// clean up unused textures
 	for (KeyValue<uint64_t, RID> kv : uniform_sets) {
 		if (!used_textures.has(kv.key)) {
-			rd->free(uniform_sets[kv.key]);
+			if (rd->uniform_set_is_valid(kv.value)) {
+				rd->free(kv.value);
+			}
 			uniform_sets.erase(kv.key);
 		}
 	}
@@ -486,15 +508,20 @@ void GodotImGui::unhandled_input(const Ref<InputEvent> &p_event) {
 	}
 }
 
-void GodotImGui::gui_input(const Ref<InputEvent> &p_event) {
-	Ref<InputEventMouseMotion> mouse_mot_ev = p_event;
+void GodotImGui::input(const Ref<InputEvent> &p_event) {
 	ImGuiIO &io = ImGui::GetIO();
+	bool captured = false;
+
+	Ref<InputEventMouse> mouse_ev = p_event;
+	if (mouse_ev.is_valid()) {
+		captured = io.WantCaptureMouse;
+	}
+
+	Ref<InputEventMouseMotion> mouse_mot_ev = p_event;
 	if (mouse_mot_ev.is_valid()) {
 		Vector2 mouse_pos = mouse_mot_ev->get_position();
 		io.AddMousePosEvent(mouse_pos.x, mouse_pos.y);
 	}
-
-	bool captured = false;
 
 	Ref<InputEventMouseButton> mouse_but_event = p_event;
 
@@ -530,11 +557,9 @@ void GodotImGui::gui_input(const Ref<InputEvent> &p_event) {
 			default: {
 			}
 		}
-		captured = io.WantCaptureMouse;
 	}
 
 	if (captured) {
-		accept_event();
 		get_viewport()->set_input_as_handled();
 	}
 }
@@ -763,7 +788,6 @@ GodotImGui::~GodotImGui() {
 	if (vertex_buffer.is_valid()) {
 		rd->free(vertex_buffer);
 	}
-	print_line("FREE");
 	ImNodes::DestroyContext();
 	ImPlot::DestroyContext();
 	ImGui::DestroyContext();
@@ -806,11 +830,17 @@ void GodotImGui::set_enable_overlay(bool p_enable) {
 	show_overlay = p_enable;
 }
 
-void GodotImGui::ImImage(const Ref<Texture2D> &p_texture) {
+void GodotImGui::ImImage(const Ref<Texture2D> &p_texture, const Vector2i &p_size) {
 	uint64_t rid = p_texture->get_rid().get_id();
 	ImVec2 size;
-	size.x = p_texture->get_width();
-	size.y = p_texture->get_height();
+	if (p_size == Vector2i()) {
+		size.x = p_texture->get_width();
+		size.y = p_texture->get_height();
+	} else {
+		size.x = p_size.x;
+		size.y = p_size.y;
+	}
+
 	ImGui::Image((void *)rid, size);
 }
 

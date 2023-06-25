@@ -11,6 +11,16 @@
 #include "thirdparty/fonts/imgui_fonts.h"
 #include <cstdint>
 
+class GodotImGuiTool : public RefCounted {
+	GDCLASS(GodotImGuiTool, RefCounted);
+	bool is_open = false;
+
+public:
+	virtual String get_name() const = 0;
+	virtual void draw_ui() = 0;
+	friend class GodotImGui;
+};
+
 class GodotImGui : public SubViewportContainer {
 	GDCLASS(GodotImGui, SubViewportContainer);
 
@@ -58,10 +68,11 @@ private:
 	void _show_overlay();
 	ImGuiKey _map_to_imgui_key(const Key &p_key);
 	void _draw_debug_object_tree(ObjectID p_id);
+	Vector<Ref<GodotImGuiTool>> tools;
 
 protected:
 	void _notification(int p_what);
-	virtual void gui_input(const Ref<InputEvent> &p_event) override;
+	virtual void input(const Ref<InputEvent> &p_event) override;
 	virtual void unhandled_key_input(const Ref<InputEvent> &p_event) override;
 	virtual void unhandled_input(const Ref<InputEvent> &p_event) override;
 
@@ -78,7 +89,7 @@ public:
 
 	void set_enable_overlay(bool p_enable);
 
-	static void ImImage(const Ref<Texture2D> &p_texture);
+	static void ImImage(const Ref<Texture2D> &p_texture, const Vector2i &p_size = Vector2i(0, 0));
 	static void DrawJoystick(const Vector2 &p_value, const float p_radius);
 
 	void save_config();
