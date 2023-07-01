@@ -76,25 +76,31 @@ void ProcessTinyProcessLibrary::close_stdin() {
 	has_open_stdin = false;
 }
 
+TinyProcessLib::Process::string_type godot_to_std_string(const String &m_path) {
+	if (m_path.empty()) {
+		return TinyProcessLib::Process::string_type();
+	}
+#if defined(_WIN32) && defined(UNICODE)
+	return std::wstring(m_path.ptr());
+#else
+	return std::string(m_path.utf8().get_data());
+#endif
+}
+
 ProcessTinyProcessLibrary::ProcessTinyProcessLibrary(const String &m_path, const Vector<String> &p_arguments, const String &p_working_dir, bool p_open_stdin) {
-	std::vector<std::wstring> args;
+	std::vector<TinyProcessLib::Process::string_type> args;
 
 	args.reserve(p_arguments.size() + 1);
 
-	args.emplace_back(m_path.ptr());
+	args.emplace_back(godot_to_std_string(m_path));
 
 	for (int i = 0; i < p_arguments.size(); i++) {
-		if (!p_arguments[i].empty()) {
-			args.emplace_back(std::wstring(p_arguments[i].ptr()));
-		}
+		args.emplace_back(godot_to_std_string(p_arguments[i]));
 	}
 
 	has_open_stdin = p_open_stdin;
 
-	std::wstring working_dir;
-	if (!p_working_dir.empty()) {
-		working_dir = p_working_dir.ptr();
-	}
+	TinyProcessLib::Process::string_type working_dir = godot_to_std_string(p_working_dir);
 
 	process = memnew(TinyProcessLib::Process(
 			args, working_dir,
