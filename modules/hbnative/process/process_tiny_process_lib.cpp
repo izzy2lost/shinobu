@@ -77,20 +77,27 @@ void ProcessTinyProcessLibrary::close_stdin() {
 }
 
 ProcessTinyProcessLibrary::ProcessTinyProcessLibrary(const String &m_path, const Vector<String> &p_arguments, const String &p_working_dir, bool p_open_stdin) {
-	std::vector<std::string> args;
+	std::vector<std::wstring> args;
 
 	args.reserve(p_arguments.size() + 1);
 
-	args.emplace_back(m_path.utf8().get_data());
+	args.emplace_back(m_path.ptr());
 
 	for (int i = 0; i < p_arguments.size(); i++) {
-		args.emplace_back(std::string(p_arguments[i].utf8().get_data()));
+		if (!p_arguments[i].empty()) {
+			args.emplace_back(std::wstring(p_arguments[i].ptr()));
+		}
 	}
 
 	has_open_stdin = p_open_stdin;
 
+	std::wstring working_dir;
+	if (!p_working_dir.empty()) {
+		working_dir = p_working_dir.ptr();
+	}
+
 	process = memnew(TinyProcessLib::Process(
-			args, p_working_dir.utf8().get_data(),
+			args, working_dir,
 			std::bind(&ProcessTinyProcessLibrary::_on_stdout, this, std::placeholders::_1, std::placeholders::_2),
 			std::bind(&ProcessTinyProcessLibrary::_on_stderr, this, std::placeholders::_1, std::placeholders::_2),
 			p_open_stdin));
