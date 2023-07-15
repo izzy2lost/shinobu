@@ -1,0 +1,4 @@
+[submodule "modules/steamworks"]
+	path = modules/steamworks
+	url = https://github.com/EIRTeam/EIRTeam.Steamworks.git
+	branch = master

@@ -1,0 +1,39 @@
+# SCsub
+
+Import("env")
+Import("env_modules")
+
+env_hbnative = env_modules.Clone()
+
+thirdparty_obj = []
+
+thirdparty_sources = []
+
+if env["platform"] in ["linuxbsd", "macos", "android"]:
+    thirdparty_sources = ["process.cpp", "process_unix.cpp"]
+elif env["platform"] == "windows":
+    thirdparty_sources = ["process.cpp", "process_win.cpp"]
+
+thirdparty_dir = "process/tiny_process_lib/"
+thirdparty_sources = [thirdparty_dir + file for file in thirdparty_sources]
+
+env.Prepend(CPPPATH=[thirdparty_dir])
+if env["builtin_libogg"]:
+    env.Prepend(CPPPATH=["#thirdparty/libogg/"])
+if env["builtin_libvorbis"]:
+    env.Prepend(CPPPATH=["#thirdparty/libvorbis/"])
+
+env_process = env_modules.Clone()
+env_process.Prepend(CPPPATH=[thirdparty_dir])
+env_process.disable_warnings()
+env_process.add_source_files(thirdparty_obj, thirdparty_sources)
+env.modules_sources += thirdparty_obj
+
+module_obj = []
+
+env.add_source_files(module_obj, "*.cpp")  # Add all cpp files to the build
+env.add_source_files(module_obj, "process/*.cpp")
+
+env.modules_sources += module_obj
+
+env.Depends(module_obj, thirdparty_obj)

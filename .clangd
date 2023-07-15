@@ -1,0 +1,4 @@
+If:
+  PathMatch: [modules/shinobu/miniaudio/miniaudio.h]
+Index:
+  Background: Skip
