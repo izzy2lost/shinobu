@@ -31,6 +31,7 @@
 #include "animation_system/epas_oneshot_animation_node.h"
 #include "animation_system/epas_pose.h"
 #include "animation_system/epas_pose_node.h"
+#include "animation_system/epas_softness_node.h"
 #include "animation_system/epas_transition_node.h"
 #include "animation_system/epas_wheel_locomotion.h"
 
@@ -54,6 +55,7 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(HBAgentFallState);
 		GDREGISTER_CLASS(HBAgentLedgeGetUpState);
 		GDREGISTER_CLASS(HBAgentWallParkourState);
+		GDREGISTER_CLASS(HBAgentParkourAutoJumpState);
 		// State machine stuff
 		GDREGISTER_CLASS(HBStateMachine);
 		GDREGISTER_ABSTRACT_CLASS(HBStateMachineState);
@@ -77,8 +79,10 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(EPASAnimationNode);
 		GDREGISTER_CLASS(EPASOneshotAnimationNode);
 		GDREGISTER_CLASS(EPASOneshotAnimationNodeDebug);
+		GDREGISTER_CLASS(EPASSoftnessNode);
 		GDREGISTER_CLASS(EPASIKNode);
 		GDREGISTER_CLASS(FABRIKSolver);
+		GDREGISTER_CLASS(HBDebugGeometry);
 #ifdef DEBUG_ENABLED
 		GDREGISTER_CLASS(EPASAnimationEditor);
 		GDREGISTER_CLASS(EPASEditorGrid);

@@ -26,6 +26,8 @@ class HBAgentConstants : public Resource {
 	// Wall movement
 	float ledge_movement_velocity = 0.4f;
 
+	float wallclimb_autojump_distance = 1.5f;
+
 	float default_inertialization_transition_duration = 0.35f;
 
 protected:

@@ -28,10 +28,6 @@ thirdparty_sources = [thirdparty_dir + file for file in thirdparty_sources]
 
 env_imgui.Prepend(CPPPATH=[thirdparty_dir])
 freetype_enabled = "freetype" in env.module_list
-steamworks_enabled = "steamworks" in env.module_list
-
-if steamworks_enabled:
-    env_imgui.Prepend(CPPPATH=["#modules/steamworks/thirdparty/steamworks/public"])
 
 env_thirdparty = env_imgui.Clone()
 if env["builtin_freetype"] and freetype_enabled:

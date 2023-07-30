@@ -2,6 +2,7 @@ def can_build(env, platform):
     if env.debug_features:
         env.module_add_dependencies("game", ["imgui"])
     env.module_add_dependencies("game", ["tracy"])
+    env.module_add_dependencies("game", ["steamworks"])
     return platform == "windows" or platform == "linuxbsd"
 
 

@@ -13,9 +13,27 @@
 
 #include "modules/tracy/tracy.gen.h"
 
+#include "modules/modules_enabled.gen.h"
+
+#ifdef MODULE_STEAMWORKS_ENABLED
+#include "modules/steamworks/input_glyphs_steamworks.h"
+#include "modules/steamworks/steamworks.h"
+#endif
+
+#include "modules/input_glyphs/input_glyphs_singleton.h"
+#include "modules/input_glyphs/input_glyphs_source.h"
+
 HBGameMainLoop::HBGameMainLoop() :
 		SceneTree() {
 	imgui_module_post_init();
+#ifdef MODULE_STEAMWORKS_ENABLED
+	Steamworks::get_singleton()->init(1216230);
+	if (Steamworks::get_singleton()->is_valid()) {
+		Steamworks::get_singleton()->get_input()->init();
+		HBSteamworksInputGlyphsSource::make_current();
+	}
+	InputGlyphsSingleton::get_singleton()->init();
+#endif
 }
 
 void HBGameMainLoop::change_scene(Node *p_new_scene) {
@@ -30,6 +48,10 @@ void HBGameMainLoop::change_scene(Node *p_new_scene) {
 bool HBGameMainLoop::process(double p_time) {
 	ZoneScopedN("Process Frame");
 	bool result = SceneTree::process(p_time);
+	if (Steamworks::get_singleton()->get_input()) {
+		Steamworks::get_singleton()->get_input()->run_frame();
+		Steamworks::get_singleton()->run_callbacks();
+	}
 	return result;
 }
 
@@ -60,7 +82,11 @@ void HBGameMainLoop::initialize() {
 			if (tool) {
 				change_scene(tool);
 			}
-		}
+		} else if (args[i] == "--dump-steamworks-input-glyphs") {
+#ifdef MODULE_STEAMWORKS_ENABLED
+			callable_mp_static(HBSteamworksInputGlyphDumpTool::dump).call_deferred(args[i + 1]);
+#endif // MODULE_STEAMWORKS_ENABLED
+		};
 	}
 #endif
 }

@@ -6,7 +6,9 @@
 #include "animation_system/epas_ik_node.h"
 #include "animation_system/epas_inertialization_node.h"
 #include "animation_system/epas_oneshot_animation_node.h"
+#include "animation_system/epas_softness_node.h"
 #include "animation_system/epas_transition_node.h"
+#include "animation_system/epas_wheel_locomotion.h"
 #include "debug_geometry.h"
 #include "modules/game/agent_parkour.h"
 #include "scene/animation/tween.h"
@@ -29,6 +31,11 @@ struct AgentIKPose {
 	bool valid = false;
 };
 
+struct AgentStateNames {
+	StringName move_state = StaticCString::create("Move");
+	StringName autojump = StaticCString::create("ParkourAutojump");
+};
+
 class HBAgentState : public HBStateMachineState {
 	GDCLASS(HBAgentState, HBStateMachineState);
 	HBDebugGeometry *debug_geo = nullptr;
@@ -38,6 +45,7 @@ class HBAgentState : public HBStateMachineState {
 	void _init_ui_settings_if_needed();
 
 protected:
+	AgentStateNames state_names;
 	void debug_draw_shape(Ref<Shape3D> p_shape, const Vector3 &p_position, const Color &p_color = Color());
 	void debug_draw_clear();
 	void debug_draw_raycast(const PhysicsDirectSpaceState3D::RayParameters &p_params, const Color &p_color = Color());
@@ -46,6 +54,7 @@ protected:
 	void debug_draw_cast_motion(const Ref<Shape3D> &p_shape, const PhysicsDirectSpaceState3D::ShapeParameters &p_shape_cast_3d, const Color &p_color = Color());
 	bool find_facing_wall(PhysicsDirectSpaceState3D::RayResult &p_result);
 	bool find_ledge(const Vector3 &p_wall_base_point, const Vector3 &p_wall_normal, Transform3D &p_ledge_transform);
+	HBDebugGeometry *get_debug_geometry();
 
 public:
 	HBAgent *get_agent() const;
@@ -54,6 +63,8 @@ public:
 	Ref<EPASInertializationNode> get_inertialization_node() const;
 	Skeleton3D *get_skeleton() const;
 	Node3D *get_graphics_node() const;
+	Ref<EPASSoftnessNode> get_softness_node() const;
+	Ref<EPASWheelLocomotion> get_wheel_locomotion_node() const;
 	virtual void debug_ui_draw() override;
 	friend class HBStateMachine;
 };
@@ -66,6 +77,7 @@ protected:
 	virtual void physics_process(float p_delta) override;
 	bool _handle_parkour_down();
 	bool _handle_parkour_up();
+	bool _handle_parkour_mid();
 	bool _check_wall(PhysicsDirectSpaceState3D::RayResult &p_result);
 };
 
@@ -310,13 +322,13 @@ class HBAgentWallParkourState : public HBAgentState {
 		Vector3 default_magnet_pos;
 		// Transform of the current point, with forward pointing towards the agent
 		struct {
-			WallParkourTargetType type;
+			WallParkourTargetType type = WallParkourTargetType::TARGET_LOCATION;
 			HBAgentParkourPoint *parkour_node;
 			Transform3D transform;
 		} current;
 		// Transform of the target point, with forward pointing towards the agent
 		struct {
-			WallParkourTargetType type;
+			WallParkourTargetType type = WallParkourTargetType::TARGET_LOCATION;
 			HBAgentParkourPoint *parkour_node;
 			Transform3D transform;
 		} target;
@@ -396,6 +408,17 @@ public:
 		PARAM_TARGET_PARKOUR_NODE
 	};
 	HBAgentWallParkourState();
+};
+
+class HBAgentParkourAutoJumpState : public HBAgentState {
+	GDCLASS(HBAgentParkourAutoJumpState, HBAgentState);
+	ParkourAutojump::AgentParkourAutojumpData autojump_data;
+	float time;
+
+public:
+	void set_autojump_data(ParkourAutojump::AgentParkourAutojumpData p_autojump_data);
+	virtual void enter(const Dictionary &p_args) override;
+	virtual void physics_process(float p_delta) override;
 };
 
 #endif // AGENT_STATE_H

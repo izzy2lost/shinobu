@@ -94,6 +94,7 @@ void EPASController::_notification(int p_what) {
 			if (playback_process_mode != PlaybackProcessMode::IDLE) {
 				return;
 			}
+			print_line("NORMAL PROCESS");
 			advance(get_process_delta_time());
 		} break;
 	}

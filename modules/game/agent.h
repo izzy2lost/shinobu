@@ -27,6 +27,8 @@ public:
 	};
 
 private:
+	Ref<RotationInertializer> rot_inertializer;
+	Quaternion inertialization_target;
 	struct InputState {
 		Vector3 movement;
 		Quaternion movement_input_rotation;

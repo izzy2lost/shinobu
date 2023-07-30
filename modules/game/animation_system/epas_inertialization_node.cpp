@@ -1,4 +1,5 @@
 #include "epas_inertialization_node.h"
+#include "epas_animation.h"
 
 void EPASInertializationNode::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("inertialize", "transition_duration", "bone_filter"), &EPASInertializationNode::inertialize, DEFVAL(0.25f), DEFVAL(TypedArray<StringName>()));
@@ -37,9 +38,19 @@ void EPASInertializationNode::process_node(const Ref<EPASPose> &p_base_pose, Ref
 	float delta = p_delta;
 	// Start calculating inertialization information
 	if (inertialization_queued && last_frame_pose.is_valid() && last_last_frame_pose.is_valid()) {
-		process_input_pose_inertialized(0, p_base_pose, p_target_pose, p_delta);
+		// Inertialization is all about going to a target pose, so we want to use the pose the user just set as
+		// our target, otherwise the transition will have a jump (if we apply an already existing inertialization step)
+		process_input_pose(0, p_base_pose, p_target_pose, p_delta);
+		Ref<EPASAnimation> polla;
+		polla.instantiate();
+		Ref<EPASKeyframe> kf;
+		kf.instantiate();
+		kf->set_pose(p_target_pose);
+		polla->add_keyframe(kf);
+		ResourceSaver::save(polla, "res://inertialization_dump.tres");
 		start_inertialization(p_base_pose, p_target_pose, p_delta);
 		inertialization_queued = false;
+		print_line(vformat("Fulfilled inertialization on frame %d", Engine::get_singleton()->get_frames_drawn()));
 		delta = 0.0f;
 	}
 	process_input_pose_inertialized(0, p_base_pose, p_target_pose, delta);
@@ -48,9 +59,15 @@ void EPASInertializationNode::process_node(const Ref<EPASPose> &p_base_pose, Ref
 }
 
 void EPASInertializationNode::inertialize(float p_transition_duration, TypedArray<StringName> p_bone_filter) {
+	print_line(vformat("Requested inertialization on frame %d", Engine::get_singleton()->get_frames_drawn()), inertialization_queued);
 	inertialization_queued = true;
 	desired_blend_time = p_transition_duration;
 	bone_filter = p_bone_filter;
+}
+
+void EPASInertializationNode::flush_inertialization() {
+	if (inertialization_queued) {
+	}
 }
 
 bool EPASInertializationNode::is_inertializing() const {

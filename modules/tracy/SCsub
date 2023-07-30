@@ -20,7 +20,7 @@ env_tracy.Prepend(CPPPATH=[thirdparty_dir])
 tracy_defines = []
 
 if ARGUMENTS.get("tracy_enabled", "no") == "yes":
-    tracy_defines = ["TRACY_ENABLE", "TRACY_ON_DEMAND", "TRACY_ONLY_IPV4", "TRACY_NO_SAMPLING"]
+    tracy_defines = ["TRACY_ENABLE", "TRACY_ONLY_IPV4", "TRACY_NO_SAMPLING"]
     env_tracy.Append(CPPDEFINES=tracy_defines)
 
 env_thirdparty = env_tracy.Clone()

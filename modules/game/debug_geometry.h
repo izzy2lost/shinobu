@@ -12,7 +12,7 @@ class HBDebugGeometry : public Node3D {
 
 private:
 	const int SPHERE_INSTANCE_COUNT = 10;
-	static Ref<StandardMaterial3D> debug_material_s;
+	static Ref<WeakRef> debug_material_s;
 	Ref<StandardMaterial3D> debug_material;
 	Ref<StandardMaterial3D> get_debug_material();
 	struct DebugGeometryGroup {
@@ -31,6 +31,9 @@ private:
 	DebugGeometryGroup *current_group = nullptr;
 
 	void _draw_arrow(const Vector3 &p_from, const Vector3 &p_to, const Color &p_color = Color());
+
+protected:
+	static void _bind_methods();
 
 public:
 	void add_group(const StringName &p_group_name);

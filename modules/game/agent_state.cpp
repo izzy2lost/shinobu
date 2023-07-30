@@ -102,7 +102,6 @@ bool HBAgentState::find_facing_wall(PhysicsDirectSpaceState3D::RayResult &p_resu
 	const float parkour_max_wall_facing_angle_degrees = Math::deg_to_rad(agent->get_agent_constants()->get_parkour_max_wall_facing_angle_degrees());
 	const float floor_max_angle = agent->get_floor_max_angle();
 
-	Ref<Shape3D> player_shape = agent->get_collision_shape();
 	PhysicsDirectSpaceState3D *dss = agent->get_world_3d()->get_direct_space_state();
 
 	PhysicsDirectSpaceState3D::RayParameters ray_params;
@@ -149,7 +148,7 @@ bool HBAgentState::find_ledge(const Vector3 &p_wall_base_point, const Vector3 &p
 	PhysicsDirectSpaceState3D *dss = agent->get_world_3d()->get_direct_space_state();
 
 	// Try to find a roof
-	debug_draw_raycast(ray_params);
+	debug_draw_raycast(ray_params, Color(0.0f, 0.0f, 1.0f));
 	if (!dss->intersect_ray(ray_params, ray_result)) {
 		return false;
 	}
@@ -164,6 +163,10 @@ bool HBAgentState::find_ledge(const Vector3 &p_wall_base_point, const Vector3 &p
 	p_ledge_transform.basis = Basis::looking_at(p_wall_normal);
 
 	return true;
+}
+
+HBDebugGeometry *HBAgentState::get_debug_geometry() {
+	return _get_debug_geo();
 }
 
 HBAgent *HBAgentState::get_agent() const {
@@ -201,6 +204,16 @@ Node3D *HBAgentState::get_graphics_node() const {
 	return agent->_get_graphics_node();
 }
 
+Ref<EPASSoftnessNode> HBAgentState::get_softness_node() const {
+	ERR_FAIL_COND_V(get_epas_controller() == nullptr, Ref<EPASInertializationNode>());
+	return get_epas_controller()->get_epas_node(SNAME("Softness"));
+}
+
+Ref<EPASWheelLocomotion> HBAgentState::get_wheel_locomotion_node() const {
+	ERR_FAIL_COND_V(get_epas_controller() == nullptr, Ref<EPASInertializationNode>());
+	return get_epas_controller()->get_epas_node(SNAME("MovementWheel"));
+}
+
 void HBAgentState::debug_ui_draw() {
 #ifdef DEBUG_ENABLED
 	_init_ui_settings_if_needed();
@@ -233,6 +246,8 @@ void HBAgentMoveState::enter(const Dictionary &p_args) {
 	Ref<EPASTransitionNode> transition_node = get_movement_transition_node();
 	ERR_FAIL_COND(!transition_node.is_valid());
 	transition_node->transition_to(HBAgentConstants::MovementTransitionInputs::MOVEMENT_MOVE);
+	print_line("Enter transition at frame", Engine::get_singleton()->get_frames_drawn());
+	get_wheel_locomotion_node()->set_x_blend(0.0f);
 }
 
 void HBAgentMoveState::physics_process(float p_delta) {
@@ -250,6 +265,10 @@ void HBAgentMoveState::physics_process(float p_delta) {
 				}
 			} else if (is_parkour_up_held) {
 				if (_handle_parkour_up()) {
+					return;
+				}
+			} else {
+				if (_handle_parkour_mid()) {
 					return;
 				}
 			}
@@ -409,6 +428,7 @@ bool HBAgentMoveState::_handle_parkour_up() {
 	PhysicsDirectSpaceState3D::RayResult ray_result;
 	// Find a wall in front of us
 	if (!find_facing_wall(ray_result)) {
+		print_line("FACING WALL FAILED");
 		return false;
 	}
 
@@ -427,6 +447,8 @@ bool HBAgentMoveState::_handle_parkour_up() {
 		state_machine->transition_to("Wallrun", transition_dict);
 		return true;
 	}
+
+	print_line("Find lege failed");
 
 	Vector3 base = base_trf.origin;
 	Vector3 wall_normal = base_trf.basis.xform(Vector3(0.0, 0.0, -1.0f));
@@ -524,6 +546,26 @@ bool HBAgentMoveState::_handle_parkour_up() {
 	transition_dict[HBAgentWallrunState::WallrunParams::PARAM_WALLRUN_TYPE] = HBAgentWallrunState::EMPTY_CLIMB;
 	state_machine->transition_to("Wallrun", transition_dict);
 
+	return true;
+}
+
+bool HBAgentMoveState::_handle_parkour_mid() {
+	HBAgentParkourAutoJumpState *autojump_state = Object::cast_to<HBAgentParkourAutoJumpState>(state_machine->get_state(state_names.autojump));
+	if (!autojump_state) {
+		return false;
+	}
+	if (get_agent()->get_movement_input().length_squared() == 0) {
+		return false;
+	}
+	ParkourAutojump::AgentParkourAutojumpData data = ParkourAutojump::find_autojump_grounded(
+			get_agent(),
+			get_agent()->get_desired_movement_input_transformed().normalized(),
+			get_debug_geometry());
+	if (!data.found) {
+		return false;
+	}
+	autojump_state->set_autojump_data(data);
+	state_machine->transition_to(state_names.autojump);
 	return true;
 }
 
@@ -1177,6 +1219,57 @@ void HBAgentWallGrabbedState::physics_process(float p_delta) {
 
 	Skeleton3D *skel = get_skeleton();
 	ERR_FAIL_COND(!skel);
+
+	// Handle trying to grab to parkour nodes below
+	if (agent->get_movement_input().length_squared() > 0 && agent->get_movement_input().angle_to(Vector3(0.0f, 0.0f, 1.0f)) < Math::deg_to_rad(15.0f)) {
+		Ref<CylinderShape3D> cylinder_shape;
+		cylinder_shape.instantiate();
+		cylinder_shape->set_height(agent->get_height());
+		cylinder_shape->set_radius(0.5f);
+
+		PhysicsDirectSpaceState3D::ShapeParameters params;
+		params.transform.origin = agent->get_global_position();
+		params.transform.origin.y += agent->get_height() * 0.5f;
+
+		const int RESULTS_MAX = 5;
+
+		Vector<PhysicsDirectSpaceState3D::ShapeResult> shape_results;
+		shape_results.resize(RESULTS_MAX);
+		PhysicsDirectSpaceState3D *dss = agent->get_world_3d()->get_direct_space_state();
+		params.shape_rid = cylinder_shape->get_rid();
+		int results = dss->intersect_shape(params, shape_results.ptrw(), RESULTS_MAX);
+		HBAgentParkourPoint *target_point = nullptr;
+		float target_point_dist_to_agent = 0.0f;
+
+		debug_draw_cast_motion(cylinder_shape, params);
+
+		Vector3 agent_top = agent->get_global_position() + Vector3(0.0f, agent->get_height(), 0.0f);
+
+		for (int i = 0; i < results; i++) {
+			HBAgentParkourPoint *point = Object::cast_to<HBAgentParkourPoint>(shape_results[i].collider);
+			if (!point) {
+				continue;
+			}
+			float point_dist_to_agent = agent_top.distance_to(point->get_global_position());
+			if (!target_point) {
+				target_point = point;
+				target_point_dist_to_agent = point_dist_to_agent;
+				continue;
+			}
+			if (point_dist_to_agent < target_point_dist_to_agent) {
+				target_point = point;
+				target_point_dist_to_agent = point_dist_to_agent;
+			}
+		}
+
+		// We found a node, time to transition
+		if (target_point) {
+			Dictionary transition_dict;
+			transition_dict[HBAgentWallParkourState::WallParkourParams::PARAM_TARGET_PARKOUR_NODE] = target_point;
+			state_machine->transition_to("WallParkour", transition_dict);
+			return;
+		}
+	}
 
 	if (agent->is_action_pressed(HBAgent::AgentInputAction::INPUT_ACTION_PARKOUR_DOWN)) {
 		state_machine->transition_to("Fall");
@@ -2129,12 +2222,15 @@ void HBAgentWallParkourState::enter(const Dictionary &p_args) {
 	limb_center = limb_center / ((float)AgentIKLimbType::LIMB_TYPE_MAX);
 
 	Vector3 center = agent->get_global_position() - limb_center;
-	agent_offset_base = get_graphics_node()->get_global_transform().basis.xform_inv(center) + agent_offset_adjustment;
+	agent_offset_base = Vector3(-0, -0.60059, 0.212675) + agent_offset_adjustment;
+	print_line("BASE: ", get_graphics_node()->get_global_transform().basis.xform_inv(center));
 	agent_offset_target = agent_offset_base;
 	// Reset springs
 	agent_position_spring_velocity = Vector3();
 	graphics_rotation_spring_velocity = Vector3();
 	agent_position_target = agent->get_global_position();
+
+	get_softness_node()->set_influence(0.0f);
 
 	movement_transition->transition_to(HBAgentConstants::MovementTransitionInputs::MOVEMENT_PARKOUR_CAT);
 
@@ -2333,4 +2429,36 @@ void HBAgentWallParkourState::_notification(int p_what) {
 }
 
 HBAgentWallParkourState::HBAgentWallParkourState() {
+}
+
+void HBAgentParkourAutoJumpState::set_autojump_data(ParkourAutojump::AgentParkourAutojumpData p_autojump_data) {
+	autojump_data = p_autojump_data;
+}
+
+void HBAgentParkourAutoJumpState::enter(const Dictionary &p_args) {
+	get_movement_transition_node()->transition_to(HBAgentConstants::MovementTransitionInputs::MOVEMENT_FALL);
+	time = 0.0f;
+	get_agent()->set_movement_mode(HBAgent::MOVE_MANUAL);
+}
+
+void HBAgentParkourAutoJumpState::physics_process(float p_delta) {
+	debug_draw_clear();
+	time += p_delta;
+	time = MIN(time, autojump_data.parabola_t_max);
+
+	for (int i = 1; i < 20; i++) {
+		float t = i / (20.0f - 1.0f);
+		float t_prev = (i - 1) / (20.0f - 1.0f);
+		t *= autojump_data.parabola_t_max;
+		t_prev *= autojump_data.parabola_t_max;
+		Vector3 pos = autojump_data.get_position(t, 0.0f);
+		Vector3 pos_prev = autojump_data.get_position(t_prev, 0.0f);
+		debug_draw_line(pos_prev, pos);
+	}
+
+	get_agent()->set_global_position(autojump_data.get_position(time, 0.5f));
+
+	if (time == autojump_data.parabola_t_max) {
+		state_machine->transition_to("Move");
+	}
 }

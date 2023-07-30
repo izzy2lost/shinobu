@@ -1,4 +1,5 @@
 #include "agent.h"
+#include "debug_geometry.h"
 #include "springs.h"
 
 #ifdef DEBUG_ENABLED
@@ -102,9 +103,37 @@ void HBAgent::_bind_methods() {
 	BIND_ENUM_CONSTANT(INPUT_ACTION_MAX);
 }
 
+static HBDebugGeometry *debug_geo = nullptr;
+
 void HBAgent::_rotate_towards_velocity(float p_delta) {
+	if (!debug_geo) {
+		debug_geo = memnew(HBDebugGeometry);
+		add_child(debug_geo);
+		debug_geo->set_as_top_level(true);
+		debug_geo->set_global_position(Vector3());
+	}
 	Vector3 input_vector = get_desired_movement_input_transformed();
 	Node3D *gn = _get_graphics_node();
+	Vector3 gn_forward = gn->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
+	if (rot_inertializer.is_valid() && !rot_inertializer->is_done()) {
+		gn_forward = inertialization_target.xform(Vector3(0.0f, 0.0f, -1.0f));
+	}
+	Vector3 horizontal_vel = get_velocity();
+	horizontal_vel.y = 0.0f;
+	if (horizontal_vel.length_squared() > 0) {
+		float angle = gn_forward.angle_to(get_velocity().normalized());
+		if (angle > Math::deg_to_rad(45.0f)) {
+			Quaternion target_rot = Quaternion(Vector3(0.0f, 0.0f, -1.0f), horizontal_vel.normalized());
+
+			Transform3D new_trf = gn->get_global_transform();
+			new_trf.basis = target_rot;
+			gn->set_global_transform(new_trf);
+
+			rot_inertializer = RotationInertializer::create(last_last_rotation, last_rotation, target_rot, 0.2, p_delta);
+			inertialization_target = target_rot;
+			print_line("INERTIALIZE");
+		}
+	}
 
 	if (gn && agent_constants.is_valid()) {
 		if (input_vector.length_squared() > 0 && get_velocity().length_squared() > 0) {
@@ -112,18 +141,24 @@ void HBAgent::_rotate_towards_velocity(float p_delta) {
 			new_dir.y = 0.0f;
 			new_dir.normalize();
 			Transform3D gn_trf = gn->get_global_transform();
-			Vector3 curr_dir = gn->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
+			if (rot_inertializer.is_valid() && !rot_inertializer->is_done()) {
+				gn_trf.basis = inertialization_target;
+			}
+			Vector3 curr_dir = gn_trf.basis.xform(Vector3(0.0f, 0.0f, -1.0f));
 
 			Quaternion rot = Quaternion(curr_dir, new_dir);
-			if (!rot.get_axis().is_normalized()) {
-				// Two very similar vectors cannot be decomposed into axis and angle of rotation
-				return;
-			}
-			float angle = MIN(Math::deg_to_rad(720.0f) * p_delta, rot.get_angle());
-			rot = Quaternion(rot.get_axis(), angle);
+			// Two very similar vectors cannot be decomposed into axis and angle of rotation
+			if (rot.get_axis().is_normalized()) {
+				float angle = MIN(Math::deg_to_rad(720.0f) * p_delta, rot.get_angle());
+				rot = Quaternion(rot.get_axis(), angle);
 
-			gn_trf.basis = rot * gn_trf.basis;
-			gn->set_global_transform(gn_trf);
+				if (rot_inertializer.is_valid() && !rot_inertializer->is_done()) {
+					inertialization_target = rot * gn_trf.basis;
+				} else {
+					gn_trf.basis = rot * gn_trf.basis;
+					gn->set_global_transform(gn_trf);
+				}
+			}
 		}
 		// Handle horizontal rotation of the actor
 		/*if (input_vector.length() > 0.0) {
@@ -145,6 +180,17 @@ void HBAgent::_rotate_towards_velocity(float p_delta) {
 				gn->set_global_transform(global_trf);
 			}
 		}*/
+	}
+	debug_geo->clear();
+	Vector3 start_debug_pos = get_global_position() + Vector3(0.0f, 0.5f, 0.0f);
+	debug_geo->debug_line(start_debug_pos, start_debug_pos + input_vector.normalized());
+
+	if (rot_inertializer.is_valid() && !rot_inertializer->is_done()) {
+		debug_geo->debug_line(start_debug_pos, start_debug_pos + inertialization_target.xform(Vector3(0.0f, 0.0f, -1.0f)), Color("Deep Pink"));
+		Quaternion new_rot = rot_inertializer->advance(p_delta);
+		Transform3D new_trf = gn->get_global_transform();
+		new_trf.basis = inertialization_target * new_rot;
+		gn->set_global_transform(new_trf);
 	}
 
 	last_last_rotation = last_rotation;

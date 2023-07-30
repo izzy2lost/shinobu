@@ -7,7 +7,7 @@
 #include "imgui_neo_sequencer.h"
 #include "scene/gui/subviewport_container.h"
 #include "scene/main/viewport.h"
-#include "scene/resources/texture.h"
+#include "scene/resources/image_texture.h"
 #include "thirdparty/fonts/imgui_fonts.h"
 #include <cstdint>
 

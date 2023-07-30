@@ -2,23 +2,36 @@
 #include "scene/resources/primitive_meshes.h"
 #include "scene/resources/shape_3d.h"
 
-Ref<StandardMaterial3D> HBDebugGeometry::debug_material_s;
+Ref<WeakRef> HBDebugGeometry::debug_material_s;
 
 Ref<StandardMaterial3D> HBDebugGeometry::get_debug_material() {
-	if (!debug_material.is_valid() && !debug_material_s.is_valid()) {
-		debug_material_s.instantiate();
-		debug_material_s->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
-		debug_material_s->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
-		debug_material_s->set_flag(BaseMaterial3D::FLAG_DISABLE_DEPTH_TEST, true);
-		debug_material = debug_material_s;
-		debug_material_s.unref();
-	} else if (!debug_material.is_valid()) {
-		debug_material = debug_material_s;
+	if (debug_material.is_valid()) {
+		return debug_material;
 	}
+
+	if (debug_material_s.is_valid()) {
+		Ref<StandardMaterial3D> mat = debug_material_s->get_ref();
+		if (mat.is_valid()) {
+			debug_material = mat;
+		}
+		return debug_material;
+	}
+
+	debug_material_s.instantiate();
+	Ref<StandardMaterial3D> mat;
+	mat.instantiate();
+	mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+	mat->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
+	mat->set_flag(BaseMaterial3D::FLAG_DISABLE_DEPTH_TEST, true);
+	debug_material_s->set_ref(mat);
+	debug_material = mat;
 	return debug_material;
 }
 
 void HBDebugGeometry::_draw_arrow(const Vector3 &p_from, const Vector3 &p_to, const Color &p_color) {
+	if (p_from == p_to) {
+		return;
+	}
 	current_group->immediate_mesh->surface_set_color(p_color);
 	current_group->immediate_mesh->surface_add_vertex(p_from);
 	current_group->immediate_mesh->surface_add_vertex(p_to);
@@ -39,6 +52,16 @@ void HBDebugGeometry::_draw_arrow(const Vector3 &p_from, const Vector3 &p_to, co
 		current_group->immediate_mesh->surface_add_vertex(p_to);
 		current_group->immediate_mesh->surface_add_vertex(v_curr);
 	}
+}
+
+void HBDebugGeometry::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("clear"), &HBDebugGeometry::clear);
+	ClassDB::bind_method(D_METHOD("add_group", "group_name"), &HBDebugGeometry::add_group);
+	ClassDB::bind_method(D_METHOD("set_current_group", "group_name"), &HBDebugGeometry::set_current_group);
+	ClassDB::bind_method(D_METHOD("debug_line", "from", "to", "color"), &HBDebugGeometry::debug_line);
+	ClassDB::bind_method(D_METHOD("debug_sphere", "position", "radius", "color"), &HBDebugGeometry::debug_sphere);
+	ClassDB::bind_method(D_METHOD("set_group_visible", "group_name", "visible"), &HBDebugGeometry::set_group_visible);
+	ClassDB::bind_method(D_METHOD("get_group_visible", "group_name"), &HBDebugGeometry::get_group_visible);
 }
 
 void HBDebugGeometry::add_group(const StringName &p_group_name) {

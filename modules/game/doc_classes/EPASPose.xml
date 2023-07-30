@@ -15,13 +15,6 @@
 				Creates a bone that doesn't already exist.
 			</description>
 		</method>
-		<method name="from_animation" qualifiers="static">
-			<return type="EPASPose" />
-			<param index="0" name="animation" type="Animation" />
-			<description>
-				Turns a godot animation into an EPAS pose data object
-			</description>
-		</method>
 		<method name="set_bone_position">
 			<return type="void" />
 			<param index="0" name="bone_name" type="StringName" />

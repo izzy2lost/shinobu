@@ -104,7 +104,6 @@ void HBPlayerCameraArm::_bind_methods() {
 HBPlayerCameraArm::HBPlayerCameraArm() :
 		SpringArm3D() {
 	if (!Engine::get_singleton()->is_editor_hint()) {
-		set_physics_process_internal(true);
 		set_process_unhandled_input(true);
 		set_physics_process_internal(true);
 		set_as_top_level(true);

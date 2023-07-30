@@ -74,6 +74,7 @@ void InputGlyphDemoTool::draw_glyphs(int p_theme_i) {
 			if (style & GLYPH_STYLE_SOLID_ABXY) {
 				ImGui::TextUnformatted("GLYPH_STYLE_SOLID_ABXY");
 			}
+			ImGui::Text("%X", style);
 
 			ImGui::EndTooltip();
 		}

@@ -20,6 +20,11 @@
 			<description>
 			</description>
 		</method>
+		<method name="get_debug_geo2" qualifiers="const">
+			<return type="ImmediateMesh" />
+			<description>
+			</description>
+		</method>
 		<method name="get_joint_hinge_axis" qualifiers="const">
 			<return type="Vector3" />
 			<param index="0" name="joint_idx" type="int" />

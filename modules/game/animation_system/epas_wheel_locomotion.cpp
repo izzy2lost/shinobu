@@ -184,6 +184,7 @@ EPASWheelLocomotion::~EPASWheelLocomotion() {
 }
 
 #ifdef DEBUG_ENABLED
+#include "implot.h"
 #include "modules/imgui/godot_imgui.h"
 void EPASWheelLocomotion::_debug_node_draw() const {
 	ImGui::Text("Wheel angle: %.2f", Math::fmod(Math::rad_to_deg(get_wheel_angle()), 360.0f));
