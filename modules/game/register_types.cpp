@@ -11,6 +11,7 @@
 #include "game_main_loop.h"
 #include "modules/game/animation_system/epas_animation.h"
 #include "modules/game/animation_system/epas_ik_node.h"
+#include "modules/tbloader/src/tb_loader_singleton.h"
 #include "player_agent.h"
 #include "player_camera_arm.h"
 #include "scene/main/scene_tree.h"
@@ -45,6 +46,7 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(HBPlayerAgent);
 		GDREGISTER_CLASS(HBPlayerAgentController);
 		GDREGISTER_CLASS(HBAgentParkourPoint);
+		GDREGISTER_CLASS(HBAgentParkourBeam);
 		// Agent states
 		GDREGISTER_ABSTRACT_CLASS(HBAgentState);
 		GDREGISTER_CLASS(HBAgentMoveState);
@@ -56,6 +58,7 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(HBAgentLedgeGetUpState);
 		GDREGISTER_CLASS(HBAgentWallParkourState);
 		GDREGISTER_CLASS(HBAgentParkourAutoJumpState);
+		GDREGISTER_CLASS(HBAgentParkourBeamWalk);
 		// State machine stuff
 		GDREGISTER_CLASS(HBStateMachine);
 		GDREGISTER_ABSTRACT_CLASS(HBStateMachineState);
@@ -83,6 +86,9 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(EPASIKNode);
 		GDREGISTER_CLASS(FABRIKSolver);
 		GDREGISTER_CLASS(HBDebugGeometry);
+
+		TBLoaderSingleton::register_entity_type<HBAgentParkourPoint>();
+		TBLoaderSingleton::register_entity_type<HBAgentParkourBeam>();
 #ifdef DEBUG_ENABLED
 		GDREGISTER_CLASS(EPASAnimationEditor);
 		GDREGISTER_CLASS(EPASEditorGrid);

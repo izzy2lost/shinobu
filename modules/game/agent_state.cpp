@@ -253,52 +253,97 @@ void HBAgentMoveState::enter(const Dictionary &p_args) {
 void HBAgentMoveState::physics_process(float p_delta) {
 	ZoneScopedN("HBAgentMoveState physics process");
 	HBAgent *agent = get_agent();
-	if (agent) {
-		bool is_parkour_down_held = agent->is_action_pressed(HBAgent::INPUT_ACTION_PARKOUR_DOWN);
-		bool is_parkour_up_held = agent->is_action_pressed(HBAgent::INPUT_ACTION_PARKOUR_UP);
-		bool is_run_held = agent->is_action_pressed(HBAgent::INPUT_ACTION_RUN);
-		debug_draw_clear();
-		if (is_run_held) {
-			if (is_parkour_down_held) {
-				if (_handle_parkour_down()) {
-					return;
-				}
-			} else if (is_parkour_up_held) {
-				if (_handle_parkour_up()) {
-					return;
-				}
-			} else {
-				if (_handle_parkour_mid()) {
-					return;
-				}
+	bool is_parkour_down_held = agent->is_action_pressed(HBAgent::INPUT_ACTION_PARKOUR_DOWN);
+	bool is_parkour_up_held = agent->is_action_pressed(HBAgent::INPUT_ACTION_PARKOUR_UP);
+	bool is_run_held = agent->is_action_pressed(HBAgent::INPUT_ACTION_RUN);
+	debug_draw_clear();
+	if (is_run_held) {
+		if (is_parkour_down_held) {
+			if (_handle_parkour_down()) {
+				return;
+			}
+		} else if (is_parkour_up_held) {
+			if (_handle_parkour_up()) {
+				return;
+			}
+		} else {
+			if (_handle_parkour_mid()) {
+				return;
 			}
 		}
+	}
 
-		String bones[2] = { "hand.R", "hand.L" };
+	String bones[2] = { "hand.R", "hand.L" };
 
-		for (int i = 0; i < 2; i++) {
-			Transform3D bone_trf = get_skeleton()->get_global_transform() * get_skeleton()->get_bone_global_pose(get_skeleton()->find_bone(bones[i]));
-			Vector3 origin = bone_trf.origin;
-			Vector3 x = bone_trf.xform(Vector3(0.1f, 0.0, 0.0));
-			Vector3 y = bone_trf.xform(Vector3(0.0f, 0.1, 0.0));
-			Vector3 z = bone_trf.xform(Vector3(0.0f, 0.0, 0.1));
+	for (int i = 0; i < 2; i++) {
+		Transform3D bone_trf = get_skeleton()->get_global_transform() * get_skeleton()->get_bone_global_pose(get_skeleton()->find_bone(bones[i]));
+		Vector3 origin = bone_trf.origin;
+		Vector3 x = bone_trf.xform(Vector3(0.1f, 0.0, 0.0));
+		Vector3 y = bone_trf.xform(Vector3(0.0f, 0.1, 0.0));
+		Vector3 z = bone_trf.xform(Vector3(0.0f, 0.0, 0.1));
 
-			debug_draw_line(origin, x, Color("Red"));
-			debug_draw_line(origin, y, Color("Green"));
-			debug_draw_line(origin, z, Color("Blue"));
+		debug_draw_line(origin, x, Color("Red"));
+		debug_draw_line(origin, y, Color("Green"));
+		debug_draw_line(origin, z, Color("Blue"));
+	}
+
+	Node3D *gn = get_graphics_node();
+	Vector3 movement_input = agent->get_desired_movement_input_transformed();
+	if (gn && movement_input.length() > 0.0f) {
+		Vector3 forward = gn->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
+		forward.y = 0.0f;
+		forward.normalize();
+
+		float turn_threshold = Math::deg_to_rad(agent->get_agent_constants()->get_turn_animation_threshold_degrees());
+		if (movement_input.angle_to(forward) > turn_threshold && agent->get_linear_velocity().length() < 0.1f) {
+			//state_machine->transition_to("Turn");
 		}
 
-		Node3D *gn = get_graphics_node();
-		Vector3 movement_input = agent->get_desired_movement_input_transformed();
-		if (gn && movement_input.length() > 0.0f) {
-			Vector3 forward = gn->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
-			forward.y = 0.0f;
-			forward.normalize();
+		PhysicsDirectSpaceState3D *dss = agent->get_world_3d()->get_direct_space_state();
+		PhysicsDirectSpaceState3D::ShapeParameters shape_params;
+		shape_params.collide_with_areas = true;
+		shape_params.collide_with_bodies = false;
+		shape_params.collision_mask = HBPhysicsLayers::LAYER_PARKOUR_NODES;
+		Ref<Shape3D> col_shape = agent->get_collision_shape();
+		shape_params.shape_rid = col_shape->get_rid();
+		shape_params.transform.origin = agent->get_global_position();
 
-			float turn_threshold = Math::deg_to_rad(agent->get_agent_constants()->get_turn_animation_threshold_degrees());
-			if (movement_input.angle_to(forward) > turn_threshold && agent->get_linear_velocity().length() < 0.1f) {
-				//state_machine->transition_to("Turn");
+		Vector<PhysicsDirectSpaceState3D::ShapeResult> results;
+		results.resize(32);
+
+		int result_count = dss->intersect_shape(shape_params, results.ptrw(), 32);
+		for (int i = 0; i < result_count; i++) {
+			HBAgentParkourBeam *beam = Object::cast_to<HBAgentParkourBeam>(results[i].collider);
+			if (!beam) {
+				continue;
 			}
+
+			Ref<Curve3D> curve = beam->get_curve();
+			if (!curve.is_valid()) {
+				continue;
+			}
+
+			float offset = curve->get_closest_offset(beam->to_local(agent->get_global_position()));
+
+			Transform3D curve_sample = curve->sample_baked_with_rotation(offset);
+			curve_sample = beam->get_global_transform() * curve_sample;
+
+			Vector3 curve_forward = curve_sample.basis.xform(Vector3(0.0f, 0.0f, -1.0f));
+			curve_forward.y = 0.0f;
+			curve_forward.normalize();
+			if (!curve_forward.is_normalized()) {
+				continue;
+			}
+			debug_draw_sphere(curve_sample.origin);
+			//if (movement_input.angle_to(curve_forward) > Math::deg_to_rad(90.0f) && movement_input.angle_to(-curve_forward) > Math::deg_to_rad(90.0f)) {
+			if (movement_input.angle_to(get_agent()->get_global_position().direction_to(curve_sample.origin)) > Math::deg_to_rad(90.0f)) {
+				continue;
+			}
+
+			Dictionary dict;
+			dict[HBAgentParkourBeamWalk::ParkourBeamWalkParams::PARAM_BEAM_NODE] = beam;
+			dict[HBAgentParkourBeamWalk::ParkourBeamWalkParams::PARAM_PREV_POSITION] = agent->get_previous_position();
+			state_machine->transition_to("ParkourBeamWalk", dict);
 		}
 	}
 }
@@ -2461,4 +2506,84 @@ void HBAgentParkourAutoJumpState::physics_process(float p_delta) {
 	if (time == autojump_data.parabola_t_max) {
 		state_machine->transition_to("Move");
 	}
+}
+
+void HBAgentParkourBeamWalk::enter(const Dictionary &p_args) {
+	beam = Object::cast_to<HBAgentParkourBeam>(p_args.get(PARAM_BEAM_NODE, Variant()));
+	Vector3 prev_position = p_args.get(PARAM_PREV_POSITION, Variant());
+
+	DEV_ASSERT(beam != nullptr);
+	DEV_ASSERT(beam->get_curve().is_valid());
+
+	curve_offset = beam->get_curve()->get_closest_offset(beam->to_local(get_agent()->get_global_position()));
+
+	Transform3D global_curve_trf = beam->get_global_transform() * beam->get_curve()->sample_baked_with_rotation(curve_offset);
+	Vector3 global_curve_point = global_curve_trf.origin;
+
+	pos_inertializer = pos_inertializer->create(prev_position, get_agent()->get_global_position(), global_curve_point, 1.0f, get_process_delta_time());
+	agent_global_position = global_curve_point;
+	offset_accel = 0.0f;
+	offset_vel = get_agent()->get_velocity().dot(global_curve_trf.basis.xform(Vector3(0.0f, 0.0f, -1.0f)));
+	get_agent()->set_movement_mode(HBAgent::MOVE_MANUAL);
+}
+
+static int cock = 0;
+
+void HBAgentParkourBeamWalk::physics_process(float p_delta) {
+	cock++;
+	if (cock % 100 == 0) {
+		debug_draw_clear();
+	}
+
+	curve_offset += offset_vel * p_delta;
+	float clamped_offset = CLAMP(curve_offset, 0.0f, beam->get_curve()->get_baked_length());
+	Vector3 movement_input = get_agent()->get_desired_movement_input_transformed();
+
+	float desired_velocity = 0.0f;
+
+	Transform3D curr_position_trf = beam->get_curve()->sample_baked_with_rotation(clamped_offset);
+	curr_position_trf = beam->get_global_transform() * curr_position_trf;
+	Vector3 forward = curr_position_trf.basis.xform(Vector3(0.0f, 0.0f, -1.0f));
+	if (movement_input.length_squared() > 0) {
+		forward.y = 0.0f;
+		forward.normalize();
+		Vector3 movement_dir = movement_input.normalized();
+		if (movement_dir.angle_to(forward) < Math::deg_to_rad(45.0f) || movement_dir.angle_to(-forward) < Math::deg_to_rad(45.0f)) {
+			desired_velocity = SIGN(movement_dir.dot(forward));
+		}
+	}
+
+	Node3D *gn = get_graphics_node();
+
+	HBSprings::velocity_spring(
+			&offset_vel,
+			&offset_accel,
+			desired_velocity * get_agent()->get_agent_constants()->get_max_move_velocity() * movement_input.length(),
+			get_agent()->get_agent_constants()->get_velocity_spring_halflife(),
+			p_delta);
+
+	if (curve_offset != clamped_offset) {
+		curve_offset = clamped_offset;
+		state_machine->transition_to("Move");
+		return;
+	}
+	Vector3 prev_agent_pos = agent_global_position;
+	agent_global_position = beam->get_global_transform().xform(beam->get_curve()->sample_baked(curve_offset));
+
+	Vector3 curr_agent_pos = agent_global_position;
+	if (!pos_inertializer->is_done()) {
+		curr_agent_pos += pos_inertializer->advance(p_delta);
+	}
+
+	Transform3D global_gn_trf = gn->get_global_transform();
+	Vector3 rot_forward = curr_position_trf.basis.xform(Vector3(0.0f, 0.0f, -1.0f));
+	rot_forward.y = 0.0f;
+	rot_forward.normalize();
+	if (rot_forward.is_normalized()) {
+		global_gn_trf.basis = Quaternion(Vector3(0.0f, 0.0f, -1.0f), rot_forward * SIGN(offset_vel));
+		gn->set_global_transform(global_gn_trf);
+	}
+
+	get_agent()->set_velocity((agent_global_position - prev_agent_pos) / p_delta);
+	get_agent()->set_global_position(curr_agent_pos);
 }

@@ -3,6 +3,7 @@ def can_build(env, platform):
         env.module_add_dependencies("game", ["imgui"])
     env.module_add_dependencies("game", ["tracy"])
     env.module_add_dependencies("game", ["steamworks"])
+    env.module_add_dependencies("game", ["tbloader"])
     return platform == "windows" or platform == "linuxbsd"
 
 

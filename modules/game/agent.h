@@ -39,6 +39,7 @@ private:
 	InputState prev_input_state;
 
 	Vector3 smoothed_accel = Vector3(0.0, 0.0, 0.0);
+	Vector3 prev_position;
 
 	NavigationAgent3D *navigation_agent;
 	MovementMode movement_mode = MovementMode::MOVE_GROUNDED;
@@ -99,6 +100,7 @@ public:
 	MovementMode get_movement_mode() const;
 	NodePath get_epas_controller_node() const;
 	void set_epas_controller_node(const NodePath &p_epas_controller_node);
+	Vector3 get_previous_position() const;
 
 	Ref<HBAgentConstants> get_agent_constants() const;
 	void set_agent_constants(const Ref<HBAgentConstants> &p_agent_constants);

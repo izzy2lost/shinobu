@@ -23,8 +23,7 @@
 #include "modules/input_glyphs/input_glyphs_singleton.h"
 #include "modules/input_glyphs/input_glyphs_source.h"
 
-HBGameMainLoop::HBGameMainLoop() :
-		SceneTree() {
+HBGameMainLoop::HBGameMainLoop() {
 	imgui_module_post_init();
 #ifdef MODULE_STEAMWORKS_ENABLED
 	Steamworks::get_singleton()->init(1216230);

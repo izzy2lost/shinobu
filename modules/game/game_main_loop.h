@@ -4,6 +4,7 @@
 #include "scene/main/scene_tree.h"
 
 class HBGameMainLoop : public SceneTree {
+	_THREAD_SAFE_CLASS_
 	GDCLASS(HBGameMainLoop, SceneTree);
 
 	virtual void initialize() override;

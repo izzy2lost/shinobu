@@ -3,13 +3,16 @@
 
 #include "agent.h"
 #include "debug_geometry.h"
+#include "modules/tbloader/src/tb_loader_singleton.h"
 #include "physics_layers.h"
+#include "scene/3d/area_3d.h"
 #include "scene/3d/collision_shape_3d.h"
+#include "scene/3d/path_3d.h"
 #include "scene/3d/physics_body_3d.h"
 #include "scene/resources/box_shape_3d.h"
 #include "scene/resources/sphere_shape_3d.h"
 
-class HBAgentParkourPoint : public StaticBody3D {
+class HBAgentParkourPoint : public StaticBody3D, public TBLoaderEntity {
 	GDCLASS(HBAgentParkourPoint, StaticBody3D);
 	bool collision_shape_dirty = true;
 	Ref<SphereShape3D> shape;
@@ -21,6 +24,33 @@ protected:
 
 public:
 	HBAgentParkourPoint();
+	static StringName get_entity_name() {
+		return "func_parkour_point";
+	}
+};
+
+class HBAgentParkourBeam : public Area3D, public TBLoaderEntity {
+	GDCLASS(HBAgentParkourBeam, Area3D);
+	Ref<Curve3D> curve;
+
+	MeshInstance3D *debug_preview = nullptr;
+	bool line_redraw_queued = false;
+	void _line_redraw();
+
+protected:
+	static void _bind_methods();
+	void _notification(int p_what);
+
+public:
+	virtual void _editor_build(const EntityCompileInfo &p_info, const HashMap<StringName, EntityCompileInfo> &p_entities) override;
+	void set_curve(Ref<Curve3D> p_curve);
+	Ref<Curve3D> get_curve() const;
+	void _queue_line_redraw();
+	static StringName get_entity_name() {
+		return "func_parkour_beam";
+	}
+
+	HBAgentParkourBeam();
 };
 
 namespace ParkourAutojump {

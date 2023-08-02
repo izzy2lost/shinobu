@@ -131,7 +131,6 @@ void HBAgent::_rotate_towards_velocity(float p_delta) {
 
 			rot_inertializer = RotationInertializer::create(last_last_rotation, last_rotation, target_rot, 0.2, p_delta);
 			inertialization_target = target_rot;
-			print_line("INERTIALIZE");
 		}
 	}
 
@@ -234,6 +233,7 @@ void HBAgent::_tilt_towards_acceleration(float p_delta) {
 void HBAgent::_physics_process(float p_delta) {
 	Vector3 vel = get_velocity();
 	ERR_FAIL_COND(!agent_constants.is_valid());
+	prev_position = get_global_position();
 	switch (movement_mode) {
 		case MovementMode::MOVE_FALL: {
 			vel += agent_constants->get_gravity() * p_delta;
@@ -388,6 +388,7 @@ void HBAgent::set_movement_mode(MovementMode p_movement_mode) {
 			// HACK-ish, should probably inertialize this
 			_get_tilt_node()->set_transform(Transform3D());
 		}
+		velocity_spring_acceleration = Vector3();
 	}
 	movement_mode = p_movement_mode;
 }
@@ -403,6 +404,10 @@ NodePath HBAgent::get_epas_controller_node() const {
 void HBAgent::set_epas_controller_node(const NodePath &p_epas_controller_node) {
 	epas_controller_node = p_epas_controller_node;
 	_update_epas_controller_cache();
+}
+
+Vector3 HBAgent::get_previous_position() const {
+	return prev_position;
 }
 
 void HBAgent::_notification(int p_what) {

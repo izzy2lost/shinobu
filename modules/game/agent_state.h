@@ -421,4 +421,22 @@ public:
 	virtual void physics_process(float p_delta) override;
 };
 
+class HBAgentParkourBeamWalk : public HBAgentState {
+	GDCLASS(HBAgentParkourBeamWalk, HBAgentState);
+	HBAgentParkourBeam *beam = nullptr;
+	Ref<PositionInertializer> pos_inertializer;
+
+public:
+	enum ParkourBeamWalkParams {
+		PARAM_BEAM_NODE,
+		PARAM_PREV_POSITION
+	};
+	float curve_offset = 0.0f;
+	float offset_accel = 0.0f;
+	float offset_vel = 0.0f;
+	Vector3 agent_global_position;
+	virtual void enter(const Dictionary &p_args) override;
+	virtual void physics_process(float p_delta) override;
+};
+
 #endif // AGENT_STATE_H
