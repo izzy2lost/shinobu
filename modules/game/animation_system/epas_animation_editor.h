@@ -18,6 +18,15 @@
 #include "scene/3d/skeleton_3d.h"
 #include "scene/gui/file_dialog.h"
 
+class EPASAnimationCurvesEditor : public RefCounted {
+	GDCLASS(EPASAnimationCurvesEditor, RefCounted);
+	StringName current_curve;
+	bool open = true;
+
+public:
+	void draw(Ref<EPASAnimation> p_animation, float p_playback_position);
+};
+
 class EPASAnimationEditorIKJoint : public Resource {
 	GDCLASS(EPASAnimationEditorIKJoint, Resource);
 	String ik_tip_bone_name;
@@ -134,11 +143,12 @@ private:
 
 	Vector<ImGui::FrameIndexType> kf_selection;
 
-	int editing_selection_handle = -1;
+	Vector<int> editing_selection_handles;
 
 	EPASController *epas_controller;
 	Ref<EPASAnimationNode> epas_animation_node;
 	Ref<Font> label_font;
+	Ref<EPASAnimationCurvesEditor> curves_editor;
 	int currently_hovered_selection_handle = -1;
 
 	struct ui_info_t {
@@ -156,12 +166,12 @@ private:
 	void _remove_keyframe(Ref<EPASKeyframe> p_keyframe);
 	void _rebuild_keyframe_cache();
 	void _draw_ui();
-	void _draw_bone_positions();
+	void _draw_bone_positions(bool p_selected_only);
 	void _update_editing_handle_trf();
 	void _world_to_bone_trf(int p_bone_idx, const float *p_world_trf, Transform3D &p_out);
 	void _set_frame_time(int p_frame_idx, int32_t p_frame_time);
 	void _create_eirteam_humanoid_ik();
-	void _apply_handle_transform(ImGuizmo::OPERATION p_operation);
+	void _apply_handle_transform(ImGuizmo::OPERATION p_operation, PackedFloat32Array p_delta = PackedFloat32Array());
 	void _apply_constraints();
 	bool _is_playing();
 	void _show_error(const String &error);

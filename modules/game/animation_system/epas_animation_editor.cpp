@@ -5,6 +5,8 @@
 #include "core/math/color.h"
 #include "core/object/callable_method_pointer.h"
 #include "core/os/memory.h"
+#include "editor/editor_settings.h"
+#include "editor/plugins/curve_editor_plugin.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "imgui_neo_sequencer.h"
@@ -43,6 +45,9 @@ void EPASAnimationEditor::_notification(int p_what) {
 			}
 
 			_draw_ui();
+			if (current_animation.is_valid()) {
+				curves_editor->draw(current_animation, epas_animation_node->get_time() / current_animation->get_length());
+			}
 			if (!_is_playing()) {
 				epas_animation_node->seek(current_frame / (float)FPS);
 			}
@@ -51,17 +56,24 @@ void EPASAnimationEditor::_notification(int p_what) {
 			selection_handle_dots->hide();
 			if (Input::get_singleton()->is_key_pressed(Key::CTRL)) {
 				selection_handle_dots->show();
-				_draw_bone_positions();
+				_draw_bone_positions(false);
+			} else if (editing_selection_handles.size() > 0) {
+				selection_handle_dots->show();
+				_draw_bone_positions(true);
 			}
 		} break;
 	}
 }
 
-void EPASAnimationEditor::_draw_bone_positions() {
+void EPASAnimationEditor::_draw_bone_positions(bool p_selected_only) {
 	Camera3D *cam = get_viewport()->get_camera_3d();
 
+	if (p_selected_only && editing_selection_handles.size() == 0) {
+		return;
+	}
+
 	if (cam && editing_skeleton && get_current_pose().is_valid()) {
-		if (selection_handles.size() == 0) {
+		if (selection_handles.size() == 0 && !p_selected_only) {
 			return;
 		}
 		HashMap<int, Vector2> handles_screen_position;
@@ -71,6 +83,9 @@ void EPASAnimationEditor::_draw_bone_positions() {
 		Vector2 closest_handle_scr_pos;
 		for (int i = 0; i < selection_handles.size(); i++) {
 			Vector3 handle_pos;
+			if (p_selected_only && !editing_selection_handles.has(i)) {
+				continue;
+			}
 			if (selection_handles[i]->hidden || !ui_info.group_visibility[selection_handles[i]->group]) {
 				continue;
 			}
@@ -114,6 +129,9 @@ void EPASAnimationEditor::_draw_bone_positions() {
 			String handle_name;
 			Color handle_color = color_unlit;
 			Ref<Selection> handle = selection_handles[pair.key];
+			if (p_selected_only && !editing_selection_handles.has(pair.key)) {
+				continue;
+			}
 			switch (selection_handles[pair.key]->type) {
 				case Selection::FK_BONE: {
 					handle_name = editing_skeleton->get_bone_name(selection_handles[pair.key]->bone_idx);
@@ -138,7 +156,7 @@ void EPASAnimationEditor::_draw_bone_positions() {
 				} break;
 			}
 
-			if (pair.key == closest_handle) {
+			if (pair.key == closest_handle || p_selected_only) {
 				// Hovered handles get their own color
 				Vector2 label_pos = pair.value + Vector2(10.0, 0.0);
 				draw_string(label_font, label_pos + Vector2(2.0, 2.0), handle_name, HORIZONTAL_ALIGNMENT_LEFT, -1, Font::DEFAULT_FONT_SIZE, Color());
@@ -463,6 +481,17 @@ void EPASAnimationEditor::_draw_ui() {
 			ImGui::EndMenu();
 		}
 		if (ImGui::BeginMenu("Tools")) {
+			if (ImGui::MenuItem("Run test map")) {
+				Ref<PackedScene> test_map = ResourceLoader::load("res://test2.tscn");
+				if (test_map.is_valid()) {
+					get_viewport()->set_embedding_subwindows(false);
+					Window *new_window = memnew(Window);
+					new_window->set_use_own_world_3d(true);
+					new_window->add_child(test_map->instantiate());
+					new_window->set_size(Vector2i(1280, 720));
+					add_child(new_window);
+				}
+			}
 			if (ImGui::MenuItem("Flip pose")) {
 				Ref<EPASPose> current_pose = get_current_pose();
 				if (current_pose.is_valid()) {
@@ -720,8 +749,8 @@ void EPASAnimationEditor::_draw_ui() {
 	ImGui::End();
 
 	if (ImGui::Begin("Inspector")) {
-		if (editing_selection_handle != -1 && get_current_pose().is_valid()) {
-			const Ref<Selection> selection_handle = selection_handles[editing_selection_handle];
+		if (editing_selection_handles.size() > 0 && get_current_pose().is_valid()) {
+			const Ref<Selection> selection_handle = selection_handles[editing_selection_handles[0]];
 			if (selection_handle.is_valid()) {
 				Transform3D handle_trf;
 				HBTransformConversions::mat_to_trf(current_handle_trf_matrix.ptr(), handle_trf);
@@ -973,13 +1002,14 @@ void EPASAnimationEditor::_draw_ui() {
 		HBTransformConversions::proj_to_mat(proj, projection_matrix.ptrw());
 
 		ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
-		if (editing_selection_handle != -1) {
-			const Ref<Selection> selection_handle = selection_handles[editing_selection_handle];
-			manipulated = ImGuizmo::Manipulate(view_matrix.ptr(), projection_matrix.ptr(), guizmo_operation, guizmo_mode, current_handle_trf_matrix.ptrw());
-			Transform3D trf;
-			HBTransformConversions::mat_to_trf(current_handle_trf_matrix.ptr(), trf);
+		if (editing_selection_handles.size() > 0) {
+			const Ref<Selection> selection_handle = selection_handles[editing_selection_handles[0]];
+			PackedFloat32Array trf_delta = current_handle_trf_matrix.duplicate();
+			Transform3D trf_original;
+			HBTransformConversions::mat_to_trf(current_handle_trf_matrix.ptr(), trf_original);
+			manipulated = ImGuizmo::Manipulate(view_matrix.ptr(), projection_matrix.ptr(), guizmo_operation, guizmo_mode, current_handle_trf_matrix.ptrw(), trf_delta.ptrw());
 			if (manipulated || ImGuizmo::IsUsing()) {
-				_apply_handle_transform(guizmo_operation);
+				_apply_handle_transform(guizmo_operation, trf_delta);
 			}
 			was_using_gizmo = ImGuizmo::IsUsing();
 		}
@@ -1031,71 +1061,86 @@ void EPASAnimationEditor::_draw_ui() {
 	}
 }
 
-void EPASAnimationEditor::_apply_handle_transform(ImGuizmo::OPERATION p_operation) {
-	// Apply the handle transform based on the user's input, after the user is done use
-	Ref<Selection> selection_handle = selection_handles[editing_selection_handle];
+void EPASAnimationEditor::_apply_handle_transform(ImGuizmo::OPERATION p_operation, PackedFloat32Array p_delta) {
+	// Commit current imguizmo transform to undo_redo
+	if (editing_selection_handles.size() == 0) {
+		return;
+	}
+	bool created_action = false;
 	Ref<EPASPose> current_pose = get_current_pose();
 	ERR_FAIL_COND(!current_pose.is_valid());
+	// Apply the handle transform based on the user's input
+	for (int handle_i : editing_selection_handles) {
+		Ref<Selection> selection_handle = selection_handles[handle_i];
+		// Handle bone trf
+		if (selection_handle->type == Selection::SelectionType::IK_HANDLE || selection_handle->type == Selection::SelectionType::FK_BONE) {
+			// No need to get fancy since both fk_bone_idx and ik_bone_idx are ints
+			int editing_bone = selection_handle->bone_idx;
+			StringName bone_name = editing_skeleton->get_bone_name(editing_bone);
+			Transform3D new_bone_trf;
+			Transform3D old_bone_trf = editing_skeleton->get_bone_pose(editing_bone);
+			_world_to_bone_trf(editing_bone, current_handle_trf_matrix.ptr(), new_bone_trf);
+			if (p_delta.size() == 16) {
+				Transform3D trf_delta;
+				HBTransformConversions::mat_to_trf(p_delta.ptr(), trf_delta);
+				Transform3D old_bone_global = editing_skeleton->get_global_transform() * editing_skeleton->get_bone_global_pose(editing_bone);
+				new_bone_trf = trf_delta * old_bone_global;
+				PackedFloat32Array r;
+				r.resize(16);
+				HBTransformConversions::trf_to_mat(new_bone_trf, r.ptrw());
+				_world_to_bone_trf(editing_bone, r.ptr(), new_bone_trf);
+			}
 
-	// Commit current imguizmo transform to undo_redo
-	if (editing_selection_handle == -1) {
-		return;
+			if (!current_pose->has_bone(bone_name)) {
+				current_pose->create_bone(bone_name);
+			}
+			String action_template = "%s bone %s";
+			switch (p_operation) {
+				case ImGuizmo::TRANSLATE: {
+					if (!created_action) {
+						undo_redo->create_action(vformat(action_template, "Translate", bone_name), UndoRedo::MERGE_ENDS);
+					}
+					created_action = true;
+					undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_position).bind(bone_name, new_bone_trf.origin));
+					undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_position).bind(bone_name, old_bone_trf.origin));
+				} break;
+				case ImGuizmo::ROTATE: {
+					if (!created_action) {
+						undo_redo->create_action(vformat(action_template, "Rotate", bone_name), UndoRedo::MERGE_ENDS);
+					}
+					created_action = true;
+					undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_rotation).bind(bone_name, new_bone_trf.basis.get_rotation_quaternion()));
+					undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_rotation).bind(bone_name, old_bone_trf.basis.get_rotation_quaternion()));
+
+				} break;
+				case ImGuizmo::SCALE: {
+					created_action = true;
+					undo_redo->create_action(vformat(action_template, "Scale", bone_name), UndoRedo::MERGE_ENDS);
+					undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_scale).bind(bone_name, new_bone_trf.get_basis().get_scale()));
+					undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_scale).bind(bone_name, old_bone_trf.basis.get_scale()));
+				} break;
+				default: {
+				};
+			}
+		} else if (selection_handle->type == Selection::SelectionType::WARP_POINT) {
+			created_action = true;
+			Transform3D new_trf;
+			Transform3D prev_trf;
+			HBTransformConversions::mat_to_trf(current_handle_trf_matrix.ptr(), new_trf);
+			HBTransformConversions::mat_to_trf(prev_handle_trf_matrix.ptr(), prev_trf);
+			undo_redo->create_action("Change warp point transform", UndoRedo::MERGE_ENDS);
+			Ref<EPASWarpPoint> warp_point = selection_handle->warp_point;
+			undo_redo->add_do_method(callable_mp(warp_point.ptr(), &EPASWarpPoint::set_transform).bind(new_trf));
+			undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::queue_warp_point_sphere_update));
+			undo_redo->add_undo_method(callable_mp(warp_point.ptr(), &EPASWarpPoint::set_transform).bind(prev_trf));
+			undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::queue_warp_point_sphere_update));
+		}
 	}
 
 	if (!current_pose.is_valid()) {
 		return;
 	}
 
-	bool created_action = false;
-	// Handle bone trf
-	if (selection_handle->type == Selection::SelectionType::IK_HANDLE || selection_handle->type == Selection::SelectionType::FK_BONE) {
-		// No need to get fancy since both fk_bone_idx and ik_bone_idx are ints
-		int editing_bone = selection_handle->bone_idx;
-		StringName bone_name = editing_skeleton->get_bone_name(editing_bone);
-		Transform3D new_bone_trf;
-		Transform3D old_bone_trf;
-		_world_to_bone_trf(editing_bone, current_handle_trf_matrix.ptr(), new_bone_trf);
-		_world_to_bone_trf(editing_bone, prev_handle_trf_matrix.ptr(), old_bone_trf);
-		if (!current_pose->has_bone(bone_name)) {
-			current_pose->create_bone(bone_name);
-		}
-		String action_template = "%s bone %s";
-		switch (p_operation) {
-			case ImGuizmo::TRANSLATE: {
-				created_action = true;
-				undo_redo->create_action(vformat(action_template, "Translate", bone_name), UndoRedo::MERGE_ENDS);
-				undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_position).bind(bone_name, new_bone_trf.origin));
-				undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_position).bind(bone_name, old_bone_trf.origin));
-			} break;
-			case ImGuizmo::ROTATE: {
-				created_action = true;
-				undo_redo->create_action(vformat(action_template, "Rotate", bone_name), UndoRedo::MERGE_ENDS);
-				undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_rotation).bind(bone_name, new_bone_trf.basis.get_rotation_quaternion()));
-				undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_rotation).bind(bone_name, old_bone_trf.basis.get_rotation_quaternion()));
-
-			} break;
-			case ImGuizmo::SCALE: {
-				created_action = true;
-				undo_redo->create_action(vformat(action_template, "Scale", bone_name), UndoRedo::MERGE_ENDS);
-				undo_redo->add_do_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_scale).bind(bone_name, new_bone_trf.get_basis().get_scale()));
-				undo_redo->add_undo_method(callable_mp(current_pose.ptr(), &EPASPose::set_bone_scale).bind(bone_name, old_bone_trf.basis.get_scale()));
-			} break;
-			default: {
-			};
-		}
-	} else if (selection_handle->type == Selection::SelectionType::WARP_POINT) {
-		created_action = true;
-		Transform3D new_trf;
-		Transform3D prev_trf;
-		HBTransformConversions::mat_to_trf(current_handle_trf_matrix.ptr(), new_trf);
-		HBTransformConversions::mat_to_trf(prev_handle_trf_matrix.ptr(), prev_trf);
-		undo_redo->create_action("Change warp point transform", UndoRedo::MERGE_ENDS);
-		Ref<EPASWarpPoint> warp_point = selection_handle->warp_point;
-		undo_redo->add_do_method(callable_mp(warp_point.ptr(), &EPASWarpPoint::set_transform).bind(new_trf));
-		undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::queue_warp_point_sphere_update));
-		undo_redo->add_undo_method(callable_mp(warp_point.ptr(), &EPASWarpPoint::set_transform).bind(prev_trf));
-		undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::queue_warp_point_sphere_update));
-	}
 	if (created_action) {
 		undo_redo->add_do_method(callable_mp(epas_controller, &EPASController::advance).bind(0.0f));
 		undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_apply_constraints));
@@ -1255,9 +1300,9 @@ void EPASAnimationEditor::load_model(const String &path) {
 }
 
 void EPASAnimationEditor::_update_editing_handle_trf() {
-	if (editing_selection_handle != -1) {
+	if (editing_selection_handles.size() > 0) {
 		Transform3D handle_trf;
-		const Ref<Selection> handle = selection_handles[editing_selection_handle];
+		const Ref<Selection> handle = selection_handles[editing_selection_handles[0]];
 		switch (handle->type) {
 			case (Selection::SelectionType::IK_HANDLE):
 			case (Selection::SelectionType::FK_BONE): {
@@ -1301,13 +1346,17 @@ void EPASAnimationEditor::unhandled_input(const Ref<InputEvent> &p_event) {
 	if (bev.is_valid()) {
 		if (bev->get_button_index() == MouseButton::LEFT) {
 			if (!bev->is_pressed()) {
-				editing_selection_handle = -1;
-				if (Input::get_singleton()->is_key_pressed(Key::CTRL)) {
-					editing_selection_handle = currently_hovered_selection_handle;
-					if (editing_selection_handle != -1) {
-						_update_editing_handle_trf();
-						accept_event();
+				if (!Input::get_singleton()->is_key_pressed(Key::SHIFT)) {
+					editing_selection_handles.clear();
+				}
+				if (Input::get_singleton()->is_key_pressed(Key::CTRL) && currently_hovered_selection_handle != -1) {
+					if (editing_selection_handles.has(currently_hovered_selection_handle)) {
+						return;
 					}
+					editing_selection_handles.push_back(currently_hovered_selection_handle);
+					print_line(editing_selection_handles);
+					_update_editing_handle_trf();
+					accept_event();
 				}
 			}
 		}
@@ -1522,6 +1571,7 @@ EPASAnimationEditor::EPASAnimationEditor() {
 
 		undo_redo = memnew(UndoRedo);
 		set_animation(memnew(EPASAnimation));
+		curves_editor.instantiate();
 	}
 }
 
@@ -1533,6 +1583,139 @@ EPASAnimationEditor::~EPASAnimationEditor() {
 		memdelete(keyframe_cache[i]);
 	}
 	keyframe_cache.clear();
+}
+
+void EPASAnimationCurvesEditor::draw(Ref<EPASAnimation> p_animation, float p_playback_position) {
+	if (!p_animation.is_valid()) {
+		return;
+	}
+
+	if (!open) {
+		return;
+	}
+
+	HashMap<StringName, Ref<Curve>> curves = p_animation->get_animation_curves();
+
+	if (ImGui::Begin("Curves Editor", &open)) {
+		if (ImGui::BeginCombo("Curve", String(current_curve).utf8().get_data())) {
+			for (KeyValue<StringName, Ref<Curve>> kv : curves) {
+				if (ImGui::Selectable(String(kv.key).utf8().get_data())) {
+					current_curve = kv.key;
+				}
+			}
+			ImGui::EndCombo();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Add")) {
+			ImGui::OpenPopup("Create curve");
+		}
+
+		if (ImGui::BeginPopupModal("Create curve", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+			ImGui::TextUnformatted("Enter your new item's name.");
+			static char buf[200];
+			ImGui::InputText("##curvename", buf, 200);
+			if (ImGui::Button("Ok", ImVec2(ImGui::GetContentRegionAvail().x, 0))) {
+				Ref<Curve> crv;
+				crv.instantiate();
+				print_line("CREATING CURVE", buf);
+				p_animation->insert_animation_curve(String(buf), crv);
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::SetItemDefaultFocus();
+			ImGui::EndPopup();
+		}
+
+		if (!curves.has(current_curve)) {
+			ImGui::End();
+			return;
+		}
+
+		ImDrawList *dl = ImGui::GetWindowDrawList();
+		ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+		Ref<Curve> curve = curves[current_curve];
+		ImVec2 avail = ImGui::GetContentRegionAvail();
+		avail.y = 200.0f;
+		dl->AddRectFilled(cursor_pos, Vector2(cursor_pos) + Vector2(avail), IM_COL32_BLACK);
+		for (int i = 0; i < curve->get_point_count() - 1; i++) {
+			Vector2 p1 = curve->get_point_position(i);
+			Vector2 p4 = curve->get_point_position(i + 1);
+			float dst = p4.x - p1.x;
+			dst /= 3.0f;
+			Vector2 p2 = Vector2(p1.x + dst, p1.y + curve->get_point_right_tangent(i) * p1.y);
+			Vector2 p3 = Vector2(p4.x - dst, p4.y + curve->get_point_left_tangent(i + 1) * p4.y);
+
+			p1.y = 1.0f - p1.y;
+			p2.y = 1.0f - p2.y;
+			p3.y = 1.0f - p3.y;
+			p4.y = 1.0f - p4.y;
+
+			p1 *= avail;
+			p2 *= avail;
+			p3 *= avail;
+			p4 *= avail;
+
+			p1 += ImGui::GetCursorScreenPos();
+			p2 += ImGui::GetCursorScreenPos();
+			p3 += ImGui::GetCursorScreenPos();
+			p4 += ImGui::GetCursorScreenPos();
+
+			dl->AddBezierCubic(p1, p2, p3, p4, IM_COL32_WHITE, 1.0f);
+		}
+		dl->AddLine(
+				Vector2(cursor_pos) + Vector2(avail.x * p_playback_position, 0.0f),
+				Vector2(cursor_pos) + Vector2(avail.x * p_playback_position, avail.y),
+				IM_COL32(255, 165, 0, 255));
+		ImGui::Dummy(avail);
+		if (ImGui::BeginTable("Tables", 2, ImGuiTableFlags_Borders)) {
+			for (int i = 0; i < curve->get_point_count(); i++) {
+				ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
+				ImGui::TableNextColumn();
+				ImGui::Text("Point %d", i);
+
+				ImGui::PushID(i);
+				if (i != 0) {
+					ImGui::TableNextRow();
+					ImGui::TableNextColumn();
+					ImGui::TextUnformatted("Left tangent");
+					ImGui::TableNextColumn();
+					float left_tangent = curve->get_point_left_tangent(i);
+
+					if (ImGui::InputFloat("##LeftTangent", &left_tangent)) {
+						curve->set_point_left_tangent(i, left_tangent);
+					}
+				}
+
+				ImGui::TableNextRow();
+				ImGui::TableNextColumn();
+				ImGui::TextUnformatted("Position");
+				ImGui::TableNextColumn();
+				Vector2 position = curve->get_point_position(i);
+				float pos[2] = { position.x, position.y };
+				if (ImGui::InputFloat2("##position", pos)) {
+					curve->set_point_offset(i, pos[0]);
+					curve->set_point_value(i, pos[1]);
+				}
+
+				if (i != curve->get_point_count() - 1) {
+					ImGui::TableNextRow();
+					ImGui::TableNextColumn();
+					ImGui::TextUnformatted("Right tangent");
+					ImGui::TableNextColumn();
+					float right_tangent = curve->get_point_right_tangent(i);
+
+					if (ImGui::InputFloat("##RightTangent", &right_tangent)) {
+						curve->set_point_right_tangent(i, right_tangent);
+					}
+				}
+				ImGui::PopID();
+			}
+			ImGui::EndTable();
+		}
+		if (ImGui::Button("Add2")) {
+			curve->add_point(Vector2(p_playback_position, 0.0f));
+		}
+	}
+	ImGui::End();
 }
 
 #endif

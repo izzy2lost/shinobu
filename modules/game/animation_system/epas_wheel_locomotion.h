@@ -1,6 +1,8 @@
 #ifndef EPAS_WHEEL_LOCOMOTION_H
 #define EPAS_WHEEL_LOCOMOTION_H
 
+#include "../debug_geometry.h"
+#include "../fabrik/fabrik.h"
 #include "epas_animation.h"
 #include "epas_node.h"
 #include "epas_pose.h"
@@ -11,6 +13,7 @@ class EPASWheelLocomotion : public EPASNode {
 	GDCLASS(EPASWheelLocomotion, EPASNode);
 
 public:
+	HBDebugGeometry *debug_geo = nullptr;
 	enum LocomotionSetType {
 		WHEEL,
 		CONSTANT_VELOCITY // used for idle pose that has a constant velocity
@@ -29,13 +32,37 @@ private:
 		float step_length = 1.0f;
 		float bounce_height = 0.0f;
 
-		void interpolate(float p_amount, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output) const {
+		struct FootInfo {
+			bool pinned = false;
+			bool has_pinned_trf = false;
+			Transform3D pinned_trf;
+		} foot_info[2];
+
+		void interpolate(float p_amount, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output, float p_feet_grounded[2]) const {
 			// p_amount can never *actually* be 1.0 since its fed by an fmodded value
 			// Remove this if we ever change that...
 			ERR_FAIL_COND(set_type == LocomotionSetType::WHEEL && p_amount >= 1.0);
 			if (animation.is_valid()) {
 				animation->interpolate(p_amount, p_base_pose, p_output, EPASAnimation::InterpolationMethod::BICUBIC_SPLINE);
 			}
+			p_feet_grounded[0] = 0.0f;
+			p_feet_grounded[1] = 0.0f;
+
+			if (!animation->has_animation_curve("left_ik_grounded") || !animation->has_animation_curve("right_ik_grounded")) {
+				return;
+			}
+
+			Ref<Curve> curve_left = animation->get_animation_curve("left_ik_grounded");
+			Ref<Curve> curve_right = animation->get_animation_curve("right_ik_grounded");
+
+			bool has_ik_curves = curve_left.is_valid() && curve_right.is_valid();
+
+			if (!has_ik_curves) {
+				return;
+			}
+
+			p_feet_grounded[0] = curve_left->sample(MIN(p_amount, 1.0f));
+			p_feet_grounded[1] = curve_right->sample(MIN(p_amount, 1.0f));
 		}
 	};
 	float current_step_length = 0.0;
@@ -54,6 +81,17 @@ private:
 	Vector3 linear_velocity;
 	void add_set(float p_step_length);
 	void _sort_sets();
+
+	StringName hip_bone_name;
+	struct FootIK {
+		StringName bone_name;
+		Transform3D out_ik_transform;
+		Vector3 out_ik_magnet_position;
+	} foot_ik[2];
+	bool use_foot_ik = false;
+	bool foot_ik_init = false;
+	void _ik_process_foot(LocomotionSet *p_loc_set, float p_foot_ik_grounded[2], Transform3D p_ankle_ik_targets[2], Transform3D p_ankle_pinned_ik_targets[2], const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose);
+	void _ik_process(LocomotionSet *p_loc_sets[2], float p_foot_ik_grounded[2][2], Ref<EPASPose> p_target_pose, Ref<EPASPose> p_second_pose, Ref<EPASPose> p_base_pose, float p_x);
 
 protected:
 	static void _bind_methods();
@@ -79,7 +117,22 @@ public:
 	StringName get_root_bone_name() const;
 	void set_root_bone_name(const StringName &p_root_bone_name);
 
+	StringName get_left_foot_bone_name() const;
+	void set_left_foot_bone_name(const StringName &p_left_foot_bone_name);
+	StringName get_right_foot_bone_name() const;
+	void set_right_foot_bone_name(const StringName &p_right_foot_bone_name);
+	bool get_use_foot_ik() const;
+	void set_use_foot_ik(bool p_use_foot_ik);
+	Transform3D get_left_foot_ik_target() const;
+	Transform3D get_right_foot_ik_target() const;
+	Vector3 get_left_foot_ik_magnet() const;
+	Vector3 get_right_foot_ik_magnet() const;
 	virtual ~EPASWheelLocomotion();
+
+	StringName get_hip_bone_name() const;
+	void set_hip_bone_name(const StringName &p_hip_bone_name);
+
+	EPASWheelLocomotion();
 
 	friend class EPASWheelVisualizer;
 };

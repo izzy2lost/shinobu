@@ -1,5 +1,4 @@
 #include "epas_softness_node.h"
-#include "../debug_geometry.h"
 #include "../springs.h"
 #ifdef DEBUG_ENABLED
 #include "implot.h"
@@ -56,17 +55,7 @@ float EPASSoftnessNode::get_influence() const {
 	return influence;
 }
 
-static HBDebugGeometry *debug_geo = nullptr;
-
 void EPASSoftnessNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) {
-	if (!debug_geo) {
-		debug_geo = memnew(HBDebugGeometry);
-		debug_geo->set_as_top_level(true);
-		debug_geo->hide();
-		get_skeleton()->add_child(debug_geo);
-		debug_geo->set_global_transform(Transform3D());
-	}
-	debug_geo->clear();
 	process_input_pose(0, p_base_pose, p_target_pose, p_delta);
 	/*if (influence <= 0.0f) {
 		return;
@@ -157,8 +146,6 @@ void EPASSoftnessNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPo
 			p_target_pose->create_bone(bone_name);
 		}
 		p_target_pose->set_bone_rotation(bone_name, parent_bone_trf.basis.inverse() * target_rotation);
-		debug_geo->debug_sphere(child_bone_trf.origin);
-		debug_geo->debug_sphere(kv.value.child_spring_position, 0.05f, Color("white"));
 		// Shuffle previous positions
 		kv.value.child_prev_positions[1] = kv.value.child_prev_positions[0];
 		kv.value.child_prev_positions[0] = child_bone_trf.origin;

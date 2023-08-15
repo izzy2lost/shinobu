@@ -1,5 +1,6 @@
 #include "register_types.h"
 
+#include "agent_string_names.h"
 #include "core/config/project_settings.h"
 
 #include "agent.h"
@@ -36,69 +37,77 @@
 #include "animation_system/epas_transition_node.h"
 #include "animation_system/epas_wheel_locomotion.h"
 
+AgentStringNames *agent_string_names = nullptr;
+
 void initialize_game_module(ModuleInitializationLevel p_level) {
-	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
-		GLOBAL_DEF("game/mouse_sensitivity", 175.0f);
-		GLOBAL_DEF("game/player/graphics_rotation_speed", 45.0f);
-		// Agent stuff
-		GDREGISTER_CLASS(HBAgent);
-		GDREGISTER_CLASS(HBAgentConstants);
-		GDREGISTER_CLASS(HBPlayerAgent);
-		GDREGISTER_CLASS(HBPlayerAgentController);
-		GDREGISTER_CLASS(HBAgentParkourPoint);
-		GDREGISTER_CLASS(HBAgentParkourBeam);
-		// Agent states
-		GDREGISTER_ABSTRACT_CLASS(HBAgentState);
-		GDREGISTER_CLASS(HBAgentMoveState);
-		GDREGISTER_CLASS(HBAgentVaultState);
-		GDREGISTER_CLASS(HBAgentTurnState);
-		GDREGISTER_CLASS(HBAgentWallrunState);
-		GDREGISTER_CLASS(HBAgentWallGrabbedState);
-		GDREGISTER_CLASS(HBAgentFallState);
-		GDREGISTER_CLASS(HBAgentLedgeGetUpState);
-		GDREGISTER_CLASS(HBAgentWallParkourState);
-		GDREGISTER_CLASS(HBAgentParkourAutoJumpState);
-		GDREGISTER_CLASS(HBAgentParkourBeamWalk);
-		// State machine stuff
-		GDREGISTER_CLASS(HBStateMachine);
-		GDREGISTER_ABSTRACT_CLASS(HBStateMachineState);
-
-		GDREGISTER_CLASS(HBPlayerCameraArm);
-		GDREGISTER_CLASS(HBGameMainLoop);
-		// EPAS
-		GDREGISTER_CLASS(EPASPose);
-		GDREGISTER_ABSTRACT_CLASS(EPASNode);
-		GDREGISTER_CLASS(EPASBlendNode);
-		GDREGISTER_CLASS(EPASAddNode);
-		GDREGISTER_CLASS(EPASInertializationNode);
-		GDREGISTER_CLASS(EPASTransitionNode);
-		GDREGISTER_CLASS(EPASPoseNode);
-		GDREGISTER_CLASS(EPASWheelLocomotion);
-		GDREGISTER_CLASS(EPASWheelVisualizer);
-		GDREGISTER_CLASS(EPASController);
-		GDREGISTER_CLASS(EPASAnimation);
-		GDREGISTER_CLASS(EPASWarpPoint);
-		GDREGISTER_CLASS(EPASKeyframe);
-		GDREGISTER_CLASS(EPASAnimationNode);
-		GDREGISTER_CLASS(EPASOneshotAnimationNode);
-		GDREGISTER_CLASS(EPASOneshotAnimationNodeDebug);
-		GDREGISTER_CLASS(EPASSoftnessNode);
-		GDREGISTER_CLASS(EPASIKNode);
-		GDREGISTER_CLASS(FABRIKSolver);
-		GDREGISTER_CLASS(HBDebugGeometry);
-
-		TBLoaderSingleton::register_entity_type<HBAgentParkourPoint>();
-		TBLoaderSingleton::register_entity_type<HBAgentParkourBeam>();
-#ifdef DEBUG_ENABLED
-		GDREGISTER_CLASS(EPASAnimationEditor);
-		GDREGISTER_CLASS(EPASEditorGrid);
-		GDREGISTER_CLASS(EPASEditorCamera);
-#endif
+	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
+		return;
 	}
+	GLOBAL_DEF("game/mouse_sensitivity", 175.0f);
+	GLOBAL_DEF("game/player/graphics_rotation_speed", 45.0f);
+	// Agent stuff
+	GDREGISTER_CLASS(HBAgent);
+	GDREGISTER_CLASS(HBAgentConstants);
+	GDREGISTER_CLASS(HBPlayerAgent);
+	GDREGISTER_CLASS(HBPlayerAgentController);
+	GDREGISTER_CLASS(HBAgentParkourPoint);
+	GDREGISTER_CLASS(HBAgentParkourBeam);
+	// Agent states
+	GDREGISTER_ABSTRACT_CLASS(HBAgentState);
+	GDREGISTER_CLASS(HBAgentMoveState);
+	GDREGISTER_CLASS(HBAgentVaultState);
+	GDREGISTER_CLASS(HBAgentTurnState);
+	GDREGISTER_CLASS(HBAgentWallrunState);
+	GDREGISTER_CLASS(HBAgentLedgeGrabbedState);
+	GDREGISTER_CLASS(HBAgentFallState);
+	GDREGISTER_CLASS(HBAgentLedgeGetUpState);
+	GDREGISTER_CLASS(HBAgentWallParkourState);
+	GDREGISTER_CLASS(HBAgentParkourAutoJumpState);
+	GDREGISTER_CLASS(HBAgentParkourBeamWalk);
+	GDREGISTER_CLASS(HBAgentLedgeDropState);
+	// State machine stuff
+	GDREGISTER_CLASS(HBStateMachine);
+	GDREGISTER_ABSTRACT_CLASS(HBStateMachineState);
+
+	GDREGISTER_CLASS(HBPlayerCameraArm);
+	GDREGISTER_CLASS(HBGameMainLoop);
+	// EPAS
+	GDREGISTER_CLASS(EPASPose);
+	GDREGISTER_ABSTRACT_CLASS(EPASNode);
+	GDREGISTER_CLASS(EPASBlendNode);
+	GDREGISTER_CLASS(EPASAddNode);
+	GDREGISTER_CLASS(EPASInertializationNode);
+	GDREGISTER_CLASS(EPASTransitionNode);
+	GDREGISTER_CLASS(EPASPoseNode);
+	GDREGISTER_CLASS(EPASWheelLocomotion);
+	GDREGISTER_CLASS(EPASWheelVisualizer);
+	GDREGISTER_CLASS(EPASController);
+	GDREGISTER_CLASS(EPASAnimation);
+	GDREGISTER_CLASS(EPASWarpPoint);
+	GDREGISTER_CLASS(EPASKeyframe);
+	GDREGISTER_CLASS(EPASAnimationNode);
+	GDREGISTER_CLASS(EPASOneshotAnimationNode);
+	GDREGISTER_CLASS(EPASOneshotAnimationNodeDebug);
+	GDREGISTER_CLASS(EPASSoftnessNode);
+	GDREGISTER_CLASS(EPASIKNode);
+	GDREGISTER_CLASS(FABRIKSolver);
+	GDREGISTER_CLASS(HBDebugGeometry);
+
+	TBLoaderSingleton::register_entity_type<HBAgentParkourPoint>();
+	TBLoaderSingleton::register_entity_type<HBAgentParkourBeam>();
+#ifdef DEBUG_ENABLED
+	GDREGISTER_CLASS(EPASAnimationEditor);
+	GDREGISTER_CLASS(EPASEditorGrid);
+	GDREGISTER_CLASS(EPASEditorCamera);
+#endif
+	agent_string_names = memnew(AgentStringNames);
 }
 
 void uninitialize_game_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
+	}
+	if (agent_string_names) {
+		memdelete(agent_string_names);
 	}
 }

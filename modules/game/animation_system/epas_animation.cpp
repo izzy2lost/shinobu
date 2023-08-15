@@ -60,6 +60,26 @@ Array EPASAnimation::_get_warp_points() const {
 	return out;
 }
 
+void EPASAnimation::_set_animation_curves(const Dictionary &p_animation_curves) {
+	for (int i = 0; i < p_animation_curves.size(); i++) {
+		StringName key = p_animation_curves.keys()[i];
+		Ref<Curve> curve = p_animation_curves.get(key, Variant());
+		if (curve.is_valid()) {
+			animation_curves.insert(key, curve);
+		}
+	}
+}
+
+Dictionary EPASAnimation::_get_animation_curves() const {
+	Dictionary dict;
+
+	for (KeyValue<StringName, Ref<Curve>> kv : animation_curves) {
+		dict[kv.key] = kv.value;
+	}
+
+	return dict;
+}
+
 void EPASAnimation::_keyframe_time_changed() {
 	keyframe_order_dirty = true;
 	length_cache_dirty = true;
@@ -74,6 +94,10 @@ void EPASAnimation::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_set_warp_points", "warp_points"), &EPASAnimation::_set_warp_points);
 	ClassDB::bind_method(D_METHOD("_get_warp_points"), &EPASAnimation::_get_warp_points);
 	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "warp_points", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR | PROPERTY_USAGE_INTERNAL), "_set_warp_points", "_get_warp_points");
+
+	ClassDB::bind_method(D_METHOD("_set_animation_curves", "animation_curves"), &EPASAnimation::_set_animation_curves);
+	ClassDB::bind_method(D_METHOD("_get_animation_curves"), &EPASAnimation::_get_animation_curves);
+	ADD_PROPERTY(PropertyInfo(Variant::DICTIONARY, "animation_curves", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR | PROPERTY_USAGE_INTERNAL), "_set_animation_curves", "_get_animation_curves");
 
 	BIND_ENUM_CONSTANT(STEP);
 	BIND_ENUM_CONSTANT(LINEAR);
@@ -375,6 +399,24 @@ int EPASAnimation::find_warp_point(const StringName &p_name) const {
 		}
 	}
 	return wp_idx;
+}
+
+HashMap<StringName, Ref<Curve>> EPASAnimation::get_animation_curves() const {
+	return animation_curves;
+}
+
+void EPASAnimation::insert_animation_curve(StringName p_name, Ref<Curve> p_curve) {
+	animation_curves.insert(p_name, p_curve);
+}
+
+Ref<Curve> EPASAnimation::get_animation_curve(StringName p_curve_name) const {
+	const Ref<Curve> *curve_ptr = animation_curves.getptr(p_curve_name);
+	ERR_FAIL_COND_V_MSG(!curve_ptr, nullptr, vformat("Curve %s not found", p_curve_name));
+	return *curve_ptr;
+}
+
+bool EPASAnimation::has_animation_curve(StringName p_curve_name) const {
+	return animation_curves.has(p_curve_name);
 }
 
 void EPASAnimation::clear_keyframes() {

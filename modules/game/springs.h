@@ -5,6 +5,7 @@
 #include "core/math/transform_3d.h"
 #include "core/math/vector2.h"
 #include "core/math/vector3.h"
+#include "core/string/print_string.h"
 
 class HBSprings {
 public:
@@ -69,12 +70,21 @@ public:
 			float dt) {
 		float y = halflife_to_damping(halflife) / 2.0f;
 
-		Vector3 j0 = quat_to_scaled_angle_axis(x_goal.inverse() * x);
+		Quaternion goal = x_goal;
+
+		float dot = goal.dot(x);
+
+		if (dot < 0.0f) {
+			goal = -goal;
+		}
+
+		Vector3 j0 = quat_to_scaled_angle_axis(goal.inverse() * x);
 		Vector3 j1 = v + j0 * y;
 
 		float eydt = fast_negexp(y * dt);
 
-		x = x_goal * quat_from_scaled_angle_axis(eydt * (j0 + j1 * dt));
+		Quaternion q = quat_from_scaled_angle_axis(eydt * (j0 + j1 * dt));
+		x = goal * q;
 		v = eydt * (v - j1 * y * dt);
 	}
 

@@ -65,6 +65,7 @@ private:
 	int _get_skeleton_line_count(Skeleton3D *p_skel);
 	void _debug_update_skeleton_vis();
 #endif
+	TypedArray<StringName> ignored_bones;
 
 protected:
 	void _notification(int p_what);
@@ -83,6 +84,8 @@ public:
 	Ref<EPASNode> get_epas_node(const StringName &p_node_name) const;
 
 	Ref<EPASPose> get_output_pose() const;
+	void ignore_bones(const TypedArray<StringName> &p_bone_names);
+	void clear_ignored_bones();
 
 	EPASController();
 	~EPASController();

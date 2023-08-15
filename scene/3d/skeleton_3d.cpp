@@ -801,7 +801,7 @@ void _pb_start_simulation(const Skeleton3D *p_skeleton, Node *p_node, const Vect
 	if (pb) {
 		if (p_sim_bones.is_empty()) { // If no bones is specified, activate ragdoll on full body.
 			pb->set_simulate_physics(true);
-		} else {
+		} else if (p_sim_bones.has(pb->get_bone_id())) {
 			for (int i = p_sim_bones.size() - 1; 0 <= i; --i) {
 				if (p_sim_bones[i] == pb->get_bone_id() || p_skeleton->is_bone_parent_of(pb->get_bone_id(), p_sim_bones[i])) {
 					pb->set_simulate_physics(true);

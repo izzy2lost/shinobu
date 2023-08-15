@@ -13,8 +13,8 @@ Ref<StandardMaterial3D> HBDebugGeometry::get_debug_material() {
 		Ref<StandardMaterial3D> mat = debug_material_s->get_ref();
 		if (mat.is_valid()) {
 			debug_material = mat;
+			return debug_material;
 		}
-		return debug_material;
 	}
 
 	debug_material_s.instantiate();
@@ -168,6 +168,7 @@ void HBDebugGeometry::debug_sphere(const Vector3 &p_position, float p_radius, co
 		multi_mesh->set_instance_count(SPHERE_INSTANCE_COUNT);
 		multi_mesh->set_visible_instance_count(0);
 		current_group->sphere_multi_mesh->set_multimesh(multi_mesh);
+		print_line("DEBUG MAT", get_debug_material());
 		current_group->sphere_multi_mesh->set_material_override(get_debug_material());
 	}
 	Ref<MultiMesh> mm = current_group->sphere_multi_mesh->get_multimesh();

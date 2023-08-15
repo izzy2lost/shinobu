@@ -12,6 +12,23 @@ void EPASInertializationNode::start_inertialization(const Ref<EPASPose> &p_base_
 	poses.set(EPASPoseInertializer::InertializationPose::PREV_POSE, last_frame_pose);
 	poses.set(EPASPoseInertializer::InertializationPose::TARGET_POSE, p_target_pose);
 
+	Ref<EPASAnimation> polla;
+	polla.instantiate();
+	Ref<EPASKeyframe> kf1 = memnew(EPASKeyframe);
+	kf1->set_time(0.0f);
+	kf1->set_pose(p_target_pose);
+	Ref<EPASKeyframe> kf2 = memnew(EPASKeyframe);
+	kf2->set_time(0.5f);
+	kf2->set_pose(last_frame_pose);
+	Ref<EPASKeyframe> kf3 = memnew(EPASKeyframe);
+	kf3->set_time(1.0f);
+	kf3->set_pose(last_last_frame_pose);
+
+	polla->add_keyframe(kf1);
+	polla->add_keyframe(kf2);
+	polla->add_keyframe(kf3);
+	ResourceSaver::save(polla, "res://inertialization_dumped.tres");
+
 	pose_inertializer = EPASPoseInertializer::create(poses.ptr(), p_base_pose, desired_blend_time, p_delta, bone_filter);
 }
 
@@ -41,13 +58,6 @@ void EPASInertializationNode::process_node(const Ref<EPASPose> &p_base_pose, Ref
 		// Inertialization is all about going to a target pose, so we want to use the pose the user just set as
 		// our target, otherwise the transition will have a jump (if we apply an already existing inertialization step)
 		process_input_pose(0, p_base_pose, p_target_pose, p_delta);
-		Ref<EPASAnimation> polla;
-		polla.instantiate();
-		Ref<EPASKeyframe> kf;
-		kf.instantiate();
-		kf->set_pose(p_target_pose);
-		polla->add_keyframe(kf);
-		ResourceSaver::save(polla, "res://inertialization_dump.tres");
 		start_inertialization(p_base_pose, p_target_pose, p_delta);
 		inertialization_queued = false;
 		print_line(vformat("Fulfilled inertialization on frame %d", Engine::get_singleton()->get_frames_drawn()));

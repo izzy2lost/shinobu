@@ -28,12 +28,8 @@ struct AgentIKPose {
 	// Magnet positions, in skeleton space
 	Vector3 magnet_positions[AgentIKLimbType::LIMB_TYPE_MAX];
 	Transform3D actor_transform;
+	bool dangling[AgentIKLimbType::LIMB_TYPE_MAX];
 	bool valid = false;
-};
-
-struct AgentStateNames {
-	StringName move_state = StaticCString::create("Move");
-	StringName autojump = StaticCString::create("ParkourAutojump");
 };
 
 class HBAgentState : public HBStateMachineState {
@@ -45,7 +41,6 @@ class HBAgentState : public HBStateMachineState {
 	void _init_ui_settings_if_needed();
 
 protected:
-	AgentStateNames state_names;
 	void debug_draw_shape(Ref<Shape3D> p_shape, const Vector3 &p_position, const Color &p_color = Color());
 	void debug_draw_clear();
 	void debug_draw_raycast(const PhysicsDirectSpaceState3D::RayParameters &p_params, const Color &p_color = Color());
@@ -139,8 +134,8 @@ protected:
 	virtual void process(float p_delta) override;
 };
 
-class HBAgentWallGrabbedState : public HBAgentState {
-	GDCLASS(HBAgentWallGrabbedState, HBAgentState);
+class HBAgentLedgeGrabbedState : public HBAgentState {
+	GDCLASS(HBAgentLedgeGrabbedState, HBAgentState);
 
 public:
 	enum WallGrabbedParams {
@@ -179,6 +174,7 @@ private:
 		float start_time = 0.0f;
 		float end_time = 0.0f;
 		Color debug_color;
+		bool is_dangling = false;
 
 		float get_weight(float p_time) const {
 			if (p_time <= 0.0f || p_time >= 1.0f) {
@@ -207,6 +203,8 @@ private:
 	Vector3 limb_rotation_spring_velocity;
 	float limb_rotation_spring_halflife = 0.175;
 
+	bool inertialization_finished = false;
+
 	struct IKDebugInfo { // Debug graph info
 		bool ui_config_init = false;
 		static const int IK_OFFSET_PLOT_SIZE = 90;
@@ -227,10 +225,12 @@ private:
 
 	Transform3D _get_ledge_point_target_trf(const Transform3D &p_graphics_trf, const Vector3 &p_limb_position_world, const Vector3 &p_wall_normal) const;
 	bool _find_ledge(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_wall_normal, Vector3 &p_out_ledge_normal, const Color &p_debug_color) const;
+	bool _find_ledge_sweep(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_wall_normal, Vector3 &p_out_ledge_normal, const Color &p_debug_color, Vector3 p_sweep_offset, int p_sweep_iterations = 5) const;
 	bool _find_wall_point(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_normal, const Color &p_debug_color) const;
 	void _init_ik_points();
 	bool _handle_getup();
 	void _debug_init_settings();
+	bool _handle_transition_inputs();
 
 protected:
 	virtual void enter(const Dictionary &p_args) override;
@@ -250,8 +250,6 @@ public:
 	};
 	bool find_initial_pose(LedgeAgentIKPose &p_pose, const WallGrabbedStateInitialPoseParams &p_params) const;
 	Vector3 calculate_animation_root_offset();
-	Transform3D get_limb_ledge_point_trf(int p_limb_i, Transform3D p_ledge_trf, Transform3D p_target_agent_transform) const;
-
 	Transform3D _get_limb_ik_target_trf(const Transform3D &p_graphics_trf, const Transform3D &p_ledge_trf, const Transform3D &p_bone_base_trf, const Vector3 &p_bone_offset) const;
 };
 
@@ -269,6 +267,14 @@ class HBAgentLedgeGetUpState : public HBAgentState {
 	Vector3 prev_position;
 
 	void _on_animation_finished();
+	StringName target_state;
+	Dictionary target_state_args;
+
+public:
+	enum LedgeGetUpParams {
+		TARGET_STATE,
+		TARGET_STATE_ARGS
+	};
 
 protected:
 	void enter(const Dictionary &p_args) override;
@@ -432,11 +438,30 @@ public:
 		PARAM_PREV_POSITION
 	};
 	float curve_offset = 0.0f;
-	float offset_accel = 0.0f;
-	float offset_vel = 0.0f;
 	Vector3 agent_global_position;
 	virtual void enter(const Dictionary &p_args) override;
 	virtual void physics_process(float p_delta) override;
+
+	bool try_ledge_drop();
+
+	Vector3 rotation_spring_vel;
+	Quaternion rotation_spring_goal;
+
+	Vector3 velocity_spring_accel;
+	Vector3 velocity_spring_vel;
+};
+
+class HBAgentLedgeDropState : public HBAgentState {
+	GDCLASS(HBAgentLedgeDropState, HBAgentState);
+	Transform3D ledge_trf;
+	Ref<EPASOneshotAnimationNode> animation_node;
+
+public:
+	enum LedgeDropParams {
+		PARAM_EDGE
+	};
+	virtual void enter(const Dictionary &p_args) override;
+	virtual void process(float p_delta) override;
 };
 
 #endif // AGENT_STATE_H

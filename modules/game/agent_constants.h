@@ -42,7 +42,9 @@ public:
 		MOVEMENT_WALLGRABBED = 5,
 		MOVEMENT_FALL = 6,
 		MOVEMENT_LEDGE_GETUP = 7,
-		MOVEMENT_PARKOUR_CAT = 8
+		MOVEMENT_PARKOUR_CAT = 8,
+		MOVEMENT_MOVE_BEAM = 9,
+		MOVEMENT_LEDGE_DROP = 10,
 	};
 
 	float get_max_move_velocity() const;

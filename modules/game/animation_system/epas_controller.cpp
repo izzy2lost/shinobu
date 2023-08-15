@@ -94,7 +94,6 @@ void EPASController::_notification(int p_what) {
 			if (playback_process_mode != PlaybackProcessMode::IDLE) {
 				return;
 			}
-			print_line("NORMAL PROCESS");
 			advance(get_process_delta_time());
 		} break;
 	}
@@ -254,7 +253,9 @@ void EPASController::advance(float p_amount) {
 
 	for (int i = 0; i < skel->get_bone_count(); i++) {
 		StringName bone_name = skel->get_bone_name(i);
-
+		if (ignored_bones.has(bone_name)) {
+			continue;
+		}
 		if (!output_pose->has_bone(bone_name)) {
 			skel->set_bone_pose_position(i, base_pose->get_bone_position(bone_name));
 			skel->set_bone_pose_rotation(i, base_pose->get_bone_rotation(bone_name));
@@ -299,6 +300,14 @@ Ref<EPASNode> EPASController::get_epas_node(const StringName &p_node_name) const
 
 Ref<EPASPose> EPASController::get_output_pose() const {
 	return output_pose;
+}
+
+void EPASController::ignore_bones(const TypedArray<StringName> &p_bone_names) {
+	ignored_bones.append_array(p_bone_names);
+}
+
+void EPASController::clear_ignored_bones() {
+	ignored_bones.clear();
 }
 
 void EPASController::_bind_methods() {

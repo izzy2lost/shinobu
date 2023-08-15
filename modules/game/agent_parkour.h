@@ -142,8 +142,6 @@ static AgentParkourAutojumpData find_autojump_grounded(HBAgent *p_agent, Vector3
 	jump_data.parabola_initial_velocity = delta_p / t_low_energy - gravity_accel * t_low_energy / 2.0f;
 	jump_data.parabola_accel = gravity_accel;
 
-	print_line(jump_data.parabola_initial_velocity.length());
-
 	return jump_data;
 }
 }; //namespace ParkourAutojump

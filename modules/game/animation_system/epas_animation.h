@@ -93,9 +93,12 @@ class EPASAnimation : public Resource {
 	Array _get_keyframes() const;
 	void _set_warp_points(const Array &p_warp_points);
 	Array _get_warp_points() const;
+	void _set_animation_curves(const Dictionary &p_animation_curves);
+	Dictionary _get_animation_curves() const;
 	void _keyframe_time_changed();
 
 	Vector<Ref<EPASWarpPoint>> warp_points;
+	HashMap<StringName, Ref<Curve>> animation_curves;
 
 protected:
 	static void _bind_methods();
@@ -119,6 +122,10 @@ public:
 	int get_warp_point_count() const;
 	Ref<EPASWarpPoint> get_warp_point(int p_idx) const;
 	int find_warp_point(const StringName &p_name) const;
+	HashMap<StringName, Ref<Curve>> get_animation_curves() const;
+	void insert_animation_curve(StringName p_name, Ref<Curve> p_curve);
+	bool has_animation_curve(StringName p_curve_name) const;
+	Ref<Curve> get_animation_curve(StringName p_curve_name) const;
 	void clear_keyframes();
 };
 

@@ -22,7 +22,7 @@ if ARGUMENTS.get("game_shared", "no") == "yes":
     shared_lib = env_game.SharedLibrary(target="#bin/game", source=sources)
     shared_lib_shim = shared_lib[0].name.rsplit(".", 1)[0]
     env.Append(LIBPATH=["#bin"])
-    env.Append(LIBS=["libgame-linuxbsd-editor-dev-x86_64"])
+    env.Append(LIBS=["libgame.linuxbsd.editor.dev.x86_64"])
 else:
     env_game.add_source_files(module_obj, sources)
     env.modules_sources += module_obj

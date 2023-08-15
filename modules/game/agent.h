@@ -71,6 +71,12 @@ private:
 	void _tilt_towards_acceleration(float p_delta);
 
 	void _physics_process(float p_delta);
+	bool _find_void(Vector3 p_desired_velocity);
+
+	Ref<PositionInertializer> graphics_position_intertializer;
+	Vector3 prev_graphics_position;
+	bool graphics_inertialization_queued = false;
+	float graphics_inertialization_duration = 0.15f;
 
 protected:
 	static void _bind_methods();
@@ -104,11 +110,14 @@ public:
 
 	Ref<HBAgentConstants> get_agent_constants() const;
 	void set_agent_constants(const Ref<HBAgentConstants> &p_agent_constants);
-	void apply_root_motion(const Ref<EPASOneshotAnimationNode> &p_animation_node);
+	void apply_root_motion(const Ref<EPASOneshotAnimationNode> &p_animation_node, float p_delta);
 	float get_height() const;
 	float get_radius() const;
+	void inertialize_graphics_position(float p_duration = 0.25f);
 
+	void root_motion_begin(Ref<EPASOneshotAnimationNode> p_animation_node, float p_delta);
 	Ref<Shape3D> get_collision_shape();
+	Vector3 get_movement_spring_velocity() const;
 
 #ifdef DEBUG_ENABLED
 	const int VELOCITY_PLOT_SIZE = 90;

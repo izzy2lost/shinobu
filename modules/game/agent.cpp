@@ -1,5 +1,5 @@
 #include "agent.h"
-#include "debug_geometry.h"
+#include "physics_layers.h"
 #include "springs.h"
 
 #ifdef DEBUG_ENABLED
@@ -39,17 +39,22 @@ void HBAgent::set_agent_constants(const Ref<HBAgentConstants> &p_agent_constants
 	agent_constants = p_agent_constants;
 }
 
-void HBAgent::apply_root_motion(const Ref<EPASOneshotAnimationNode> &p_animation_node) {
+void HBAgent::apply_root_motion(const Ref<EPASOneshotAnimationNode> &p_animation_node, float p_delta) {
 	ERR_FAIL_COND(!p_animation_node.is_valid());
 	// os_node.root_motion_starting_transform * os_node.get_root_motion_transform()
 	Transform3D root_trf = p_animation_node->get_root_motion_starting_transform() * p_animation_node->get_root_motion_transform();
 	Node3D *gn = _get_graphics_node();
-	if (gn != nullptr) {
-		Transform3D trf = gn->get_global_transform();
-		trf.basis = root_trf.basis;
-		trf.basis.rotate(Vector3(0.0, 1.0, 0.0), Math::deg_to_rad(180.0f));
-		gn->set_global_transform(trf);
+
+	Transform3D trf = gn->get_global_transform();
+	trf.basis = root_trf.basis;
+	trf.basis.rotate(Vector3(0.0, 1.0, 0.0), Math::deg_to_rad(180.0f));
+	if (graphics_position_intertializer.is_valid() && !graphics_position_intertializer->is_done()) {
+		trf.origin = get_global_position() + graphics_position_intertializer->advance(p_delta);
+		print_line("HAPPY", graphics_position_intertializer->get_offset());
+	} else {
+		print_line("FUGG >:(");
 	}
+	gn->set_global_transform(trf);
 	set_global_position(root_trf.origin);
 }
 
@@ -59,6 +64,17 @@ float HBAgent::get_height() const {
 
 float HBAgent::get_radius() const {
 	return 0.2f;
+}
+
+void HBAgent::inertialize_graphics_position(float p_duration) {
+	graphics_inertialization_queued = true;
+	graphics_inertialization_duration = p_duration;
+}
+
+void HBAgent::root_motion_begin(Ref<EPASOneshotAnimationNode> p_animation_node, float p_delta) {
+	Transform3D root_trf = p_animation_node->get_root_motion_starting_transform() * p_animation_node->get_root_motion_transform();
+	print_line(root_trf.origin, get_global_position(), root_trf.origin - get_global_position());
+	graphics_position_intertializer = PositionInertializer::create(prev_graphics_position, _get_graphics_node()->get_global_position(), root_trf.origin, 0.25f, p_delta);
 }
 
 Ref<Shape3D> HBAgent::get_collision_shape() {
@@ -103,15 +119,7 @@ void HBAgent::_bind_methods() {
 	BIND_ENUM_CONSTANT(INPUT_ACTION_MAX);
 }
 
-static HBDebugGeometry *debug_geo = nullptr;
-
 void HBAgent::_rotate_towards_velocity(float p_delta) {
-	if (!debug_geo) {
-		debug_geo = memnew(HBDebugGeometry);
-		add_child(debug_geo);
-		debug_geo->set_as_top_level(true);
-		debug_geo->set_global_position(Vector3());
-	}
 	Vector3 input_vector = get_desired_movement_input_transformed();
 	Node3D *gn = _get_graphics_node();
 	Vector3 gn_forward = gn->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
@@ -180,12 +188,9 @@ void HBAgent::_rotate_towards_velocity(float p_delta) {
 			}
 		}*/
 	}
-	debug_geo->clear();
 	Vector3 start_debug_pos = get_global_position() + Vector3(0.0f, 0.5f, 0.0f);
-	debug_geo->debug_line(start_debug_pos, start_debug_pos + input_vector.normalized());
 
 	if (rot_inertializer.is_valid() && !rot_inertializer->is_done()) {
-		debug_geo->debug_line(start_debug_pos, start_debug_pos + inertialization_target.xform(Vector3(0.0f, 0.0f, -1.0f)), Color("Deep Pink"));
 		Quaternion new_rot = rot_inertializer->advance(p_delta);
 		Transform3D new_trf = gn->get_global_transform();
 		new_trf.basis = inertialization_target * new_rot;
@@ -243,6 +248,13 @@ void HBAgent::_physics_process(float p_delta) {
 		case MovementMode::MOVE_GROUNDED: {
 			Vector3 input_vector = get_desired_movement_input_transformed();
 			Vector3 desired_velocity = input_vector * agent_constants->get_max_move_velocity();
+
+			if (_find_void(desired_velocity)) {
+				desired_velocity = Vector3();
+				velocity_spring_acceleration = Vector3();
+				vel = Vector3();
+			}
+
 			HBSprings::velocity_spring_vector3(
 					vel,
 					velocity_spring_acceleration,
@@ -262,6 +274,20 @@ void HBAgent::_physics_process(float p_delta) {
 			tilt_spring_velocity = Vector3();
 		} break;
 	}
+}
+
+bool HBAgent::_find_void(Vector3 p_desired_velocity) {
+	PhysicsDirectSpaceState3D *dss = get_world_3d()->get_direct_space_state();
+	PhysicsDirectSpaceState3D::RayParameters ray_params;
+	PhysicsDirectSpaceState3D::RayResult ray_result;
+	ray_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
+
+	ray_params.from = get_global_position() + p_desired_velocity.normalized() * get_radius();
+	ray_params.to = ray_params.from;
+	ray_params.to.y -= get_height();
+	ray_params.from.y += get_height();
+
+	return !dss->intersect_ray(ray_params, ray_result);
 }
 
 bool HBAgent::is_action_pressed(AgentInputAction p_action) const {
@@ -426,7 +452,7 @@ void HBAgent::_notification(int p_what) {
 			GodotImGui *gim = GodotImGui::get_singleton();
 			if (gim && gim->is_debug_enabled(this)) {
 				if (gim->begin_debug_window(this)) {
-					ImGui::Text("Velocity %s", String(get_linear_velocity()).utf8().get_data());
+					ImGui::Text("Velocity %s", String(get_velocity()).utf8().get_data());
 					ImGui::Text("Desired Velocity %s", String(_get_desired_velocity()).utf8().get_data());
 					ImGui::Text("gn rot %s", String(_get_graphics_node()->get_rotation_degrees()).utf8().get_data());
 					plot_t += get_process_delta_time();
@@ -438,10 +464,10 @@ void HBAgent::_notification(int p_what) {
 							desired_velocity_plot_lines_y.set(i - 1, desired_velocity_plot_lines_y[i]);
 						}
 						velocity_plot_lines_x.set(VELOCITY_PLOT_SIZE - 1, plot_t);
-						velocity_plot_lines_y.set(VELOCITY_PLOT_SIZE - 1, get_linear_velocity().length());
+						velocity_plot_lines_y.set(VELOCITY_PLOT_SIZE - 1, get_velocity().length());
 						desired_velocity_plot_lines_y.set(VELOCITY_PLOT_SIZE - 1, _get_desired_velocity().length());
 
-						String title = vformat("Velocity\n%.2f m/s", get_linear_velocity().length());
+						String title = vformat("Velocity\n%.2f m/s", get_velocity().length());
 						if (ImPlot::BeginPlot(title.utf8().get_data(), ImVec2(-1, 200.0f), ImPlotFlags_CanvasOnly & ~(ImPlotFlags_NoTitle | ImPlotFlags_NoLegend))) {
 							ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoTickLabels);
 							ImPlot::SetupAxisLimits(ImAxis_X1, velocity_plot_lines_x[0], velocity_plot_lines_x[velocity_plot_lines_x.size() - 1], ImGuiCond_Always);
@@ -457,7 +483,7 @@ void HBAgent::_notification(int p_what) {
 							acceleration_plot_lines_x.set(i - 1, acceleration_plot_lines_x[i]);
 							acceleration_plot_lines_y.set(i - 1, acceleration_plot_lines_y[i]);
 						}
-						float accel_number = Math::abs(get_linear_velocity().angle_to(velocity_spring_acceleration));
+						float accel_number = Math::abs(get_velocity().angle_to(velocity_spring_acceleration));
 						accel_number = Math::remap(accel_number, 0.0f, Math::deg_to_rad(180.0f), 1.0f, -1.0f);
 						accel_number *= velocity_spring_acceleration.length();
 						acceleration_plot_lines_x.set(VELOCITY_PLOT_SIZE - 1, plot_t);

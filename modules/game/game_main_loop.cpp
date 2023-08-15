@@ -38,7 +38,7 @@ HBGameMainLoop::HBGameMainLoop() {
 void HBGameMainLoop::change_scene(Node *p_new_scene) {
 	ERR_FAIL_COND(!p_new_scene);
 	if (get_current_scene()) {
-		memdelete(get_current_scene());
+		get_current_scene()->queue_free();
 		set_current_scene(nullptr);
 	}
 	add_current_scene(p_new_scene);

@@ -5,7 +5,7 @@ static String rot = "";
 
 static float inertialize(float p_x0, float p_v0, float p_blend_time, float p_t) {
 	float accel = MAX(-8.0f * p_v0 * p_blend_time - 20.0f * p_x0, 0.0f);
-	accel = -8.0f * p_v0 * p_blend_time - 20.0f * p_x0;
+	//accel = -8.0f * p_v0 * p_blend_time - 20.0f * p_x0;
 	float A = -((accel * Math::pow(p_blend_time, 2.0f) + 6.0f * p_v0 * p_blend_time + 12.0f * p_x0) / (2.0f * Math::pow(p_blend_time, 5.0f)));
 	float B = (3.0f * accel * Math::pow(p_blend_time, 2.0f) + 16.0f * p_v0 * p_blend_time + 30.0f * p_x0) / (2.0f * Math::pow(p_blend_time, 4.0f));
 	float C = -((3.0f * accel * Math::pow(p_blend_time, 2.0f) + 12.0f * p_v0 * p_blend_time + 20.0f * p_x0) / (2.0f * Math::pow(p_blend_time, 3.0f)));
