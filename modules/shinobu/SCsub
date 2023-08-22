@@ -10,6 +10,7 @@ sources = [
     "shinobu_sound_source.cpp",
     "shinobu_effects.cpp",
     "shinobu_group.cpp",
+    "thirdparty/ebur128/ebur128.c",
 ]
 
 module_env = env.Clone()

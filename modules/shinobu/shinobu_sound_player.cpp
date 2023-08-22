@@ -166,7 +166,8 @@ uint64_t ShinobuSoundPlayer::get_length_msec() {
 	ma_uint64 p_length = 0;
 	ma_sound_get_length_in_pcm_frames(&sound, &p_length);
 	uint32_t sample_rate;
-	ma_sound_get_data_format(&sound, NULL, NULL, &sample_rate, NULL, 0);
+	ma_format format;
+	ma_sound_get_data_format(&sound, &format, NULL, &sample_rate, NULL, 0);
 	p_length /= (float)(sample_rate / 1000.0f);
 	cached_length = p_length;
 

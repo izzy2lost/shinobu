@@ -30,7 +30,10 @@ public:
 	ShinobuSoundPlayer *instantiate(Ref<ShinobuGroup> m_group, bool m_use_source_channel_count = false);
 
 	ShinobuSoundSource(String m_name);
+
+	float ebur128_get_loudness();
 	virtual Error instantiate_sound(Ref<ShinobuGroup> m_group, bool use_source_channel_count, ma_sound *p_sound) = 0;
+
 	virtual ~ShinobuSoundSource();
 };
 
