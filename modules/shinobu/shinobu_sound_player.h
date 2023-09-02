@@ -50,6 +50,8 @@ public:
 	Error connect_sound_to_effect(Ref<ShinobuEffect> m_effect);
 	Error connect_sound_to_group(Ref<ShinobuGroup> m_group);
 
+	void fade(int p_duration_ms, float p_volume_begin, float p_volume_end);
+
 	uint64_t get_channel_count();
 
 	ShinobuSoundPlayer(Ref<ShinobuSoundSource> m_sound_source, Ref<ShinobuGroup> m_group, bool m_use_source_channel_count);

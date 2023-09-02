@@ -25,6 +25,7 @@ void ShinobuSoundPlayer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_channel_count"), &ShinobuSoundPlayer::get_channel_count);
 	ClassDB::bind_method(D_METHOD("seek", "to_time_msec"), &ShinobuSoundPlayer::seek);
 	ClassDB::bind_method(D_METHOD("get_length_msec"), &ShinobuSoundPlayer::get_length_msec);
+	ClassDB::bind_method(D_METHOD("fade", "fade_duration", "volume_begin", "volume_end"), &ShinobuSoundPlayer::fade);
 }
 
 Error ShinobuSoundPlayer::start() {
@@ -128,6 +129,10 @@ uint64_t ShinobuSoundPlayer::get_channel_count() {
 Error ShinobuSoundPlayer::connect_sound_to_group(Ref<ShinobuGroup> m_group) {
 	MA_ERR_RET(ma_node_attach_output_bus(&sound, 0, m_group->get_group(), 0), "Error attaching sound to group");
 	return OK;
+}
+
+void ShinobuSoundPlayer::fade(int p_duration_ms, float p_volume_begin, float p_volume_end) {
+	ma_sound_set_fade_in_milliseconds(&sound, p_volume_begin, p_volume_end, p_duration_ms);
 }
 
 void ShinobuSoundPlayer::_notification(int p_notification) {
