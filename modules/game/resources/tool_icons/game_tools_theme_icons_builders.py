@@ -7,6 +7,11 @@ All such functions are invoked in a subprocess on Windows to prevent build flaki
 import os
 from io import StringIO
 from platform_methods import subprocess_main
+from re import sub
+
+
+def snake_case(s):
+    return "_".join(sub("([A-Z][a-z]+)", r" \1", sub("([A-Z]+)", r" \1", s.replace("-", " "))).split()).upper()
 
 
 # See also `editor/icons/editor_icons_builders.py`.
@@ -31,6 +36,17 @@ def make_game_tools_theme_icons_action(target, source, env):
         if fname != svg_icons[-1]:
             icons_string.write(",")
         icons_string.write("\n")
+
+    enum_string = StringIO()
+
+    enum_string.write("enum GameToolsThemeIcons {\n")
+
+    for f in svg_icons:
+        # Trim the `.svg` extension from the string.
+        icon_name = os.path.basename(str(f))[:-4]
+        enum_string.write("\t" + snake_case(icon_name) + ",\n")
+
+    enum_string.write("};\n")
 
     s = StringIO()
     s.write("/* THIS FILE IS GENERATED DO NOT EDIT */\n\n")
@@ -62,6 +78,8 @@ def make_game_tools_theme_icons_action(target, source, env):
         index += 1
 
     s.write("};\n")
+
+    s.write(enum_string.getvalue())
 
     s.write("#endif\n")
     s.write("#endif // DEBUG_ENABLED\n")

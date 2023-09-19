@@ -39,6 +39,8 @@ class HBAgentState : public HBStateMachineState {
 	bool draw_debug_geometry = true;
 	bool ui_settings_init = false; // Lazily initialize loading of settings
 	void _init_ui_settings_if_needed();
+	bool _try_slide_edge(Vector3 p_dir);
+	bool _try_find_parkour_point(Vector3 p_dir, float p_length, float p_radius, HBAgentParkourPoint **p_out_parkour_point);
 
 protected:
 	void debug_draw_shape(Ref<Shape3D> p_shape, const Vector3 &p_position, const Color &p_color = Color());
@@ -49,7 +51,10 @@ protected:
 	void debug_draw_cast_motion(const Ref<Shape3D> &p_shape, const PhysicsDirectSpaceState3D::ShapeParameters &p_shape_cast_3d, const Color &p_color = Color());
 	bool find_facing_wall(PhysicsDirectSpaceState3D::RayResult &p_result);
 	bool find_ledge(const Vector3 &p_wall_base_point, const Vector3 &p_wall_normal, Transform3D &p_ledge_transform);
+	bool find_lege_wall_sweep(const Vector3 &p_from, const Vector3 &p_to, const Vector3 &p_offset, Transform3D &p_out_edge_trf, int p_iterations = 5);
 	HBDebugGeometry *get_debug_geometry();
+	bool handle_autojump_mid(Vector3 p_dir, bool p_needs_gap = false);
+	bool handle_autojump_down(Vector3 p_dir, bool p_needs_gap = false);
 
 public:
 	HBAgent *get_agent() const;
@@ -61,20 +66,31 @@ public:
 	Ref<EPASSoftnessNode> get_softness_node() const;
 	Ref<EPASWheelLocomotion> get_wheel_locomotion_node() const;
 	virtual void debug_ui_draw() override;
+
 	friend class HBStateMachine;
 };
 
 class HBAgentMoveState : public HBAgentState {
 	GDCLASS(HBAgentMoveState, HBAgentState);
 
+public:
+	enum MoveStateParams {
+		PARAM_TRANSITION_DURATION
+	};
+
 protected:
 	virtual void enter(const Dictionary &p_args) override;
+	virtual void exit() override;
 	virtual void physics_process(float p_delta) override;
-	bool _handle_parkour_down();
+	void _update_lookat();
+	void _on_agent_edge_hit();
+	bool _try_vault_over_obstacle();
 	bool _handle_parkour_up();
 	bool _handle_parkour_mid();
 	bool _check_wall(PhysicsDirectSpaceState3D::RayResult &p_result);
 };
+
+VARIANT_ENUM_CAST(HBAgentMoveState::MoveStateParams);
 
 class HBAgentVaultState : public HBAgentState {
 	GDCLASS(HBAgentVaultState, HBAgentState);
@@ -112,6 +128,8 @@ class HBAgentWallrunState : public HBAgentState {
 	Vector3 ledge_normal;
 	StaticBody3D *parkour_point_target = nullptr;
 	Transform3D ledge_transform;
+	bool autojump_queued = false;
+	Vector3 autojump_dir;
 
 public:
 	enum WallrunParams {
@@ -131,7 +149,7 @@ private:
 
 protected:
 	virtual void enter(const Dictionary &p_args) override;
-	virtual void process(float p_delta) override;
+	virtual void physics_process(float p_delta) override;
 };
 
 class HBAgentLedgeGrabbedState : public HBAgentState {
@@ -162,6 +180,7 @@ private:
 		Vector3 raycast_origin;
 		// Raycast target used to find the edge, in local space
 		Vector3 raycast_target;
+
 		// Offset applied to the edge
 		Vector3 target_offset;
 		Ref<Tween> tween;
@@ -251,6 +270,7 @@ public:
 	bool find_initial_pose(LedgeAgentIKPose &p_pose, const WallGrabbedStateInitialPoseParams &p_params) const;
 	Vector3 calculate_animation_root_offset();
 	Transform3D _get_limb_ik_target_trf(const Transform3D &p_graphics_trf, const Transform3D &p_ledge_trf, const Transform3D &p_bone_base_trf, const Vector3 &p_bone_offset) const;
+	Transform3D get_ledge_agent_trf(Transform3D p_world_ledge_trf) const;
 };
 
 class HBAgentFallState : public HBAgentState {
@@ -356,6 +376,8 @@ class HBAgentWallParkourState : public HBAgentState {
 		Vector3 position_spring_velocity;
 		float position_spring_halflife = 0.1f;
 
+		bool dangling = false;
+
 		Transform3D get_current_transform() const {
 			switch (current.type) {
 				case WallParkourTargetType::TARGET_LOCATION: {
@@ -420,8 +442,25 @@ class HBAgentParkourAutoJumpState : public HBAgentState {
 	GDCLASS(HBAgentParkourAutoJumpState, HBAgentState);
 	ParkourAutojump::AgentParkourAutojumpData autojump_data;
 	float time;
+	Transform3D ledge_trf;
+	Dictionary target_state_args;
+	StringName target_state_name;
 
 public:
+	enum AutoJumpParams {
+		PARAM_TYPE,
+		PARAM_LEDGE_TRF,
+		PARAM_TARGET_STATE_NAME,
+		PARAM_TARGET_STATE_ARGS
+	};
+	enum AutoJumpType {
+		AUTOJUMP_WORLD,
+		AUTOJUMP_LEDGE,
+		AUTOJUMP_TO_STATE,
+	};
+
+	AutoJumpType type;
+
 	void set_autojump_data(ParkourAutojump::AgentParkourAutojumpData p_autojump_data);
 	virtual void enter(const Dictionary &p_args) override;
 	virtual void physics_process(float p_delta) override;
@@ -451,17 +490,34 @@ public:
 	Vector3 velocity_spring_vel;
 };
 
-class HBAgentLedgeDropState : public HBAgentState {
-	GDCLASS(HBAgentLedgeDropState, HBAgentState);
-	Transform3D ledge_trf;
-	Ref<EPASOneshotAnimationNode> animation_node;
+class HBAgentRootMotionState : public HBAgentState {
+	GDCLASS(HBAgentRootMotionState, HBAgentState);
 
 public:
-	enum LedgeDropParams {
-		PARAM_EDGE
+	enum VelocityMode {
+		ANIMATION_DRIVEN,
+		CONSERVE
+	};
+
+private:
+	VelocityMode velocity_mode;
+	Ref<EPASOneshotAnimationNode> animation_node;
+	Dictionary next_state_args;
+	StringName next_state;
+	Vector3 prev_pos;
+	Vector3 starting_velocity;
+
+public:
+	enum RootMotionParams {
+		PARAM_WARP_POINTS,
+		PARAM_ANIMATION_NODE_NAME,
+		PARAM_TRANSITION_NODE_INDEX,
+		PARAM_NEXT_STATE,
+		PARAM_NEXT_STATE_ARGS,
+		PARAM_VELOCITY_MODE
 	};
 	virtual void enter(const Dictionary &p_args) override;
-	virtual void process(float p_delta) override;
+	virtual void physics_process(float p_delta) override;
 };
 
 #endif // AGENT_STATE_H

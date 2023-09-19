@@ -6,11 +6,12 @@
 #include "animation_system/epas_controller.h"
 #include "animation_system/epas_oneshot_animation_node.h"
 #include "inertialization.h"
+#include "jolt_test.h"
 #include "scene/3d/navigation_agent_3d.h"
 #include "scene/3d/physics_body_3d.h"
 
-class HBAgent : public CharacterBody3D {
-	GDCLASS(HBAgent, CharacterBody3D);
+class HBAgent : public JoltCharacterBody3D {
+	GDCLASS(HBAgent, JoltCharacterBody3D);
 
 public:
 	enum MovementMode {
@@ -38,6 +39,8 @@ private:
 	InputState current_input_state;
 	InputState prev_input_state;
 
+	Vector3 desired_velocity;
+
 	Vector3 smoothed_accel = Vector3(0.0, 0.0, 0.0);
 	Vector3 prev_position;
 
@@ -46,6 +49,9 @@ private:
 
 	Vector3 velocity_spring_acceleration;
 
+	Quaternion current_rotation;
+	Quaternion rotation_spring_target;
+	Vector3 rotation_spring_velocity;
 	Vector3 tilt_spring_velocity;
 
 	NodePath graphics_node;
@@ -71,12 +77,14 @@ private:
 	void _tilt_towards_acceleration(float p_delta);
 
 	void _physics_process(float p_delta);
-	bool _find_void(Vector3 p_desired_velocity);
 
 	Ref<PositionInertializer> graphics_position_intertializer;
 	Vector3 prev_graphics_position;
 	bool graphics_inertialization_queued = false;
 	float graphics_inertialization_duration = 0.15f;
+	bool rotation_inertialization_queued = false;
+	Quaternion queued_rotation_inertialization_target;
+	void _rotation_inertialization_process(float p_delta);
 
 protected:
 	static void _bind_methods();
@@ -118,6 +126,8 @@ public:
 	void root_motion_begin(Ref<EPASOneshotAnimationNode> p_animation_node, float p_delta);
 	Ref<Shape3D> get_collision_shape();
 	Vector3 get_movement_spring_velocity() const;
+	void inertialize_graphics_rotation(Quaternion p_target_rot, bool p_now = false);
+	bool is_at_edge(Vector3 p_direction);
 
 #ifdef DEBUG_ENABLED
 	const int VELOCITY_PLOT_SIZE = 90;

@@ -45,6 +45,8 @@ public:
 		MOVEMENT_PARKOUR_CAT = 8,
 		MOVEMENT_MOVE_BEAM = 9,
 		MOVEMENT_LEDGE_DROP = 10,
+		MOVEMENT_LEDGE_TO_GROUND = 11,
+		MOVEMENT_LEDGE_HOP_UP = 12,
 	};
 
 	float get_max_move_velocity() const;

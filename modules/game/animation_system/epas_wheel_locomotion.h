@@ -3,11 +3,21 @@
 
 #include "../debug_geometry.h"
 #include "../fabrik/fabrik.h"
+#include "../inertialization.h"
 #include "epas_animation.h"
+#include "epas_ik_node.h"
 #include "epas_node.h"
 #include "epas_pose.h"
+#include "scene/3d/decal.h"
 #include "scene/3d/mesh_instance_3d.h"
+#include "scene/resources/image_texture.h"
 #include "scene/resources/immediate_mesh.h"
+
+// Data that is shared between different wheel locomotions to sync them when transitioning.
+class WheelSharedInfo : public RefCounted {
+public:
+	float wheel_angle = 0.0f;
+};
 
 class EPASWheelLocomotion : public EPASNode {
 	GDCLASS(EPASWheelLocomotion, EPASNode);
@@ -20,6 +30,11 @@ public:
 	};
 
 private:
+	Ref<ImageTexture> debug_foot_texture;
+	const int MAX_DEBUG_FOOT_MESHES = 10;
+	int curr_debug_foot_mesh = 0;
+	Vector<Decal *> debug_foot_meshes;
+	Decal *debug_foot_meshes_predict[2];
 	// A wheel set contains the information of a different movement animation
 	// for example, walk vs run
 	struct LocomotionSet {
@@ -31,12 +46,8 @@ private:
 		LocomotionSetType set_type = LocomotionSetType::WHEEL;
 		float step_length = 1.0f;
 		float bounce_height = 0.0f;
-
-		struct FootInfo {
-			bool pinned = false;
-			bool has_pinned_trf = false;
-			Transform3D pinned_trf;
-		} foot_info[2];
+		Vector3 hip_offset;
+		Vector3 hip_offset_spring_vel;
 
 		void interpolate(float p_amount, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_output, float p_feet_grounded[2]) const {
 			// p_amount can never *actually* be 1.0 since its fed by an fmodded value
@@ -65,13 +76,18 @@ private:
 			p_feet_grounded[1] = curve_right->sample(MIN(p_amount, 1.0f));
 		}
 	};
+
+	Ref<WheelSharedInfo> shared_info;
 	float current_step_length = 0.0;
 	struct LocomotionSetComparator {
 		_FORCE_INLINE_ bool operator()(const EPASWheelLocomotion::LocomotionSet *a, const EPASWheelLocomotion::LocomotionSet *b) const { return (a->x_pos < b->x_pos); }
 	};
+
 	float x_blend = 0.0f;
 	float wheel_angle = 0.0f;
 	float time = 0.0f;
+	// minimum distance for foot ik sliding to happen
+	float foot_ik_slide_max = 0.05f;
 	StringName root_bone_name;
 	Vector<LocomotionSet *> locomotion_sets;
 	// We need to keep sorted locomotion sets in a separate vector
@@ -87,11 +103,22 @@ private:
 		StringName bone_name;
 		Transform3D out_ik_transform;
 		Vector3 out_ik_magnet_position;
+		Ref<EPASIKNode> ik_node;
+		bool pinned = false;
+		Vector3 pinned_position;
+		float pin_recovery_t = 0.0f;
+		Vector3 prev_positions[2];
+		Ref<PositionInertializer> position_inertializer;
 	} foot_ik[2];
+	float foot_ik_pin_recovery_time = 0.15f;
 	bool use_foot_ik = false;
 	bool foot_ik_init = false;
+
 	void _ik_process_foot(LocomotionSet *p_loc_set, float p_foot_ik_grounded[2], Transform3D p_ankle_ik_targets[2], Transform3D p_ankle_pinned_ik_targets[2], const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose);
-	void _ik_process(LocomotionSet *p_loc_sets[2], float p_foot_ik_grounded[2][2], Ref<EPASPose> p_target_pose, Ref<EPASPose> p_second_pose, Ref<EPASPose> p_base_pose, float p_x);
+	void _ik_process(LocomotionSet *p_loc_sets[2], float p_foot_ik_grounded[2][2], Ref<EPASPose> p_target_pose, Ref<EPASPose> p_second_pose, Ref<EPASPose> p_base_pose, float p_x, float p_delta);
+	float find_next_feet_ground_time(Ref<EPASAnimation> p_anim, float p_times[2]) const;
+	bool process_events(LocomotionSet *p_sets[2], float p_time, float p_blend, float p_previous_time, bool p_out_prev_lock_state[2], bool p_out_lock_state[2], float p_out_prev_lock_amount[2], float p_out_lock_amount[2]);
+	bool foot_predict(LocomotionSet *p_sets[2], float p_time, float p_blend);
 
 protected:
 	static void _bind_methods();
@@ -123,14 +150,17 @@ public:
 	void set_right_foot_bone_name(const StringName &p_right_foot_bone_name);
 	bool get_use_foot_ik() const;
 	void set_use_foot_ik(bool p_use_foot_ik);
-	Transform3D get_left_foot_ik_target() const;
-	Transform3D get_right_foot_ik_target() const;
-	Vector3 get_left_foot_ik_magnet() const;
-	Vector3 get_right_foot_ik_magnet() const;
+
+	void set_left_foot_ik_node(Ref<EPASIKNode> p_ik_left_foot_ik_node);
+
+	void set_right_foot_ik_node(Ref<EPASIKNode> p_ik_right_foot_ik_node);
+
 	virtual ~EPASWheelLocomotion();
 
 	StringName get_hip_bone_name() const;
 	void set_hip_bone_name(const StringName &p_hip_bone_name);
+
+	void sync_with(TypedArray<EPASWheelLocomotion> p_locomotion);
 
 	EPASWheelLocomotion();
 

@@ -68,6 +68,7 @@ Ref<RotationInertializer> RotationInertializer::create(const Quaternion &p_prev_
 
 Vector3 PositionInertializer::advance(float p_delta) {
 	current_transition_time += p_delta;
+	current_transition_time = MIN(transition_duration, current_transition_time);
 	float pos_x = inertialize(position_offset.length(), position_velocity, transition_duration, current_transition_time);
 	Vector3 pos_off = position_offset.normalized() * pos_x;
 	return pos_off;
@@ -134,6 +135,7 @@ Ref<EPASPoseInertializer> EPASPoseInertializer::create(const Ref<EPASPose> p_pos
 	ERR_FAIL_COND_V_MSG(!p_poses[InertializationPose::TARGET_POSE].is_valid(), Ref<EPASPoseInertializer>(), "No current pose was given");
 	Ref<EPASPoseInertializer> in;
 	in.instantiate();
+	print_line("IN", in->get_current_transition_time());
 	Vector<EPASPoseInertializer::TransitionInfo> transition_infos;
 
 	Ref<EPASPose> prev_prev_pose = p_poses[InertializationPose::PREV_PREV_POSE];

@@ -83,8 +83,14 @@ void HBPlayerCameraArm::_notification(int p_what) {
 			set_rotation(rotation);
 
 			Vector3 target_pos = get_target_position();
+			target_pos.x = 0.0f;
+			target_pos.z = 0.0f;
 			Vector3 pos = get_global_position();
+			pos.x = 0.0f;
+			pos.z = 0.0f;
 			HBSprings::critical_spring_damper_exact_vector3(pos, position_spring_velocity, target_pos, .25, delta);
+			pos.x = get_target_position().x;
+			pos.z = get_target_position().z;
 			set_global_position(pos);
 
 		} break;

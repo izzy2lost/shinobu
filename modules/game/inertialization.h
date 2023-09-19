@@ -41,7 +41,7 @@ class EPASPoseInertializer : public RefCounted {
 		Ref<RotationInertializer> rotation_inertializer;
 	};
 	Vector<TransitionInfo> transition_infos;
-	float current_transition_time;
+	float current_transition_time = 0.0f;
 
 public:
 	enum InertializationPose {

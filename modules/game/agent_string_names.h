@@ -19,7 +19,11 @@ public:
 	const StringName wall_parkour_state;
 	const StringName autojump_state;
 	const StringName beam_walk_state;
-	const StringName ledge_drop_state;
+	const StringName root_motion_state;
+
+	const StringName right_foot_ik_node;
+	const StringName left_foot_ik_node;
+	const StringName ledge_to_ground_node;
 
 	static AgentStringNames *get_singleton() {
 		return singleton;

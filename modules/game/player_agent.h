@@ -3,6 +3,7 @@
 #define PLAYER_AGENT_H
 
 #include "agent.h"
+#include "modules/tbloader/src/tb_loader_singleton.h"
 
 class HBPlayerAgentController : public Node {
 	GDCLASS(HBPlayerAgentController, Node);
@@ -28,6 +29,16 @@ class HBPlayerAgent : public HBAgent {
 
 protected:
 	HBPlayerAgent();
+};
+
+class HBInfoPlayerStart : public Node3D, public TBLoaderEntity {
+	GDCLASS(HBInfoPlayerStart, Node3D);
+
+public:
+	static StringName get_entity_name() {
+		return "info_player_start";
+	}
+	virtual void _editor_build(const EntityCompileInfo &p_info, const HashMap<StringName, EntityCompileInfo> &p_entities) override;
 };
 
 #endif // PLAYER_AGENT_H

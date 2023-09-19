@@ -13,6 +13,9 @@ AgentStringNames::AgentStringNames() :
 		wall_parkour_state(StaticCString::create("WallParkour")),
 		autojump_state(StaticCString::create("Autojump")),
 		beam_walk_state(StaticCString::create("BeamWalk")),
-		ledge_drop_state(StaticCString::create("LedgeDrop")) {
+		root_motion_state(StaticCString::create("RootMotion")),
+		right_foot_ik_node(StaticCString::create("RightFootIK")),
+		left_foot_ik_node(StaticCString::create("LeftFootIK")),
+		ledge_to_ground_node(StaticCString::create("LedgeToGround")) {
 	singleton = this;
 }

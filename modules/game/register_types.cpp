@@ -12,6 +12,7 @@
 #include "game_main_loop.h"
 #include "modules/game/animation_system/epas_animation.h"
 #include "modules/game/animation_system/epas_ik_node.h"
+#include "modules/game/animation_system/epas_lookat_node.h"
 #include "modules/tbloader/src/tb_loader_singleton.h"
 #include "player_agent.h"
 #include "player_camera_arm.h"
@@ -36,6 +37,7 @@
 #include "animation_system/epas_softness_node.h"
 #include "animation_system/epas_transition_node.h"
 #include "animation_system/epas_wheel_locomotion.h"
+#include "jolt_test.h"
 
 AgentStringNames *agent_string_names = nullptr;
 
@@ -64,7 +66,7 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(HBAgentWallParkourState);
 	GDREGISTER_CLASS(HBAgentParkourAutoJumpState);
 	GDREGISTER_CLASS(HBAgentParkourBeamWalk);
-	GDREGISTER_CLASS(HBAgentLedgeDropState);
+	GDREGISTER_CLASS(HBAgentRootMotionState);
 	// State machine stuff
 	GDREGISTER_CLASS(HBStateMachine);
 	GDREGISTER_ABSTRACT_CLASS(HBStateMachineState);
@@ -89,12 +91,18 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(EPASOneshotAnimationNode);
 	GDREGISTER_CLASS(EPASOneshotAnimationNodeDebug);
 	GDREGISTER_CLASS(EPASSoftnessNode);
+	GDREGISTER_CLASS(EPASLookatNode);
 	GDREGISTER_CLASS(EPASIKNode);
 	GDREGISTER_CLASS(FABRIKSolver);
 	GDREGISTER_CLASS(HBDebugGeometry);
+	GDREGISTER_CLASS(HBInfoPlayerStart);
+
+	// Tests...
+	GDREGISTER_CLASS(JoltCharacterBody3D);
 
 	TBLoaderSingleton::register_entity_type<HBAgentParkourPoint>();
 	TBLoaderSingleton::register_entity_type<HBAgentParkourBeam>();
+	TBLoaderSingleton::register_entity_type<HBInfoPlayerStart>();
 #ifdef DEBUG_ENABLED
 	GDREGISTER_CLASS(EPASAnimationEditor);
 	GDREGISTER_CLASS(EPASEditorGrid);

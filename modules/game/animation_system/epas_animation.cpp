@@ -271,7 +271,9 @@ void EPASAnimation::interpolate(float p_time, const Ref<EPASPose> &p_base_pose, 
 					p_target_pose->set_bone_rotation(root_bone_name, rot_prev.slerp(rot_next, blend));
 				}
 				int frame = p_time * 60.0; // TODO: make this framerate configurable? Animation editor only supports 60 fps r/n
-				Transform3D base_root_trf = p_base_pose->get_bone_transform(root_bone_name);
+				//Transform3D base_root_trf = p_base_pose->get_bone_transform(root_bone_name);
+				Transform3D initial_root_trf = get_keyframe(0)->get_pose()->get_bone_transform(root_bone_name, p_base_pose);
+				Transform3D base_root_trf = initial_root_trf;
 				Vector<Ref<EPASWarpPoint>> sorted_wps;
 				sorted_wps.resize(get_warp_point_count());
 				for (int i = 0; i < get_warp_point_count(); i++) {
@@ -289,6 +291,7 @@ void EPASAnimation::interpolate(float p_time, const Ref<EPASPose> &p_base_pose, 
 						continue;
 					}
 					Transform3D local_new_wp_trf = p_playback_info->starting_global_trf.affine_inverse() * p_playback_info->warp_point_transforms[wp_name];
+					local_new_wp_trf = initial_root_trf * local_new_wp_trf;
 					if (wp->get_facing_start() <= frame && wp->has_facing()) {
 						// Process facing rotation
 						int start_frame = wp->get_facing_start();
@@ -341,8 +344,7 @@ void EPASAnimation::interpolate(float p_time, const Ref<EPASPose> &p_base_pose, 
 				// We also rotate the root position based on the facing + rotation offsets
 				p_target_pose->set_bone_position(root_bone_name, (facing_rotation * rotation_offset).xform(p_target_pose->get_bone_position(root_bone_name, p_base_pose)) + translation_offset);
 				p_target_pose->set_bone_rotation(root_bone_name, facing_rotation * rotation_offset * p_target_pose->get_bone_rotation(root_bone_name, p_base_pose));
-				p_playback_info->root_motion_trf = p_target_pose->get_bone_transform(root_bone_name, p_base_pose);
-
+				p_playback_info->root_motion_trf = initial_root_trf.affine_inverse() * p_target_pose->get_bone_transform(root_bone_name, p_base_pose);
 				p_target_pose->set_bone_position(root_bone_name, p_base_pose->get_bone_position(root_bone_name));
 				p_target_pose->set_bone_rotation(root_bone_name, p_base_pose->get_bone_rotation(root_bone_name));
 				p_target_pose->set_bone_scale(root_bone_name, p_base_pose->get_bone_scale(root_bone_name));

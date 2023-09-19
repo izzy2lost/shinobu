@@ -64,7 +64,8 @@ void EPASIKNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_
 	fabrik_solver->set_joint_transform(0, a_global_trf);
 	fabrik_solver->set_joint_transform(1, b_local_trf);
 	fabrik_solver->set_joint_transform(2, c_local_trf);
-	fabrik_solver->set_target_position(skel->to_local(target_transform.origin));
+	Transform3D skel_trf = get_skeleton()->get_global_transform();
+	fabrik_solver->set_target_position(skel_trf.affine_inverse().xform(target_transform.origin));
 	fabrik_solver->set_pole_position(skel->to_local(magnet_position));
 
 	if (!p_target_pose->has_bone(a_bone_name)) {

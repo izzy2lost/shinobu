@@ -61,6 +61,52 @@ static bool is_wall(const Vector3 &p_normal, float p_floor_max_angle) {
 static bool is_floor(const Vector3 &p_normal, float p_floor_max_angle) {
 	return p_normal.angle_to(Vector3(0.0f, 1.0f, 0.0f)) <= p_floor_max_angle;
 }
+
+static void calculate_target_as_apex(const Vector3 &p_origin, const Vector3 &p_target, const float &p_gravity, Vector3 &p_force, float &p_time) {
+	float v0y = Math::sqrt(2.0f * p_gravity * (p_target.y - p_origin.y));
+	p_time = v0y / p_gravity;
+
+	Vector3 v0z = p_target - p_origin;
+	v0z.y = 0.0f;
+	v0z /= p_time;
+	p_force = v0z;
+	p_force.y = v0y;
+}
+
+static void calculate_apex_force(const Vector3 &p_origin, const Vector3 &p_target, const float &p_gravity, const float &p_apex_height, Vector3 &p_force, float &p_time) {
+	float apx = p_apex_height;
+	apx = CLAMP(apx + (p_target.y - p_origin.y), 0.0f, apx);
+	float v0y = Math::sqrt(2.0 * p_gravity * apx);
+	float a = p_gravity * 0.5f;
+	float b = -v0y;
+	float c = p_target.y - p_origin.y;
+	float d = b * b - 4.0 * a * c;
+
+	if (d < 0.0) {
+		return calculate_target_as_apex(p_origin, p_target, p_gravity, p_force, p_time);
+	}
+
+	float sqrt_d = Math::sqrt(d);
+	float x1 = (-b + sqrt_d) / (2.0 * a);
+	float x2 = (-b - sqrt_d) / (2.0 * a);
+	p_time = MAX(x1, x2);
+
+	Vector3 v0z = p_target - p_origin;
+	v0z.y = 0.0f;
+	v0z /= p_time;
+
+	p_force = v0z;
+	p_force.y = v0y;
+}
+
+static Vector3 calculate_position_at(const Vector3 &p_start_pos, const Vector3 &p_force, const float p_gravity, const float p_time) {
+	float x = p_start_pos.x + p_force.x * p_time;
+	float z = p_start_pos.z + p_force.z * p_time;
+	float y = p_start_pos.y + p_force.y * p_time - 0.5f * p_gravity * p_time * p_time;
+
+	return Vector3(x, y, z);
+}
+
 // Generic autojump solver
 struct AgentParkourAutojumpData {
 	bool found = false;
@@ -68,82 +114,107 @@ struct AgentParkourAutojumpData {
 	Vector3 end;
 	Vector3 end_normal;
 	float parabola_t_max;
-	Vector3 parabola_initial_velocity;
-	Vector3 parabola_accel;
-	Vector3 get_position(float p_time, float p_peak_height_offset) {
-		return start + parabola_initial_velocity * p_time + parabola_accel * p_time * p_time / 2.0f;
+	Vector3 parabola_force;
+	float parabola_gravity;
+	Vector3 get_position(float p_time) {
+		print_line("TIME", p_time);
+		return calculate_position_at(start, parabola_force, parabola_gravity, p_time);
 	}
 };
-static AgentParkourAutojumpData find_autojump_grounded(HBAgent *p_agent, Vector3 p_direction, HBDebugGeometry *debug_geo = nullptr) {
-	Ref<Shape3D> coll_shape = p_agent->get_collision_shape();
-	const int AUTOJUMP_ITERS_MAX = 15;
 
-	PhysicsDirectSpaceState3D *dss = p_agent->get_world_3d()->get_direct_space_state();
+struct AutojumpSettings {
+	bool needs_gap = false;
+	float max_gap_distance = 1.0f;
+	int iterations = 32;
+	float max_jump_distance = 3.0f;
+	float ray_down_offset = -0.5f;
+	float apex_height = 0.5f;
 
-	bool got_gap = false;
-	bool got_result = false;
-	PhysicsDirectSpaceState3D::RayResult last_hit;
+	AgentParkourAutojumpData find_autojump(HBAgent *p_agent, Vector3 p_direction, HBDebugGeometry *p_debug_geo = nullptr) {
+		Ref<Shape3D> coll_shape = p_agent->get_collision_shape();
 
-	const float MAX_GAP_DISTANCE = p_agent->get_radius() + 0.1f;
+		PhysicsDirectSpaceState3D *dss = p_agent->get_world_3d()->get_direct_space_state();
 
-	AgentParkourAutojumpData jump_data;
-	for (int i = 0; i < AUTOJUMP_ITERS_MAX; i++) {
-		PhysicsDirectSpaceState3D::RayParameters params;
-		PhysicsDirectSpaceState3D::RayResult result;
+		bool got_gap = false;
+		bool got_result = false;
+		PhysicsDirectSpaceState3D::RayResult last_hit;
 
-		Vector3 base_pos = p_agent->get_global_position() + p_direction * 3.0f * (i / (float)(AUTOJUMP_ITERS_MAX - 1));
-		if (p_agent->get_global_position().distance_to(base_pos) > MAX_GAP_DISTANCE && !got_gap) {
-			return jump_data;
+		AgentParkourAutojumpData jump_data;
+		Vector3 gravity_accel = p_agent->get_agent_constants()->get_gravity();
+
+		if (p_debug_geo) {
+			p_debug_geo->debug_line(p_agent->get_position(), p_agent->get_position() + p_direction, Color("RED"));
 		}
-		Vector3 target_pos = base_pos;
-		base_pos.y += p_agent->get_height() * 0.5f;
-		target_pos.y -= p_agent->get_height() * 1.0f;
-		params.from = base_pos;
-		params.to = target_pos;
-		params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
-		if (debug_geo) {
-			debug_geo->debug_raycast(params);
-		}
-		if (!dss->intersect_ray(params, result)) {
-			got_gap = true;
-		} else if (got_gap) {
+		Ref<Shape3D> shape = p_agent->get_collision_shape();
+
+		for (int i = 1; i < iterations; i++) {
+			PhysicsDirectSpaceState3D::RayParameters params;
+			PhysicsDirectSpaceState3D::RayResult result;
+			params.hit_back_faces = false;
+
+			Vector3 base_pos = p_agent->get_global_position() + p_direction * max_jump_distance * (i / (float)(iterations - 1));
+			if (p_agent->get_global_position().distance_to(base_pos) > (p_agent->get_radius() + max_gap_distance) && (needs_gap && !got_gap)) {
+				//return jump_data;
+			}
+			Vector3 target_pos = base_pos;
+			base_pos.y += p_agent->get_height() * 0.5f;
+			target_pos.y += ray_down_offset;
+			params.from = base_pos;
+			params.to = target_pos;
+			params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
+			if (p_debug_geo) {
+				p_debug_geo->debug_raycast(params);
+			}
+			if (!dss->intersect_ray(params, result)) {
+				got_gap = true;
+				continue;
+			}
+
+			if ((needs_gap && !got_gap)) {
+				continue;
+			}
+
+			if (p_debug_geo) {
+				p_debug_geo->debug_sphere(result.position);
+			}
 			if (!is_floor(result.normal, p_agent->get_floor_max_angle())) {
 				continue;
 			}
 			// TODO check if player fits
 			got_result = true;
 			last_hit = result;
-			break;
+
+			if (needs_gap && got_gap) {
+				break;
+			}
 		}
-	}
 
-	if (!got_result) {
+		if (!got_result) {
+			return jump_data;
+		}
+
+		jump_data.start = p_agent->get_global_position();
+		jump_data.end = last_hit.position;
+
+		jump_data.found = got_result;
+		jump_data.parabola_gravity = -gravity_accel.y;
+		calculate_apex_force(jump_data.start, jump_data.end, -gravity_accel.y, apex_height, jump_data.parabola_force, jump_data.parabola_t_max);
+
 		return jump_data;
 	}
 
-	jump_data.start = p_agent->get_global_position();
-	jump_data.end = last_hit.position;
+	AgentParkourAutojumpData find_autojump_from_to(HBAgent *p_agent, Vector3 p_from, Vector3 p_to) {
+		AgentParkourAutojumpData jump_data;
+		Vector3 gravity_accel = p_agent->get_agent_constants()->get_gravity() * 1.0;
+		jump_data.found = true;
+		jump_data.parabola_gravity = -gravity_accel.y;
+		jump_data.start = p_from;
+		jump_data.end = p_to;
+		calculate_apex_force(jump_data.start, jump_data.end, -gravity_accel.y, apex_height, jump_data.parabola_force, jump_data.parabola_t_max);
 
-	Vector3 delta_p = jump_data.end - jump_data.start;
-	Vector3 gravity_accel = p_agent->get_agent_constants()->get_gravity();
-	const float max_vel = 5.0f;
-	float b1 = delta_p.dot(gravity_accel) + max_vel * max_vel;
-	float discriminant = b1 * b1 - gravity_accel.length_squared() * delta_p.length_squared();
-
-	if (discriminant < 0.0f) {
 		return jump_data;
 	}
-
-	float t_low_energy = Math::sqrt(Math::sqrt(4.0f * delta_p.length_squared() / gravity_accel.length_squared()));
-	float t_min = Math::sqrt((b1 - Math::sqrt(discriminant)) * 2.0f / gravity_accel.length_squared());
-	//t_low_energy = t_min;
-	jump_data.found = got_result;
-	jump_data.parabola_t_max = t_low_energy;
-	jump_data.parabola_initial_velocity = delta_p / t_low_energy - gravity_accel * t_low_energy / 2.0f;
-	jump_data.parabola_accel = gravity_accel;
-
-	return jump_data;
-}
+};
 }; //namespace ParkourAutojump
 
 #endif // AGENT_PARKOUR_H

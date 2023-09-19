@@ -5,11 +5,15 @@
 #include "modules/imgui/godot_imgui_macros.h"
 #endif
 
+#include "core/config/project_settings.h"
+#include "scene/resources/packed_scene.h"
+
 HBPlayerAgent::HBPlayerAgent() :
 		HBAgent() {
 	if (!Engine::get_singleton()->is_editor_hint()) {
 		//Input::get_singleton()->set_mouse_mode(Input::MouseMode::MOUSE_MODE_CAPTURED);
 	}
+	GLOBAL_DEF_BASIC(PropertyInfo(Variant::STRING, "game/player/player_scene", PROPERTY_HINT_FILE, "*.tscn,*.scn,*.res"), "");
 }
 
 HBAgent *HBPlayerAgentController::_get_agent() const {
@@ -47,6 +51,11 @@ void HBPlayerAgentController::_bind_methods() {
 }
 
 void HBPlayerAgentController::_notification(int p_what) {
+#ifdef TOOLS_ENABLED
+	if (Engine::get_singleton()->is_editor_hint()) {
+		return;
+	}
+#endif
 	switch (p_what) {
 		case NOTIFICATION_PHYSICS_PROCESS: {
 			HBAgent *agent = _get_agent();
@@ -117,4 +126,17 @@ HBPlayerAgentController::HBPlayerAgentController() {
 }
 
 HBPlayerAgentController::~HBPlayerAgentController() {
+}
+
+void HBInfoPlayerStart::_editor_build(const EntityCompileInfo &p_info, const HashMap<StringName, EntityCompileInfo> &p_entities) {
+	String player_scene_path = GLOBAL_GET("game/player/player_scene");
+	DEV_ASSERT(!player_scene_path.is_empty());
+	Ref<PackedScene> packed_scene = ResourceLoader::load(player_scene_path);
+	DEV_ASSERT(packed_scene.is_valid());
+	Node *player_node = packed_scene->instantiate();
+	HBPlayerAgent *player_agent_node = Object::cast_to<HBPlayerAgent>(player_node);
+	DEV_ASSERT(player_agent_node);
+
+	add_child(player_agent_node);
+	player_agent_node->set_owner(get_owner());
 }

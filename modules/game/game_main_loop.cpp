@@ -79,7 +79,7 @@ void HBGameMainLoop::initialize() {
 			}
 
 			if (tool) {
-				change_scene(tool);
+				callable_mp(this, &HBGameMainLoop::change_scene).bind(tool).call_deferred();
 			}
 		} else if (args[i] == "--dump-steamworks-input-glyphs") {
 #ifdef MODULE_STEAMWORKS_ENABLED
