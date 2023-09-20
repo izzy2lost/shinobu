@@ -10,6 +10,7 @@
 #include "core/object/class_db.h"
 #include "fabrik/fabrik.h"
 #include "game_main_loop.h"
+#include "jolt_character_body.h"
 #include "modules/game/animation_system/epas_animation.h"
 #include "modules/game/animation_system/epas_ik_node.h"
 #include "modules/game/animation_system/epas_lookat_node.h"
@@ -19,6 +20,7 @@
 #include "scene/main/scene_tree.h"
 #include "scene/main/window.h"
 #include "state_machine.h"
+
 #ifdef DEBUG_ENABLED
 #include "animation_system/epas_editor_camera.h"
 #include "animation_system/epas_editor_grid.h"
@@ -37,7 +39,6 @@
 #include "animation_system/epas_softness_node.h"
 #include "animation_system/epas_transition_node.h"
 #include "animation_system/epas_wheel_locomotion.h"
-#include "jolt_test.h"
 
 AgentStringNames *agent_string_names = nullptr;
 

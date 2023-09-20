@@ -43,8 +43,8 @@ void EPASSoftnessNode::set_bone_softness(const StringName &p_bone_name, float p_
 	}
 }
 
-void EPASSoftnessNode::set_character(CharacterBody3D *p_character_body) {
-	character = p_character_body;
+void EPASSoftnessNode::set_character(HBAgent *p_agent) {
+	character = p_agent;
 }
 
 void EPASSoftnessNode::set_influence(float p_influence) {

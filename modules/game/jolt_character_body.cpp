@@ -1,4 +1,4 @@
-#include "jolt_test.h"
+#include "jolt_character_body.h"
 
 #include "modules/game/physics_layers.h"
 #include "modules/jolt/src/objects/jolt_body_impl_3d.hpp"

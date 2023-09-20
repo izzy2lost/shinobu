@@ -6,7 +6,7 @@
 #include "animation_system/epas_controller.h"
 #include "animation_system/epas_oneshot_animation_node.h"
 #include "inertialization.h"
-#include "jolt_test.h"
+#include "jolt_character_body.h"
 #include "scene/3d/navigation_agent_3d.h"
 #include "scene/3d/physics_body_3d.h"
 

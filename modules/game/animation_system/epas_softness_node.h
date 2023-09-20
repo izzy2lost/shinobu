@@ -1,6 +1,7 @@
 #ifndef EPAS_SOFTNESS_NODE_H
 #define EPAS_SOFTNESS_NODE_H
 
+#include "../agent.h"
 #include "epas_node.h"
 #include "scene/3d/physics_body_3d.h"
 
@@ -19,7 +20,7 @@ class EPASSoftnessNode : public EPASNode {
 	HashMap<StringName, SoftnessMapEntry> softness_map;
 	float influence = 0.0f;
 	float acceleration_multiplier = 1.0f;
-	CharacterBody3D *character = nullptr;
+	HBAgent *character = nullptr;
 
 	const static int PLOT_SAMPLES = 90;
 	float acceleration_plot[2][90] = { {}, {} };
@@ -32,7 +33,7 @@ protected:
 
 public:
 	void set_bone_softness(const StringName &p_bone_name, float p_softness);
-	void set_character(CharacterBody3D *p_character_body);
+	void set_character(HBAgent *p_agent);
 	void set_influence(float p_influence);
 	float get_influence() const;
 	virtual void process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) override;
