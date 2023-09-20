@@ -1,8 +1,11 @@
 #ifndef JOLT_TEST_H
 #define JOLT_TEST_H
 
-#include "Jolt/Physics/Character/CharacterVirtual.h"
+// Make sure clang format doesn't reorder our headers
+/* clang-format off */
 #include "modules/jolt/src/precompiled.hpp"
+#include "Jolt/Physics/Character/CharacterVirtual.h"
+/* clang-format on */
 
 class JoltCharacterBody3D : public PhysicsBody3D, public JPH::CharacterContactListener {
 	GDCLASS(JoltCharacterBody3D, PhysicsBody3D);
