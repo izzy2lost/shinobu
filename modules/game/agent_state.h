@@ -2,6 +2,7 @@
 #define AGENT_STATE_H
 
 #include "agent.h"
+#include "agent_procedural_anim.h"
 #include "animation_system/epas_blend_node.h"
 #include "animation_system/epas_ik_node.h"
 #include "animation_system/epas_inertialization_node.h"
@@ -10,6 +11,7 @@
 #include "animation_system/epas_transition_node.h"
 #include "animation_system/epas_wheel_locomotion.h"
 #include "debug_geometry.h"
+#include "ledge_traversal_controller.h"
 #include "modules/game/agent_parkour.h"
 #include "scene/animation/tween.h"
 #include "scene/resources/cylinder_shape_3d.h"
@@ -161,6 +163,8 @@ public:
 	};
 
 private:
+	AgentProceduralAnimator *animator = nullptr;
+	AgentProceduralAnimator::AgentProceduralAnimOptions animator_options;
 	enum LedgeIKPointRaycastType {
 		RAYCAST_HAND,
 		RAYCAST_FOOT,
@@ -271,6 +275,37 @@ public:
 	Vector3 calculate_animation_root_offset();
 	Transform3D _get_limb_ik_target_trf(const Transform3D &p_graphics_trf, const Transform3D &p_ledge_trf, const Transform3D &p_bone_base_trf, const Vector3 &p_bone_offset) const;
 	Transform3D get_ledge_agent_trf(Transform3D p_world_ledge_trf) const;
+	HBAgentLedgeGrabbedState();
+	~HBAgentLedgeGrabbedState();
+};
+
+class HBAgentLedgeGrabbedStateNew : public HBAgentState {
+	GDCLASS(HBAgentLedgeGrabbedStateNew, HBAgentState);
+	HBLedgeTraversalController *controller = nullptr;
+	AgentProceduralAnimator animator;
+	AgentProceduralAnimator::AgentProceduralAnimOptions animator_options;
+	struct limbs {
+		Ref<EPASIKNode> ik_node;
+		StringName bone_name;
+		StringName magnet_name;
+		bool dangle_status = false;
+	} limbs[AgentProceduralAnimator::LIMB_MAX];
+
+	Vector3 hand_offset_euler;
+
+	enum WallGrabbedParams {
+		PARAM_LEDGE_TRF,
+	};
+	void _update_ik_transforms();
+
+public:
+	virtual void enter(const Dictionary &p_args) override;
+	virtual void exit() override;
+	virtual void physics_process(float p_delta) override;
+	virtual void debug_ui_draw() override;
+
+	HBAgentLedgeGrabbedStateNew();
+	~HBAgentLedgeGrabbedStateNew();
 };
 
 class HBAgentFallState : public HBAgentState {

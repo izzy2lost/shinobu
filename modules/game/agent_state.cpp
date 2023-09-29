@@ -579,6 +579,7 @@ void HBAgentMoveState::enter(const Dictionary &p_args) {
 	Ref<EPASLookatNode> head_lookat_node = get_epas_controller()->get_epas_node("HeadLookAt");
 	torso_lookat_node->set_influence(0.0f);
 	head_lookat_node->set_influence(0.0f);
+	get_softness_node()->set_influence(1.0f);
 }
 
 void HBAgentMoveState::exit() {
@@ -591,6 +592,7 @@ void HBAgentMoveState::exit() {
 	Ref<EPASLookatNode> head_lookat_node = get_epas_controller()->get_epas_node("HeadLookAt");
 	torso_lookat_node->set_influence(0.0f);
 	head_lookat_node->set_influence(0.0f);
+	get_softness_node()->set_influence(0.0f);
 }
 
 void HBAgentMoveState::physics_process(float p_delta) {
@@ -1819,7 +1821,7 @@ void HBAgentLedgeGrabbedState::enter(const Dictionary &p_args) {
 
 	ERR_FAIL_COND(!find_initial_pose(initial_pose, params));
 
-	for (int i = 0; i < AgentIKLimbType::LIMB_TYPE_MAX; i++) {
+	for (int i = 0; i < AgentProceduralAnimator::LIMB_MAX; i++) {
 		// Setup magnet
 		ledge_ik_points.write[i].ik_node->set_use_hinge(true);
 		ledge_ik_points.write[i].ik_node->set_magnet_position(skel->to_global(initial_pose.pose.magnet_positions[i]));
@@ -1829,6 +1831,8 @@ void HBAgentLedgeGrabbedState::enter(const Dictionary &p_args) {
 		ledge_ik_points.write[i].ik_node->set_ik_influence(1.0f);
 		ledge_ik_points.write[i].position = initial_pose.ledge_transforms[i].origin;
 		ledge_ik_points.write[i].target_position = initial_pose.ledge_transforms[i].origin;
+		animator_options.starting_limb_transforms[i] = initial_pose.pose.target_transforms[i];
+		animator_options.target_limb_transforms[i] = initial_pose.pose.target_transforms[i];
 		ledge_ik_points.write[i].ik_node->set_target_transform(initial_pose.pose.target_transforms[i]);
 		ledge_ik_points.write[i].wall_normal = initial_pose.wall_normals[i];
 		ledge_ik_points.write[i].ledge_normal = initial_pose.ledge_normals[i];
@@ -1855,8 +1859,8 @@ void HBAgentLedgeGrabbedState::enter(const Dictionary &p_args) {
 		dangle_blend_node->set_blend_amount(1.0f);
 	}
 
-	agent->inertialize_graphics_rotation(Quaternion(Vector3(0.0f, 0.0f, 1.0f), ledge_trf.basis.xform(Vector3(0.0f, 0.0f, -1.0f))), true);
-
+	animator_options.target_skeleton_transform.origin = initial_pose.pose.actor_transform.origin;
+	animator_options.target_skeleton_transform.basis = Quaternion(Vector3(0.0f, 0.0f, 1.0f), ledge_trf.basis.xform(Vector3(0.0f, 0.0f, -1.0f)));
 	// Remember, animations are +Z forward!!!
 	// also, ledges point TOWARDS the player
 	// which means that we have to use its +Z as the new forward vector of the graphics node
@@ -1903,271 +1907,6 @@ void HBAgentLedgeGrabbedState::physics_process(float p_delta) {
 			dangle_blend_node->set_blend_amount(1.0f);
 			get_skeleton()->physical_bones_start_simulation_on(dangling_bones);
 		}
-	}
-
-	debug_draw_clear();
-	HBAgent *agent = get_agent();
-	ERR_FAIL_COND(!agent);
-	debug_draw_sphere(agent->get_global_position(), 0.05f, Color("Yellow"));
-
-	Skeleton3D *skel = get_skeleton();
-	ERR_FAIL_COND(!skel);
-
-	if (_handle_transition_inputs()) {
-		return;
-	}
-
-	// move the agent
-	Node3D *gn = get_graphics_node();
-	ERR_FAIL_COND(!gn);
-
-	Vector3 forward = get_graphics_node()->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
-	forward.y = 0.0f;
-	forward.normalize();
-	Plane plane = Plane(forward);
-	Vector3 movement_input_transformed = Quaternion(Vector3(0.0f, 0.0f, -1.0f), forward).xform(agent->get_desired_movement_input());
-	Vector3 lateral_movement_input = plane.project(movement_input_transformed);
-	ik_debug_info.transformed_movement_input = Vector2(lateral_movement_input.x, lateral_movement_input.z);
-
-	const float ledge_movement_max_vel = agent->get_agent_constants()->get_ledge_movement_velocity();
-
-	float velocity_goal = gn->get_global_transform().basis.xform_inv(lateral_movement_input).x * ledge_movement_max_vel;
-
-	if (SIGN(agent->get_movement_input().x) != 0) {
-		AgentIKLimbType ledge_point_to_test = SIGN(agent->get_movement_input().x) == -1 ? AgentIKLimbType::HAND_LEFT : AgentIKLimbType::FOOT_RIGHT;
-		Vector3 raycast_start = Vector3(0.5f * SIGN(agent->get_movement_input().x), agent->get_height() * 0.25f, 0.5f);
-		Vector3 raycast_end = raycast_start + Vector3(0.0f, 0.0f, -1.5f);
-		raycast_start = gn->get_global_transform().xform(raycast_start);
-		raycast_end = gn->get_global_transform().xform(raycast_end);
-
-		Vector3 out_position, wall_normal, ledge_normal;
-
-		// If we are moving in a direction we can't get to we should start slowing down
-		if (!_find_ledge_sweep(raycast_start, raycast_end, out_position, wall_normal, ledge_normal, ledge_ik_points[ledge_point_to_test].debug_color, Vector3(0.0f, get_agent()->get_height(), 0.0f))) {
-			velocity_goal = 0.0f;
-		}
-	}
-
-	HBSprings::velocity_spring(
-			&ledge_movement_velocity,
-			&ledge_movement_acceleration,
-			velocity_goal,
-			0.175f,
-			p_delta);
-
-	bool is_moving = !Math::is_zero_approx(ledge_movement_velocity);
-
-	if (animation_time == 0.0f && is_moving) {
-		// Set the animation direction when initiating a move
-		animation_direction = SIGN(ledge_movement_velocity);
-	}
-
-	if (is_moving || animation_time > 0.0f) {
-		animation_time += p_delta + (Math::abs(ledge_movement_velocity) * 1.25f * p_delta);
-	}
-
-	// When the animation ends if we are still moving, wrap around, otherwise set it to 0
-	if (animation_time >= 1.0f) {
-		if (is_moving) {
-			float prev_anim_time = animation_time;
-			animation_time = Math::fposmod(animation_time, 1.0f);
-			//  We wrapped around, we can update the animation direction
-			if (animation_time < prev_anim_time) {
-				animation_direction = SIGN(ledge_movement_velocity);
-			}
-		} else {
-			animation_time = 0.0f;
-		}
-		// Always apply the target positions
-		for (int i = 0; i < ledge_ik_points.size(); i++) {
-			ledge_ik_points.write[i].position = ledge_ik_points[i].target_position;
-		}
-	}
-
-	Vector3 prev_agent_pos = agent->get_global_position();
-
-	/*if (animation_direction != 0) {
-		Vector3 curr_graphics_forward = gn->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
-		Vector3 new_graphics_forward = animation_direction == 1 ? ledge_ik_points[AgentIKLimbType::HAND_RIGHT].wall_normal : ledge_ik_points[AgentIKLimbType::HAND_LEFT].wall_normal;
-		new_graphics_forward *= -1.0f;
-		float angle = curr_graphics_forward.angle_to(new_graphics_forward);
-		Vector3 axis = curr_graphics_forward.cross(new_graphics_forward).normalized();
-
-		if (axis.is_normalized()) {
-			float angle_mul = Math::abs(ledge_movement_velocity) / ledge_movement_max_vel;
-			new_graphics_forward = curr_graphics_forward.rotated(axis, (angle * p_delta * angle_mul));
-		}
-
-		Transform3D gn_trf_target = gn->get_global_transform();
-		gn_trf_target.origin = target_agent_position;
-
-		Transform3D gn_trf = gn->get_global_transform();
-		gn_trf.basis = Quaternion(curr_graphics_forward, new_graphics_forward) * gn_trf.basis.get_rotation_quaternion();
-		gn->set_global_transform(gn_trf);
-
-		Vector3 average_pos = ledge_ik_points[AgentIKLimbType::HAND_RIGHT].position + ledge_ik_points[AgentIKLimbType::HAND_LEFT].position;
-		average_pos *= 0.5f;
-
-		PhysicsDirectSpaceState3D::RayParameters ray_params;
-		ray_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
-		Vector3 ray_dir = gn_trf_target.origin;
-		ray_dir.y = average_pos.y;
-		ray_dir = ray_dir.direction_to(average_pos);
-
-		ray_params.from = gn_trf_target.origin - new_graphics_forward;
-		ray_params.to = gn_trf_target.origin + new_graphics_forward * 2.0f;
-
-		PhysicsDirectSpaceState3D::RayResult ray_result;
-
-		PhysicsDirectSpaceState3D *dss = agent->get_world_3d()->get_direct_space_state();
-
-		// Try to aim graphics forward
-		debug_draw_raycast(ray_params);
-		}
-	}*/
-
-	static struct {
-		Vector3 position;
-		Vector3 wall_normal;
-		Vector3 ledge_normal;
-	} new_ledge_info[AgentIKLimbType::LIMB_TYPE_MAX];
-
-	// First, we figure out if any ledge doesn't have a potential target ledge position, this means
-	// that we moved into a side that doesn't have more corner for us to grab to
-	Transform3D predicted_gn_trf = gn->get_global_transform();
-	predicted_gn_trf.origin += target_agent_position - agent->get_global_position();
-	if (is_moving) {
-		for (int i = 0; i < ledge_ik_points.size(); i++) {
-			LedgeIKLimb &ik_point = ledge_ik_points.write[i];
-			Vector3 new_position;
-			Vector3 wall_normal;
-			Vector3 ledge_normal;
-			Vector3 from = predicted_gn_trf.xform(ik_point.raycast_origin);
-			Vector3 to = predicted_gn_trf.xform(ik_point.raycast_target);
-
-			bool result;
-
-			if (ik_point.raycast_type == LedgeIKPointRaycastType::RAYCAST_FOOT) {
-				result = _find_wall_point(from, to, new_position, wall_normal, ledge_ik_points[i].debug_color);
-				if (!result) {
-					continue;
-				}
-			} else {
-				Vector3 sweep_offset = Vector3(0.0f, get_agent()->get_height(), 0.0f);
-				result = _find_ledge_sweep(from, to, new_position, wall_normal, ledge_normal, ledge_ik_points[i].debug_color, sweep_offset);
-			}
-			if (!result) {
-				// Ledge detection failed, which means we must stop moving and go back
-				ledge_movement_acceleration = 0.0f;
-				ledge_movement_velocity = 0.0f;
-				target_agent_spring_velocity = Vector3();
-				is_moving = false;
-				agent->set_global_position(prev_agent_pos);
-				break;
-			} else {
-				new_ledge_info[i].position = new_position;
-				new_ledge_info[i].wall_normal = wall_normal;
-				new_ledge_info[i].ledge_normal = ledge_normal;
-				debug_draw_sphere(new_position, 0.05f, ik_point.debug_color);
-			}
-		}
-	}
-
-	// Average position of all IK positions
-	Vector3 ik_position_avg;
-	// Weights used for a weighted average of the ik positions
-	// this is used to calculate the hip offset
-	float weights[AgentIKLimbType::LIMB_TYPE_MAX];
-	float total_weight = 0.0f;
-	int non_dangling_limbs = 0;
-	Vector3 ik_handle_positions[AgentIKLimbType::LIMB_TYPE_MAX];
-
-	float anim_mul = Math::abs(ledge_movement_velocity) / ledge_movement_max_vel;
-	AgentIKPose pose;
-	for (int i = 0; i < AgentIKLimbType::LIMB_TYPE_MAX; i++) {
-		LedgeIKLimb &ik_point = ledge_ik_points.write[i];
-		weights[i] = 0.0f;
-		if (ik_point.is_dangling) {
-			continue;
-		}
-		non_dangling_limbs++;
-
-		float start_time = ik_point.start_time;
-		float end_time = ik_point.end_time;
-		// Invert the animation if moving to the left
-		if (animation_direction == -1) {
-			start_time = 1.0f - start_time;
-			end_time = 1.0f - end_time;
-			SWAP(start_time, end_time);
-		}
-
-		float animation_pos = CLAMP(Math::inverse_lerp(start_time, end_time, animation_time), 0.0f, 1.0f);
-
-		// The ik point only moves when we are within the animation, otherwise we make it stay in place
-		if (is_moving && animation_time <= end_time && animation_time >= start_time) {
-			ik_point.target_position = new_ledge_info[i].position;
-			ik_point.wall_normal = new_ledge_info[i].wall_normal;
-			ik_point.ledge_normal = new_ledge_info[i].ledge_normal;
-		}
-		Vector3 new_pos = ik_point.position.lerp(ik_point.target_position, animation_pos);
-		new_pos.y += Math::sin(animation_pos * Math_PI) * 0.05f * anim_mul;
-
-		Transform3D ledge_trf = _get_ledge_point_target_trf(predicted_gn_trf, new_pos, new_ledge_info[i].wall_normal);
-		Transform3D ik_trf = _get_limb_ik_target_trf(gn->get_global_transform(), ledge_trf, ik_point.bone_base_trf, ik_point.target_offset);
-		ledge_ik_points.write[i].ik_node->set_target_transform(ik_trf);
-
-		ik_position_avg += ik_trf.origin;
-		weights[i] = ik_point.get_weight(animation_pos);
-		total_weight += weights[i];
-		ik_handle_positions[i] = ik_trf.origin;
-	}
-
-	Vector3 ik_position_weighted; // The hip position after
-	ik_position_avg /= (float)non_dangling_limbs;
-
-	for (int i = 0; i < AgentIKLimbType::LIMB_TYPE_MAX; i++) {
-		if (ledge_ik_points[i].is_dangling) {
-			continue;
-		}
-		ik_position_weighted += ik_handle_positions[i] * (weights[i] / total_weight);
-	}
-
-	// Project into a plane that matches the wall normal
-	ik_position_weighted = plane.project(ik_position_weighted);
-	ik_position_avg = plane.project(ik_position_avg);
-
-	// Move along the wall
-	Vector3 movement_vector = Vector3(ledge_movement_velocity, 0.0f, 0.0f);
-	Vector3 movement_dir = ledge_ik_points[AgentIKLimbType::HAND_LEFT].ledge_normal.cross(ledge_ik_points[AgentIKLimbType::HAND_LEFT].wall_normal).normalized();
-
-	movement_vector = Quaternion(Vector3(1.0f, 0.0f, 0.0f), movement_dir).xform(movement_vector);
-	target_agent_position = target_agent_position + movement_vector * p_delta;
-
-	// Make the movement lag behind visually a bit, to make limbs look better
-	Vector3 graphics_position = agent->get_global_position();
-	HBSprings::critical_spring_damper_exact_vector3(graphics_position, target_agent_spring_velocity, target_agent_position, target_spring_halflife, p_delta);
-	agent->set_global_position(graphics_position);
-
-	float anim_mul_sq = anim_mul * anim_mul;
-	Vector3 offset = skel->get_global_transform().basis.xform_inv(ik_position_weighted - ik_position_avg);
-	offset.y = 0.0f;
-	// TODO: make these magic numbers into constants
-	Vector3 skel_pos = offset * anim_mul_sq * 0.4f;
-	skel_pos.y = 0.2f * anim_mul_sq; // Perhaps these two should be using a spring to make them less sudden
-	skel_pos.z = 0.1f * anim_mul_sq;
-	skel->set_position(skel_pos);
-
-	// Update debug info
-	for (int i = 0; i < AgentIKLimbType::LIMB_TYPE_MAX; i++) {
-		ik_debug_info.last_tip_weights[i] = weights[i];
-	}
-	ik_debug_info.last_hip_offset_x = skel_pos.x;
-	ik_debug_info.physics_time_delta += p_delta;
-	ik_debug_info.last_data_is_valid = true;
-
-	for (int i = 0; i < AgentIKLimbType::LIMB_TYPE_MAX; i++) {
-		Vector3 magnet = skel->to_global(ledge_ik_points[i].magnet_position);
-		ledge_ik_points.write[i].ik_node->set_magnet_position(magnet);
 	}
 }
 
@@ -2248,6 +1987,207 @@ Vector3 HBAgentLedgeGrabbedState::calculate_animation_root_offset() {
 	return root_offset;
 }
 
+HBAgentLedgeGrabbedState::HBAgentLedgeGrabbedState() {
+	animator = memnew(AgentProceduralAnimator);
+}
+
+HBAgentLedgeGrabbedState::~HBAgentLedgeGrabbedState() {
+	memdelete(animator);
+}
+
+void HBAgentLedgeGrabbedStateNew::enter(const Dictionary &p_args) {
+	add_child(controller);
+	controller->set_as_top_level(true);
+	DEV_ASSERT(p_args.has(PARAM_LEDGE_TRF));
+	controller->move_to_ledge(p_args[PARAM_LEDGE_TRF]);
+	animator.reset();
+
+	for (int i = 0; i < AgentProceduralAnimator::AgentLimb::LIMB_MAX; i++) {
+		animator_options.starting_limb_transforms[i] = controller->get_limb_transform(static_cast<AgentProceduralAnimator::AgentLimb>(i));
+		animator_options.target_limb_transforms[i] = animator_options.starting_limb_transforms[i];
+	}
+
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_LEFT_HAND][0] = 0.5f;
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_LEFT_HAND][1] = 0.9f;
+	animator_options.limb_peak_position[AgentProceduralAnimator::LIMB_LEFT_HAND] = Vector3(0.0, 0.1f, 0.0f);
+
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_RIGHT_HAND][0] = 0.0f;
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_RIGHT_HAND][1] = 0.4f;
+	animator_options.limb_peak_position[AgentProceduralAnimator::LIMB_RIGHT_HAND] = Vector3(0.0, 0.1f, 0.0f);
+
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_LEFT_FOOT][0] = 0.6f;
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_LEFT_FOOT][1] = 1.0f;
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_RIGHT_FOOT][0] = 0.1f;
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_RIGHT_FOOT][1] = 0.5f;
+
+	limbs[AgentProceduralAnimator::LIMB_LEFT_HAND].ik_node = get_epas_controller()->get_epas_node("LeftHandIK");
+	limbs[AgentProceduralAnimator::LIMB_RIGHT_HAND].ik_node = get_epas_controller()->get_epas_node("RightHandIK");
+	limbs[AgentProceduralAnimator::LIMB_LEFT_FOOT].ik_node = get_epas_controller()->get_epas_node("LeftFootIK");
+	limbs[AgentProceduralAnimator::LIMB_RIGHT_FOOT].ik_node = get_epas_controller()->get_epas_node("RightFootIK");
+
+	limbs[AgentProceduralAnimator::LIMB_LEFT_HAND].bone_name = "hand.L";
+	limbs[AgentProceduralAnimator::LIMB_RIGHT_HAND].bone_name = "hand.R";
+	limbs[AgentProceduralAnimator::LIMB_LEFT_FOOT].bone_name = "foot.L";
+	limbs[AgentProceduralAnimator::LIMB_RIGHT_FOOT].bone_name = "foot.R";
+
+	limbs[AgentProceduralAnimator::LIMB_LEFT_HAND].magnet_name = "IK.Magnet.hand.L";
+	limbs[AgentProceduralAnimator::LIMB_RIGHT_HAND].magnet_name = "IK.Magnet.hand.R";
+	limbs[AgentProceduralAnimator::LIMB_LEFT_FOOT].magnet_name = "IK.Magnet.foot.L";
+	limbs[AgentProceduralAnimator::LIMB_RIGHT_FOOT].magnet_name = "IK.Magnet.foot.R";
+
+	for (int i = 0; i < AgentProceduralAnimator::LIMB_MAX; i++) {
+		limbs[i].ik_node->set_ik_influence(1.0f);
+	}
+
+	get_movement_transition_node()->transition_to(HBAgentConstants::MOVEMENT_WALLGRABBED);
+	animator.seek(1.0f);
+	animator_options.anim_blend = 0.0f;
+	animator.process(animator_options, 0.0f);
+	_update_ik_transforms();
+}
+void HBAgentLedgeGrabbedStateNew::exit() {
+	remove_child(controller);
+
+	for (int i = 0; i < AgentProceduralAnimator::LIMB_MAX; i++) {
+		limbs[i].ik_node->set_ik_influence(0.0f);
+	}
+}
+void HBAgentLedgeGrabbedStateNew::debug_ui_draw() {
+	ImGui::InputFloat3("Hand rot", hand_offset_euler.coord);
+}
+void HBAgentLedgeGrabbedStateNew::physics_process(float p_delta) {
+	debug_draw_clear();
+	Vector3 input = Vector3(get_agent()->get_movement_input().x, 0.0f, 0.0f);
+	input.normalize();
+	Vector3 controller_input = input;
+	if (animator.get_playback_position() < 1.0f) {
+		if (SIGN(input.x) != animator_options.playback_direction) {
+			controller_input.x = 0.0f;
+		}
+	}
+	controller->set_movement_input(controller_input);
+	controller->update(p_delta);
+	float blend = Math::abs(controller->get_movement_velocity()) / controller->get_max_movement_velocity();
+	animator_options.anim_blend = blend;
+
+	bool needs_updating_dangle_status = false;
+	for (int i = 0; i < AgentProceduralAnimator::LIMB_MAX; i++) {
+		AgentProceduralAnimator::AgentLimb limb = static_cast<AgentProceduralAnimator::AgentLimb>(i);
+		float t = animator.get_limb_time(animator_options, limb);
+		// Targets only start changing when the animation isn't done
+		if (t <= 1.0) {
+			animator_options.target_limb_transforms[limb] = controller->get_limb_transform(limb);
+		}
+		if (i > AgentProceduralAnimator::LIMB_RIGHT_HAND) {
+			continue;
+		}
+		if (limbs[i].dangle_status != controller->get_limb_is_dangling(limb)) {
+			needs_updating_dangle_status = true;
+		}
+		limbs[i].dangle_status = controller->get_limb_is_dangling(limb);
+		animator_options.limb_dangle_status[i] = limbs[i].dangle_status;
+	}
+
+	if (needs_updating_dangle_status) {
+		TypedArray<StringName> dangling_bones;
+		if (limbs[AgentProceduralAnimator::LIMB_LEFT_FOOT].dangle_status) {
+			dangling_bones.push_back("thigh.L");
+			dangling_bones.push_back("shin.L");
+			dangling_bones.push_back("foot.L");
+		}
+		if (limbs[AgentProceduralAnimator::LIMB_RIGHT_FOOT].dangle_status) {
+			dangling_bones.push_back("thigh.R");
+			dangling_bones.push_back("shin.R");
+			dangling_bones.push_back("foot.R");
+		}
+
+		get_inertialization_node()->inertialize();
+
+		get_epas_controller()->clear_ignored_bones();
+
+		if (dangling_bones.size() > 0) {
+			get_skeleton()->physical_bones_start_simulation_on(dangling_bones);
+			// This makes sure inertialization works when going back to non physics animation
+			// TODO: We need to somehow add a mechanism to inertialize physics bones properly, as they are not
+			// in the pose outputs that the inertialization node receives
+			get_epas_controller()->ignore_bones(dangling_bones);
+		} else {
+			get_skeleton()->physical_bones_stop_simulation();
+		}
+	}
+
+	animator.process(animator_options, p_delta * 1.0f);
+
+	_update_ik_transforms();
+
+	if (animator.get_playback_position() == 1.0f && input.x != 0) {
+		animator.reset();
+		for (int i = 0; i < AgentProceduralAnimator::LIMB_MAX; i++) {
+			AgentProceduralAnimator::AgentLimb limb = static_cast<AgentProceduralAnimator::AgentLimb>(i);
+			animator_options.starting_limb_transforms[limb] = animator_options.target_limb_transforms[limb];
+		}
+		int new_direction = SIGN(input.x);
+		bool changing_direction = new_direction != 0 && new_direction != animator_options.playback_direction;
+		if (changing_direction) {
+			animator_options.playback_direction = new_direction;
+			print_line(new_direction);
+		}
+	}
+	get_graphics_node()->set_global_basis(controller->get_graphics_rotation());
+
+	// Input handling
+
+	if (get_agent()->is_action_pressed(HBAgent::AgentInputAction::INPUT_ACTION_PARKOUR_DOWN)) {
+		state_machine->transition_to(ASN()->fall_state);
+		return;
+	}
+}
+
+void HBAgentLedgeGrabbedStateNew::_update_ik_transforms() {
+	Ref<EPASAnimationNode> anim_node = get_epas_controller()->get_epas_node("WallGrabbed");
+	Ref<EPASPose> ref_pose = anim_node->get_animation()->get_keyframe(0)->get_pose();
+
+	AgentProceduralAnimator::AgentProceduralPose pose;
+	animator.get_output_pose(pose);
+	for (int i = 0; i < AgentProceduralAnimator::LIMB_MAX; i++) {
+		Transform3D bone_skel_trf = ref_pose->calculate_bone_global_transform(limbs[i].bone_name, get_skeleton(), get_epas_controller()->get_base_pose());
+		Quaternion bone_skel_rot = bone_skel_trf.basis.get_rotation_quaternion();
+		Vector3 controller_forward = pose.ik_targets[i].basis.get_rotation_quaternion().xform(Vector3(0.0f, 0.0f, -1.0f));
+		Vector3 our_forward = Vector3(0.0f, 0.0f, 1.0f);
+		Transform3D trf = pose.ik_targets[i];
+		trf.basis = Quaternion(our_forward, controller_forward) * bone_skel_rot;
+		// NOTE: Our reference wall is 0.35 meters forward of the character in the animation data, this allows us to figure out an offset for it
+		Vector3 foot_offset = controller_forward * (bone_skel_trf.origin.z - 0.35f);
+		trf.origin += foot_offset;
+
+		limbs[i].ik_node->set_target_transform(trf);
+
+		debug_draw_sphere(trf.origin);
+
+		Vector3 magnet_pos = ref_pose->get_bone_position(limbs[i].magnet_name);
+		limbs[i].ik_node->set_magnet_position(get_agent()->get_global_position() + Quaternion(our_forward, controller_forward).normalized().xform(magnet_pos));
+	}
+	debug_draw_sphere(pose.skeleton_trf.origin, 0.05f, Color("RED"));
+	Vector3 skeleton_position_offset = pose.skeleton_position_offset;
+	skeleton_position_offset.y = 0.0f;
+	get_agent()->set_global_position(pose.skeleton_trf.origin + skeleton_position_offset + Vector3(0.0, -get_agent()->get_height() * 0.35f, 0.0f) + controller->get_graphics_rotation().xform(Vector3(0.0, 0.0, 1.0f) * 0.25f));
+}
+
+HBAgentLedgeGrabbedStateNew::HBAgentLedgeGrabbedStateNew() {
+	controller = memnew(HBLedgeTraversalController);
+	CollisionShape3D *cs = memnew(CollisionShape3D);
+	controller->add_child(cs);
+	Ref<SphereShape3D> sphere;
+	sphere.instantiate();
+	sphere->set_radius(0.25f);
+	cs->set_shape(sphere);
+	animator.seek(1.0f);
+}
+HBAgentLedgeGrabbedStateNew::~HBAgentLedgeGrabbedStateNew() {
+	if (!is_inside_tree()) {
+		memdelete(controller);
+	}
+}
 /**********************
 	Fall State
 ***********************/
@@ -2869,8 +2809,6 @@ void HBAgentWallParkourState::enter(const Dictionary &p_args) {
 	agent_position_spring_velocity = Vector3();
 	graphics_rotation_spring_velocity = Vector3();
 	agent_position_target = agent->get_global_position();
-
-	get_softness_node()->set_influence(0.0f);
 
 	movement_transition->transition_to(HBAgentConstants::MovementTransitionInputs::MOVEMENT_PARKOUR_CAT);
 

@@ -26,6 +26,7 @@ void EPASWheelLocomotion::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPA
 		mesh->set_orientation(QuadMesh::FACE_Y);
 		for (int i = 0; i < MAX_DEBUG_FOOT_MESHES; i++) {
 			Decal *mi = memnew(Decal);
+			mi->set_cull_mask(0b10);
 			mi->set_lower_fade(0.0f);
 			mi->set_upper_fade(0.0f);
 			mi->set_size(Vector3(0.2f, 0.5f, 0.2f));
@@ -229,10 +230,9 @@ void EPASWheelLocomotion::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPA
 				// Pinned position with a little slide margin applied.
 				Vector3 pinned_position_r = foot_ik[i].pinned_position;
 				Vector3 target_ik = foot_ik[i].ik_node->get_target_transform().origin;
-				print_line(pinned_position_r.y - target_ik.y);
 				target_ik.y = pinned_position_r.y;
 				Vector3 pinned_to_ik = target_ik - pinned_position_r;
-				//pinned_position_r += pinned_to_ik.limit_length(foot_ik_slide_max);
+				pinned_position_r += pinned_to_ik.limit_length(foot_ik_slide_max);
 
 				if (foot_ik[i].pinned) {
 					Transform3D target_trf = foot_ik[i].ik_node->get_target_transform();

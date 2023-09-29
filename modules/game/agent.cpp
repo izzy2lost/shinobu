@@ -493,6 +493,7 @@ void HBAgent::_notification(int p_what) {
 			GodotImGui *gim = GodotImGui::get_singleton();
 			if (gim && gim->is_debug_enabled(this)) {
 				if (gim->begin_debug_window(this)) {
+					ImGui::Text("pos %s", String(get_global_position()).utf8().get_data());
 					ImGui::Text("Velocity %s %.2f", String(get_effective_velocity()).utf8().get_data(), get_effective_velocity().length());
 					ImGui::Text("Desired Velocity %s", String(_get_desired_velocity()).utf8().get_data());
 					ImGui::Text("gn rot %s", String(_get_graphics_node()->get_rotation_degrees()).utf8().get_data());

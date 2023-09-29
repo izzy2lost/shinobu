@@ -11,6 +11,7 @@
 #include "fabrik/fabrik.h"
 #include "game_main_loop.h"
 #include "jolt_character_body.h"
+#include "ledge_traversal_controller.h"
 #include "modules/game/animation_system/epas_animation.h"
 #include "modules/game/animation_system/epas_ik_node.h"
 #include "modules/game/animation_system/epas_lookat_node.h"
@@ -68,6 +69,7 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(HBAgentParkourAutoJumpState);
 	GDREGISTER_CLASS(HBAgentParkourBeamWalk);
 	GDREGISTER_CLASS(HBAgentRootMotionState);
+	GDREGISTER_CLASS(HBAgentLedgeGrabbedStateNew);
 	// State machine stuff
 	GDREGISTER_CLASS(HBStateMachine);
 	GDREGISTER_ABSTRACT_CLASS(HBStateMachineState);
@@ -100,6 +102,7 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 
 	// Tests...
 	GDREGISTER_CLASS(JoltCharacterBody3D);
+	GDREGISTER_CLASS(HBLedgeTraversalController);
 
 	TBLoaderSingleton::register_entity_type<HBAgentParkourPoint>();
 	TBLoaderSingleton::register_entity_type<HBAgentParkourBeam>();

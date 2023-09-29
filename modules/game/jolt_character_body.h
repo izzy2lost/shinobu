@@ -43,6 +43,8 @@ public:
 	JoltCharacterBody3D();
 	~JoltCharacterBody3D();
 
+	Vector3 get_ground_velocity() const;
+
 	Vector3 get_desired_velocity() const { return desired_velocity; }
 	void set_desired_velocity(const Vector3 &p_desired_velocity) { desired_velocity = p_desired_velocity; }
 };

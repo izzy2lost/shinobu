@@ -74,11 +74,11 @@ void JoltCharacterBody3D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_effective_velocity"), &JoltCharacterBody3D::get_effective_velocity);
 	GDVIRTUAL_BIND(_post_physics_process, "delta");
 	ClassDB::bind_method(D_METHOD("get_desired_velocity"), &JoltCharacterBody3D::get_desired_velocity);
+	ClassDB::bind_method(D_METHOD("get_ground_velocity"), &JoltCharacterBody3D::get_ground_velocity);
 }
 
 void JoltCharacterBody3D::OnContactSolve(const JPH::CharacterVirtual *inCharacter, const JPH::BodyID &inBodyID2, const JPH::SubShapeID &inSubShapeID2, JPH::RVec3Arg inContactPosition, JPH::Vec3Arg inContactNormal, JPH::Vec3Arg inContactVelocity, const JPH::PhysicsMaterial *inContactMaterial, JPH::Vec3Arg inCharacterVelocity, JPH::Vec3 &ioNewCharacterVelocity) {
 	// Don't allow the player to slide down static not-too-steep surfaces when not actively moving and when not on a moving platform
-	return;
 	if (!allow_sliding && inContactVelocity.IsNearZero() && !inCharacter->IsSlopeTooSteep(inContactNormal))
 		ioNewCharacterVelocity = JPH::Vec3::sZero();
 }
@@ -147,7 +147,6 @@ void JoltCharacterBody3D::handle_input(Vector3 p_input, float p_delta) {
 
 	// Update character velocity
 	character->SetLinearVelocity(new_velocity);
-	print_line(Engine::get_singleton()->get_frames_drawn());
 }
 
 float JoltCharacterBody3D::get_floor_max_angle() const {
@@ -195,4 +194,9 @@ void JoltCharacterBody3D::update(float p_delta) {
 	Vector3 new_position = to_godot(character->GetPosition());
 	effective_velocity = (new_position - old_position) / p_delta;
 	GDVIRTUAL_CALL(_post_physics_process, p_delta);
+}
+
+Vector3 JoltCharacterBody3D::get_ground_velocity() const {
+	ERR_FAIL_NULL_V(character.GetPtr(), Vector3());
+	return to_godot(character->GetGroundVelocity());
 }
