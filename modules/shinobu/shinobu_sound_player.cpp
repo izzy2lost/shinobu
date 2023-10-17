@@ -66,7 +66,7 @@ int64_t ShinobuSoundPlayer::get_playback_position_nsec() {
 	if (result == MA_SUCCESS) {
 		result = ma_sound_get_data_format(&sound, NULL, NULL, &sample_rate, NULL, 0);
 		if (result == MA_SUCCESS) {
-			out_pos = (pos_frames * 1e+9) / ma_engine_get_sample_rate(engine);
+			out_pos = (pos_frames * 1e+9) / sample_rate;
 		}
 	}
 

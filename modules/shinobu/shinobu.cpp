@@ -7,10 +7,10 @@
 #define MA_NO_OPUS /* Disable the (not yet implemented) built-in Opus decoder to ensure the libopus decoder is picked. */
 #define MINIAUDIO_IMPLEMENTATION
 #define MA_DEBUG_OUTPUT
-#include "thirdparty/miniaudio/miniaudio.h"
 #include "shinobu_channel_remap.h"
 #include "shinobu_pitch_shift.h"
 #include "shinobu_spectrum_analyzer.h"
+#include "thirdparty/miniaudio/miniaudio.h"
 
 #include "core/os/os.h"
 #include "shinobu_macros.h"
@@ -216,8 +216,6 @@ Error Shinobu::initialize(ma_backend forced_backend) {
 	resourceManagerConfig.customDecodingBackendCount = sizeof(pCustomBackendVTables) / sizeof(pCustomBackendVTables[0]);
 	resourceManagerConfig.pCustomDecodingBackendUserData = NULL;
 	resourceManagerConfig.decodedFormat = ma_format_f32;
-
-	resourceManagerConfig.decodedSampleRate = device.sampleRate;
 
 	result = ma_resource_manager_init(&resourceManagerConfig, &resource_manager);
 
