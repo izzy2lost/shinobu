@@ -7,10 +7,13 @@
 #define MA_NO_OPUS /* Disable the (not yet implemented) built-in Opus decoder to ensure the libopus decoder is picked. */
 #define MINIAUDIO_IMPLEMENTATION
 #define MA_DEBUG_OUTPUT
+
+/* clang-format off */
+#include "thirdparty/miniaudio/miniaudio.h"
 #include "shinobu_channel_remap.h"
 #include "shinobu_pitch_shift.h"
 #include "shinobu_spectrum_analyzer.h"
-#include "thirdparty/miniaudio/miniaudio.h"
+/* clang-format on */
 
 #include "core/os/os.h"
 #include "shinobu_macros.h"
