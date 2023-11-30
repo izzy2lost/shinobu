@@ -135,7 +135,6 @@ Ref<EPASPoseInertializer> EPASPoseInertializer::create(const Ref<EPASPose> p_pos
 	ERR_FAIL_COND_V_MSG(!p_poses[InertializationPose::TARGET_POSE].is_valid(), Ref<EPASPoseInertializer>(), "No current pose was given");
 	Ref<EPASPoseInertializer> in;
 	in.instantiate();
-	print_line("IN", in->get_current_transition_time());
 	Vector<EPASPoseInertializer::TransitionInfo> transition_infos;
 
 	Ref<EPASPose> prev_prev_pose = p_poses[InertializationPose::PREV_PREV_POSE];

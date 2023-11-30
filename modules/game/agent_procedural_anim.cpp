@@ -51,27 +51,24 @@ void AgentProceduralAnimator::_process_springs(AgentProceduralAnimOptions &p_opt
 				skeleton_transform.basis.get_rotation_quaternion(),
 				p_options.skeleton_rotation_spring_halflife,
 				p_delta);
+		skeleton_trf.basis = rot;
 	}
 
 	if (p_options.skeleton_position_spring_halflife <= 0.0f) {
 		skeleton_trf.origin = skeleton_transform.origin;
 	} else {
-		HBSprings::spring_damper_exact_ratio_vector3(
+		HBSprings::critical_spring_damper_exact_vector3(
 				skeleton_trf.origin,
 				skeleton_position_spring_velocity,
 				skeleton_transform.origin,
-				Vector3(),
-				0.01f,
 				p_options.skeleton_position_spring_halflife,
 				p_delta);
 	}
 	skeleton_output_transform = skeleton_trf;
-	HBSprings::spring_damper_exact_ratio_vector3(
+	HBSprings::critical_spring_damper_exact_vector3(
 			skeleton_position_offset,
 			skeleton_position_offset_spring_velocity,
 			skeleton_position_offset_target,
-			Vector3(),
-			p_options.skeleton_position_offset_spring_damping_ratio,
 			p_options.skeleton_position_offset_spring_halflife,
 			p_delta);
 }
@@ -130,7 +127,7 @@ bool AgentProceduralAnimator::is_done() const {
 	return animation_time >= 1.0f;
 }
 
-void AgentProceduralAnimator::get_output_pose(AgentProceduralPose &p_pose) {
+void AgentProceduralAnimator::get_output_pose(AgentProceduralPose &p_pose) const {
 	p_pose.skeleton_trf = skeleton_output_transform;
 	p_pose.skeleton_position_offset = skeleton_position_offset;
 	for (int i = 0; i < LIMB_MAX; i++) {
@@ -157,7 +154,7 @@ void AgentProceduralAnimator::seek(float p_playback_position) {
 
 void AgentProceduralAnimator::restart() {
 	reset();
-
+	restart_queued = true;
 	for (int i = 0; i < LIMB_MAX; i++) {
 		limb_position_spring_velocities[i] = Vector3();
 		limb_rotation_spring_velocities[i] = Vector3();

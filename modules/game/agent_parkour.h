@@ -12,6 +12,24 @@
 #include "scene/resources/box_shape_3d.h"
 #include "scene/resources/sphere_shape_3d.h"
 
+class HBAgentParkourLedge : public Area3D {
+	GDCLASS(HBAgentParkourLedge, Area3D);
+	Ref<Curve3D> curve;
+
+protected:
+	static void _bind_methods();
+
+public:
+	Ref<Curve3D> get_curve() const;
+	void set_curve(const Ref<Curve3D> &p_curve);
+	void generate_colliders();
+	float get_closest_offset(const Vector3 &p_global_pos) const;
+	Transform3D get_ledge_transform_at_offset(float p_offset) const;
+	bool check_agent_fits(HBAgent *p_agent, float p_offset, HBDebugGeometry *p_debug_geo = nullptr) const;
+
+	HBAgentParkourLedge();
+};
+
 class HBAgentParkourPoint : public StaticBody3D, public TBLoaderEntity {
 	GDCLASS(HBAgentParkourPoint, StaticBody3D);
 	bool collision_shape_dirty = true;
@@ -117,7 +135,6 @@ struct AgentParkourAutojumpData {
 	Vector3 parabola_force;
 	float parabola_gravity;
 	Vector3 get_position(float p_time) {
-		print_line("TIME", p_time);
 		return calculate_position_at(start, parabola_force, parabola_gravity, p_time);
 	}
 };

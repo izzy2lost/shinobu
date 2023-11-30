@@ -33,6 +33,10 @@ void EPASLookatNode::set_skeleton_forward(const Vector3 &p_skeleton_forward) {
 void EPASLookatNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) {
 	process_input_pose(0, p_base_pose, p_target_pose, p_delta);
 
+	if (influence == 0.0f) {
+		return;
+	}
+
 	Transform3D base_trf = p_base_pose->calculate_bone_global_transform(bone_name, get_skeleton());
 	Vector3 bone_local_forward = base_trf.basis.xform_inv(skeleton_forward).normalized();
 	Vector3 bone_local_up = base_trf.basis.xform_inv(skeleton_rotation_axis).normalized();

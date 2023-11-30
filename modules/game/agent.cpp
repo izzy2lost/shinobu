@@ -1,4 +1,5 @@
 #include "agent.h"
+#include "modules/game/agent_parkour.h"
 #include "physics_layers.h"
 #include "springs.h"
 
@@ -31,6 +32,14 @@ HBAgent::HBAgent() :
 HBAgent::~HBAgent() {
 }
 
+Quaternion HBAgent::get_graphics_rotation() const { return graphics_rotation; }
+
+void HBAgent::set_graphics_rotation(const Quaternion &p_graphics_rotation) { graphics_rotation = p_graphics_rotation; }
+
+void HBAgent::set_ledge_detector_node(const NodePath &ledge_detector_path_) { ledge_detector_path = ledge_detector_path_; }
+
+NodePath HBAgent::get_ledge_detector_node() const { return ledge_detector_path; }
+
 Ref<HBAgentConstants> HBAgent::get_agent_constants() const {
 	return agent_constants;
 }
@@ -51,7 +60,7 @@ void HBAgent::apply_root_motion(const Ref<EPASOneshotAnimationNode> &p_animation
 	if (graphics_position_intertializer.is_valid() && !graphics_position_intertializer->is_done()) {
 		trf.origin = get_global_position() + graphics_position_intertializer->advance(p_delta);
 	}
-	gn->set_global_transform(trf);
+	graphics_rotation = trf.basis.get_rotation_quaternion();
 	set_global_position(root_trf.origin);
 }
 
@@ -63,14 +72,43 @@ float HBAgent::get_radius() const {
 	return 0.2f;
 }
 
-void HBAgent::inertialize_graphics_position(float p_duration) {
-	graphics_inertialization_queued = true;
-	graphics_inertialization_duration = p_duration;
+void HBAgent::_start_inertialize_graphics_position(const Vector3 &p_prev_prev, const Vector3 &p_prev, const Vector3 &p_target, float p_delta, float p_duration) {
+	graphics_position_intertializer = PositionInertializer::create(p_prev_prev, p_prev, p_target, p_duration, p_delta);
+}
+
+void HBAgent::inertialize_graphics_transform(const Transform3D &p_target, float p_duration) {
+	inertialization_duration = p_duration;
+	inertialization_queued = true;
+
+	Vector3 current_pos = _get_graphics_node()->get_global_position();
+	Vector3 target_pos = p_target.origin;
+	Quaternion current_rot = _get_graphics_node()->get_global_basis();
+	Quaternion target_rot = p_target.basis.get_rotation_quaternion();
+
+	_start_inertialize_graphics_position(prev_graphics_position, current_pos, target_pos, get_physics_process_delta_time());
+	set_global_position(p_target.origin);
+	graphics_rotation_intertializer = RotationInertializer::create(prev_graphics_rotation, current_rot, target_rot, p_duration, get_physics_process_delta_time());
+	graphics_rotation = p_target.basis.get_rotation_quaternion();
+	_get_graphics_node()->set_global_position(target_pos + process_graphics_position_inertialization(0.0f));
+	_get_graphics_node()->set_global_basis(process_graphics_rotation_inertialization(0.0f) * target_rot);
+}
+
+Vector3 HBAgent::process_graphics_position_inertialization(const float &p_delta) {
+	if (graphics_position_intertializer.is_valid() && !graphics_position_intertializer->is_done()) {
+		return graphics_position_intertializer->advance(p_delta);
+	}
+	return Vector3();
+}
+
+Quaternion HBAgent::process_graphics_rotation_inertialization(const float &p_delta) {
+	if (graphics_rotation_intertializer.is_valid() && !graphics_rotation_intertializer->is_done()) {
+		return graphics_rotation_intertializer->advance(p_delta);
+	}
+	return Quaternion();
 }
 
 void HBAgent::root_motion_begin(Ref<EPASOneshotAnimationNode> p_animation_node, float p_delta) {
 	Transform3D root_trf = p_animation_node->get_root_motion_starting_transform() * p_animation_node->get_root_motion_transform();
-	print_line(root_trf.origin, get_global_position(), root_trf.origin - get_global_position());
 	graphics_position_intertializer = PositionInertializer::create(prev_graphics_position, _get_graphics_node()->get_global_position(), root_trf.origin, 0.25f, p_delta);
 }
 
@@ -80,14 +118,6 @@ Ref<Shape3D> HBAgent::get_collision_shape() {
 	body_shape->set_height(get_height());
 	body_shape->set_radius(get_radius());
 	return body_shape;
-}
-
-void HBAgent::inertialize_graphics_rotation(Quaternion p_target_rot, bool p_now) {
-	rotation_inertialization_queued = true;
-	queued_rotation_inertialization_target = p_target_rot;
-	if (p_now) {
-		_rotation_inertialization_process(get_physics_process_delta_time());
-	}
 }
 
 void HBAgent::_bind_methods() {
@@ -124,57 +154,19 @@ void HBAgent::_bind_methods() {
 	BIND_ENUM_CONSTANT(INPUT_ACTION_PARKOUR_DOWN);
 	BIND_ENUM_CONSTANT(INPUT_ACTION_PARKOUR_UP);
 	BIND_ENUM_CONSTANT(INPUT_ACTION_MAX);
+
+	ClassDB::bind_method(D_METHOD("set_ledge_detector_node", "path"), &HBAgent::set_ledge_detector_node);
+	ClassDB::bind_method(D_METHOD("get_ledge_detector_node"), &HBAgent::get_ledge_detector_node);
+	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "ledge_detector_node", PROPERTY_HINT_NODE_PATH_VALID_TYPES, "Area3D"), "set_ledge_detector_node", "get_ledge_detector_node");
 }
 
 void HBAgent::_rotate_towards_velocity(float p_delta) {
-	Vector3 input_vector = get_desired_movement_input_transformed();
-	Node3D *gn = _get_graphics_node();
-	Vector3 gn_forward = gn->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
-	if (graphics_inertialization_queued) {
-		gn_forward = queued_rotation_inertialization_target.xform(Vector3(0.0f, 0.0f, -1.0f));
-	} else if (rot_inertializer.is_valid() && !rot_inertializer->is_done()) {
-		gn_forward = inertialization_target.xform(Vector3(0.0f, 0.0f, -1.0f));
+	Vector3 planar_vel = get_effective_velocity();
+	planar_vel.y = 0.0f;
+	planar_vel.normalize();
+	if (planar_vel.is_normalized()) {
+		graphics_rotation = Quaternion(Vector3(0.0f, 0.0f, -1.0f), planar_vel).normalized();
 	}
-	Vector3 horizontal_vel = get_velocity();
-	horizontal_vel.y = 0.0f;
-
-	if (horizontal_vel.length_squared() > 0) {
-		float angle = gn_forward.angle_to(horizontal_vel.normalized());
-		if (rot_inertializer.is_valid() && !rot_inertializer->is_done() && _get_desired_velocity().length_squared() > 0) {
-			angle = gn_forward.angle_to(_get_desired_velocity().normalized());
-		}
-		if (angle > Math::deg_to_rad(40.0f)) {
-			Quaternion target_rot = Quaternion(Vector3(0.0f, 0.0f, -1.0f), horizontal_vel.normalized());
-
-			inertialize_graphics_rotation(target_rot);
-			print_line("ANGLE", Math::rad_to_deg(angle));
-			//_rotation_inertialization_process(p_delta);
-			//return;
-		}
-	}
-
-	if (gn && agent_constants.is_valid()) {
-		if (input_vector.length_squared() > 0 && get_velocity().length_squared() > 0) {
-			Vector3 new_dir = get_velocity();
-			new_dir.y = 0.0f;
-			new_dir.normalize();
-			if (new_dir.is_normalized()) {
-				Quaternion rot_target = Quaternion(Vector3(0.0f, 0.0f, -1.0f), new_dir).normalized();
-				rotation_spring_target = rot_target;
-			}
-		}
-	}
-
-	HBSprings::simple_spring_damper_exact_quat(
-			current_rotation,
-			rotation_spring_velocity,
-			rotation_spring_target,
-			0.05f,
-			p_delta);
-
-	Transform3D new_trf = gn->get_global_transform();
-	new_trf.basis = current_rotation;
-	gn->set_global_transform(new_trf);
 }
 
 void HBAgent::_tilt_towards_acceleration(float p_delta) {
@@ -214,10 +206,12 @@ void HBAgent::_tilt_towards_acceleration(float p_delta) {
 void HBAgent::_physics_process(float p_delta) {
 	ERR_FAIL_COND(!agent_constants.is_valid());
 	prev_position = get_global_position();
+
 	switch (movement_mode) {
 		case MovementMode::MOVE_FALL: {
 			set_desired_velocity(Vector3());
 			handle_input(Vector3(0.0f, 0.0f, 0.0f), p_delta);
+			update(p_delta);
 		} break;
 		case MovementMode::MOVE_GROUNDED: {
 			Vector3 input_vector = get_desired_movement_input_transformed();
@@ -245,7 +239,7 @@ void HBAgent::_physics_process(float p_delta) {
 
 			Vector3 prev_pos = get_global_position();
 
-			handle_input(input_vector, p_delta);
+			handle_input(desired_velocity, p_delta);
 			update(p_delta);
 
 			Vector3 horiz_dir = get_velocity();
@@ -274,7 +268,21 @@ void HBAgent::_physics_process(float p_delta) {
 			tilt_spring_velocity = Vector3();
 		} break;
 	}
-	_rotation_inertialization_process(p_delta);
+	PhysicsDirectSpaceState3D *dss = get_world_3d()->get_direct_space_state();
+
+	PhysicsDirectSpaceState3D::ShapeParameters shape_params;
+	Ref<Shape3D> col_shape = get_collision_shape();
+	shape_params.shape_rid = col_shape->get_rid();
+	PhysicsDirectSpaceState3D::ShapeRestInfo rest_info;
+
+	shape_params.transform.origin = get_global_transform().origin + Vector3(0.0, get_height(), 0.0);
+
+	Vector3 pos_offset = process_graphics_position_inertialization(p_delta);
+	Quaternion rot_offset = process_graphics_rotation_inertialization(p_delta);
+	_get_graphics_node()->set_global_position(get_global_position() + pos_offset);
+	_get_graphics_node()->set_global_basis(rot_offset * graphics_rotation);
+	prev_graphics_position = _get_graphics_node()->get_global_position();
+	prev_graphics_rotation = _get_graphics_node()->get_global_basis().get_rotation_quaternion();
 }
 
 bool HBAgent::is_at_edge(Vector3 p_direction) {
@@ -292,28 +300,29 @@ bool HBAgent::is_at_edge(Vector3 p_direction) {
 	return !dss->intersect_ray(ray_params, ray_result);
 }
 
-void HBAgent::_rotation_inertialization_process(float p_delta) {
-	Node3D *gn = _get_graphics_node();
+void HBAgent::reset_desired_input_velocity_to(const Vector3 &p_new_vel) {
+	desired_velocity = p_new_vel;
+	velocity_spring_acceleration = Vector3();
+}
 
-	if (rotation_inertialization_queued) {
-		Quaternion target_rot = queued_rotation_inertialization_target;
-		rot_inertializer = RotationInertializer::create(last_last_rotation, last_rotation, target_rot, 0.15f, p_delta);
-		inertialization_target = target_rot;
-		rotation_spring_target = target_rot;
-		current_rotation = target_rot;
-		rotation_spring_velocity = Vector3();
-		rotation_inertialization_queued = false;
-		p_delta = 0.0f;
-	}
+Area3D *HBAgent::get_ledge_detector() const {
+	Area3D *ledge = Object::cast_to<Area3D>(get_node(ledge_detector_path));
+	ERR_FAIL_NULL_V(ledge, nullptr);
+	return ledge;
+}
 
-	if (rot_inertializer.is_valid() && !rot_inertializer->is_done()) {
-		Quaternion rot_offset = rot_inertializer->advance(p_delta);
-		Transform3D new_trf = gn->get_global_transform();
-		new_trf.basis = current_rotation * rot_offset;
-		gn->set_global_transform(new_trf);
+LocalVector<HBAgentParkourLedge *> HBAgent::get_overlapping_ledges() const {
+	LocalVector<HBAgentParkourLedge *> ledges;
+	Area3D *ledge_detector = get_ledge_detector();
+	ERR_FAIL_NULL_V(ledge_detector, ledges);
+	TypedArray<Area3D> overlapping_areas = ledge_detector->get_overlapping_areas();
+	for (int i = 0; i < overlapping_areas.size(); i++) {
+		HBAgentParkourLedge *ledge = Object::cast_to<HBAgentParkourLedge>(overlapping_areas[i]);
+		if (ledge) {
+			ledges.push_back(ledge);
+		}
 	}
-	last_last_rotation = last_rotation;
-	last_rotation = gn->get_global_transform().basis.get_rotation_quaternion();
+	return ledges;
 }
 
 bool HBAgent::is_action_pressed(AgentInputAction p_action) const {
@@ -493,6 +502,7 @@ void HBAgent::_notification(int p_what) {
 			GodotImGui *gim = GodotImGui::get_singleton();
 			if (gim && gim->is_debug_enabled(this)) {
 				if (gim->begin_debug_window(this)) {
+					ImGui::Text("Supported: %s", is_on_floor() ? "true" : "false");
 					ImGui::Text("pos %s", String(get_global_position()).utf8().get_data());
 					ImGui::Text("Velocity %s %.2f", String(get_effective_velocity()).utf8().get_data(), get_effective_velocity().length());
 					ImGui::Text("Desired Velocity %s", String(_get_desired_velocity()).utf8().get_data());
@@ -507,7 +517,7 @@ void HBAgent::_notification(int p_what) {
 						}
 						velocity_plot_lines_x.set(VELOCITY_PLOT_SIZE - 1, plot_t);
 						velocity_plot_lines_y.set(VELOCITY_PLOT_SIZE - 1, get_velocity().length());
-						desired_velocity_plot_lines_y.set(VELOCITY_PLOT_SIZE - 1, _get_desired_velocity().length());
+						desired_velocity_plot_lines_y.set(VELOCITY_PLOT_SIZE - 1, desired_velocity.length());
 
 						String title = vformat("Velocity\n%.2f m/s", get_velocity().length());
 						if (ImPlot::BeginPlot(title.utf8().get_data(), ImVec2(-1, 200.0f), ImPlotFlags_CanvasOnly & ~(ImPlotFlags_NoTitle | ImPlotFlags_NoLegend))) {

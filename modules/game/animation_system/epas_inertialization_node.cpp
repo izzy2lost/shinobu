@@ -54,7 +54,6 @@ void EPASInertializationNode::start_inertialization(const Ref<EPASPose> &p_base_
 	ResourceSaver::save(polla, "res://inertialization_dumped.tres");
 
 	pose_inertializer = EPASPoseInertializer::create(poses.ptr(), p_base_pose, desired_blend_time, p_delta, bone_filter);
-	print_line("START POSE", desired_blend_time, pose_inertializer->get_current_transition_time(), p_delta);
 }
 
 void EPASInertializationNode::process_input_pose_inertialized(int p_input, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> &p_target_pose, float p_delta) {

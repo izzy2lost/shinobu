@@ -22,12 +22,12 @@ public:
 
 	struct AgentProceduralAnimOptions {
 		float anim_blend = 1.0f;
-		float limb_position_spring_halflifes[LIMB_MAX] = { 0.00f };
-		float limb_rotation_spring_halflifes[LIMB_MAX] = { 0.00f };
+		float limb_position_spring_halflifes[LIMB_MAX] = { 0.250f };
+		float limb_rotation_spring_halflifes[LIMB_MAX] = { 0.250f };
 		Vector3 limb_peak_position[LIMB_MAX];
 		float skeleton_position_spring_halflife = 0.05f;
-		float skeleton_rotation_spring_halflife = 0.0f;
-		float skeleton_position_offset_spring_halflife = 0.1f;
+		float skeleton_rotation_spring_halflife = 0.25f;
+		float skeleton_position_offset_spring_halflife = 0.15f;
 		float skeleton_position_offset_spring_damping_ratio = 0.8f;
 		float limb_animation_timings[LIMB_MAX][2] = { { 0.0f } };
 		bool limb_dangle_status[LIMB_MAX] = { false };
@@ -73,7 +73,7 @@ private:
 public:
 	void process(AgentProceduralAnimOptions &p_options, float p_delta);
 	bool is_done() const;
-	void get_output_pose(AgentProceduralPose &p_pose);
+	void get_output_pose(AgentProceduralPose &p_pose) const;
 	void get_unsprung_pose(AgentProceduralPose &p_pose);
 	void set_pose(const AgentProceduralPose &p_pose);
 	float get_limb_time(const AgentProceduralAnimOptions &p_options, const AgentLimb &p_limb) const;

@@ -10,7 +10,6 @@ class AgentStringNames : public Object {
 
 public:
 	const StringName move_state;
-	const StringName vault_state;
 	const StringName turn_state;
 	const StringName wallrun_state;
 	const StringName ledge_grabbed_state;

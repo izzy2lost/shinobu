@@ -7,8 +7,11 @@
 #include "animation_system/epas_oneshot_animation_node.h"
 #include "inertialization.h"
 #include "jolt_character_body.h"
+#include "scene/3d/area_3d.h"
 #include "scene/3d/navigation_agent_3d.h"
 #include "scene/3d/physics_body_3d.h"
+
+class HBAgentParkourLedge;
 
 class HBAgent : public JoltCharacterBody3D {
 	GDCLASS(HBAgent, JoltCharacterBody3D);
@@ -28,8 +31,7 @@ public:
 	};
 
 private:
-	Ref<RotationInertializer> rot_inertializer;
-	Quaternion inertialization_target;
+	NodePath ledge_detector_path;
 	struct InputState {
 		Vector3 movement;
 		Quaternion movement_input_rotation;
@@ -40,6 +42,9 @@ private:
 	InputState prev_input_state;
 
 	Vector3 desired_velocity;
+	Vector3 inertialization_prev_positions[2];
+	bool inertialization_queued = false;
+	float inertialization_duration;
 
 	Vector3 smoothed_accel = Vector3(0.0, 0.0, 0.0);
 	Vector3 prev_position;
@@ -79,18 +84,18 @@ private:
 	void _physics_process(float p_delta);
 
 	Ref<PositionInertializer> graphics_position_intertializer;
+	Ref<RotationInertializer> graphics_rotation_intertializer;
+	Quaternion graphics_rotation;
+	Quaternion prev_graphics_rotation;
 	Vector3 prev_graphics_position;
-	bool graphics_inertialization_queued = false;
-	float graphics_inertialization_duration = 0.15f;
-	bool rotation_inertialization_queued = false;
-	Quaternion queued_rotation_inertialization_target;
-	void _rotation_inertialization_process(float p_delta);
 
 protected:
 	static void _bind_methods();
 	void _notification(int p_what);
 	Ref<HBAgentConstants> _get_agent_constants() const;
 	Vector3 _get_desired_velocity() const;
+
+	void _start_inertialize_graphics_position(const Vector3 &p_prev_prev, const Vector3 &p_prev, const Vector3 &p_target, float p_delta, float p_duration = 0.25f);
 
 public:
 	// Input handling
@@ -121,13 +126,21 @@ public:
 	void apply_root_motion(const Ref<EPASOneshotAnimationNode> &p_animation_node, float p_delta);
 	float get_height() const;
 	float get_radius() const;
-	void inertialize_graphics_position(float p_duration = 0.25f);
-
+	Vector3 process_graphics_position_inertialization(const float &p_delta);
+	Quaternion process_graphics_rotation_inertialization(const float &p_delta);
 	void root_motion_begin(Ref<EPASOneshotAnimationNode> p_animation_node, float p_delta);
 	Ref<Shape3D> get_collision_shape();
 	Vector3 get_movement_spring_velocity() const;
+	void inertialize_graphics_transform(const Transform3D &p_target, float p_duration);
 	void inertialize_graphics_rotation(Quaternion p_target_rot, bool p_now = false);
 	bool is_at_edge(Vector3 p_direction);
+	void reset_desired_input_velocity_to(const Vector3 &p_new_vel);
+
+	Area3D *get_ledge_detector() const;
+	LocalVector<HBAgentParkourLedge *> get_overlapping_ledges() const;
+
+	NodePath get_ledge_detector_node() const;
+	void set_ledge_detector_node(const NodePath &p_ledge_detector_node);
 
 #ifdef DEBUG_ENABLED
 	const int VELOCITY_PLOT_SIZE = 90;
@@ -141,6 +154,9 @@ public:
 
 	HBAgent();
 	virtual ~HBAgent();
+
+	Quaternion get_graphics_rotation() const;
+	void set_graphics_rotation(const Quaternion &p_graphics_rotation);
 
 	friend class HBAgentState;
 };

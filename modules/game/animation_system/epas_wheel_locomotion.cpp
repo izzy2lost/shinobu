@@ -5,6 +5,7 @@
 #include "modules/game/animation_system/epas_controller.h"
 #include "modules/game/physics_layers.h"
 #include "scene/resources/primitive_meshes.h"
+#include <iterator>
 
 static bool test_flag = false;
 
@@ -629,6 +630,12 @@ void EPASWheelLocomotion::sync_with(TypedArray<EPASWheelLocomotion> p_locomotion
 	for (int i = 0; i < p_locomotions.size(); i++) {
 		Ref<EPASWheelLocomotion> other_loc = p_locomotions[i];
 		other_loc->shared_info = shared_info;
+	}
+}
+
+void EPASWheelLocomotion::reset_foot_ik() {
+	for (size_t i = 0; i < std::size(foot_ik); i++) {
+		foot_ik[i].pinned = false;
 	}
 }
 

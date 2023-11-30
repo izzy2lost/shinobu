@@ -4,7 +4,6 @@ AgentStringNames *AgentStringNames::singleton = nullptr;
 
 AgentStringNames::AgentStringNames() :
 		move_state(StaticCString::create("Move")),
-		vault_state(StaticCString::create("Vault")),
 		turn_state(StaticCString::create("Turn")),
 		wallrun_state(StaticCString::create("Wallrun")),
 		ledge_grabbed_state(StaticCString::create("LedgeGrabbed")),

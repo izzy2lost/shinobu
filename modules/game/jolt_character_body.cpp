@@ -4,7 +4,7 @@
 #include "modules/jolt/src/objects/jolt_body_impl_3d.hpp"
 #include "modules/jolt/src/precompiled.hpp"
 #include "modules/jolt/src/servers/jolt_physics_server_3d.hpp"
-#include "modules/jolt/src/spaces/jolt_physics_direct_space_state_3d.hpp"
+#include "modules/jolt/src/spaces/jolt_physics_direct_space_state_3d.gen.hpp"
 #include "modules/jolt/src/spaces/jolt_query_filter_3d.hpp"
 #include "modules/jolt/src/spaces/jolt_space_3d.hpp"
 #include "scene/3d/collision_shape_3d.h"
@@ -24,10 +24,9 @@ JoltCharacterBody3D::~JoltCharacterBody3D() {
 
 JPH::Ref<JPH::CharacterVirtualSettings> JoltCharacterBody3D::get_settings() const {
 	JPH::Ref<JPH::CharacterVirtualSettings> settings = new JPH::CharacterVirtualSettings();
-	static constexpr float character_height = 1.35f;
-	static constexpr float character_radius = 0.3f;
+	static constexpr float character_height = 1.4f;
+	static constexpr float character_radius = 0.2f;
 	settings->mShape = JPH::RotatedTranslatedShapeSettings(JPH::Vec3(0, 0.5f * character_height + character_radius, 0), JPH::Quat::sIdentity(), new JPH::CapsuleShape(0.5f * character_height, character_radius)).Create().Get();
-	;
 	return settings;
 }
 
@@ -36,8 +35,8 @@ void JoltCharacterBody3D::_notification(int p_what) {
 		case NOTIFICATION_READY: {
 			Ref<CapsuleShape3D> capsule;
 			capsule.instantiate();
-			static constexpr float character_height = 1.35f;
-			static constexpr float character_radius = 0.3f;
+			static constexpr float character_height = 1.4f;
+			static constexpr float character_radius = 0.2f;
 			capsule->set_height(character_height);
 			capsule->set_radius(character_radius);
 			CollisionShape3D *shape = memnew(CollisionShape3D);
@@ -109,7 +108,7 @@ void JoltCharacterBody3D::handle_input(Vector3 p_input, float p_delta) {
 	bool player_controls_horizontal_velocity = character->IsSupported();
 	if (player_controls_horizontal_velocity) {
 		// True if the player intended to move
-		allow_sliding = !p_input.is_zero_approx();
+		allow_sliding = !(p_input.length() < 0.05f);
 	} else {
 		// While in air we allow sliding
 		allow_sliding = true;
@@ -157,6 +156,10 @@ bool JoltCharacterBody3D::is_on_floor() const {
 	return character->IsSupported();
 }
 
+JPH::CharacterVirtual::EGroundState JoltCharacterBody3D::get_ground_state() const {
+	return character->GetGroundState();
+}
+
 void JoltCharacterBody3D::update(float p_delta) {
 	character->SetPosition(to_jolt(get_global_position()));
 	Vector3 old_position = to_godot(character->GetPosition());
@@ -194,6 +197,10 @@ void JoltCharacterBody3D::update(float p_delta) {
 	Vector3 new_position = to_godot(character->GetPosition());
 	effective_velocity = (new_position - old_position) / p_delta;
 	GDVIRTUAL_CALL(_post_physics_process, p_delta);
+}
+
+Vector3 JoltCharacterBody3D::get_walk_stairs_step_up() const {
+	return Vector3(0.0f, 0.4f, 0.0f);
 }
 
 Vector3 JoltCharacterBody3D::get_ground_velocity() const {

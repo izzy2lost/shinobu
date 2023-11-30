@@ -53,7 +53,7 @@ protected:
 	void debug_draw_cast_motion(const Ref<Shape3D> &p_shape, const PhysicsDirectSpaceState3D::ShapeParameters &p_shape_cast_3d, const Color &p_color = Color());
 	bool find_facing_wall(PhysicsDirectSpaceState3D::RayResult &p_result);
 	bool find_ledge(const Vector3 &p_wall_base_point, const Vector3 &p_wall_normal, Transform3D &p_ledge_transform);
-	bool find_lege_wall_sweep(const Vector3 &p_from, const Vector3 &p_to, const Vector3 &p_offset, Transform3D &p_out_edge_trf, int p_iterations = 5);
+	bool find_lege_wall_sweep(const Vector3 &p_from, const Vector3 &p_to, const Vector3 &p_offset, Transform3D &p_out_edge_trf, HBAgentParkourLedge **p_out_ledge, int p_iterations = 5);
 	HBDebugGeometry *get_debug_geometry();
 	bool handle_autojump_mid(Vector3 p_dir, bool p_needs_gap = false);
 	bool handle_autojump_down(Vector3 p_dir, bool p_needs_gap = false);
@@ -87,26 +87,16 @@ protected:
 	void _update_lookat();
 	void _on_agent_edge_hit();
 	bool _try_vault_over_obstacle();
+	void _transition_to_short_hop(const Vector3 &p_target_point, const StringName p_next_state, const Dictionary &p_next_state_args = {});
 	bool _handle_parkour_up();
 	bool _handle_parkour_mid();
+	bool _handle_jump_to_ledge(Ref<Shape3D> p_shape, const Transform3D &p_shape_trf);
+	bool _handle_parkour();
+	bool _handle_parkour_down();
 	bool _check_wall(PhysicsDirectSpaceState3D::RayResult &p_result);
 };
 
 VARIANT_ENUM_CAST(HBAgentMoveState::MoveStateParams);
-
-class HBAgentVaultState : public HBAgentState {
-	GDCLASS(HBAgentVaultState, HBAgentState);
-
-	Ref<EPASOneshotAnimationNode> animation_node;
-	Vector3 prev_position;
-
-private:
-	void _on_animation_finished();
-
-protected:
-	virtual void enter(const Dictionary &p_args) override;
-	virtual void process(float p_delta) override;
-};
 
 class HBAgentTurnState : public HBAgentState {
 	GDCLASS(HBAgentTurnState, HBAgentState);
@@ -129,6 +119,7 @@ class HBAgentWallrunState : public HBAgentState {
 	Vector3 ledge_position;
 	Vector3 ledge_normal;
 	StaticBody3D *parkour_point_target = nullptr;
+	HBAgentParkourLedge *parkour_ledge_target = nullptr;
 	Transform3D ledge_transform;
 	bool autojump_queued = false;
 	Vector3 autojump_dir;
@@ -138,7 +129,8 @@ public:
 		PARAM_BASE,
 		PARAM_EDGE,
 		PARAM_WALLRUN_TYPE,
-		PARAM_TARGET_PARKOUR_NODE
+		PARAM_TARGET_PARKOUR_NODE,
+		PARAM_TARGET_PARKOUR_LEDGE
 	};
 	enum WallrunType {
 		TO_LEDGE,
@@ -153,132 +145,6 @@ protected:
 	virtual void enter(const Dictionary &p_args) override;
 	virtual void physics_process(float p_delta) override;
 };
-
-class HBAgentLedgeGrabbedState : public HBAgentState {
-	GDCLASS(HBAgentLedgeGrabbedState, HBAgentState);
-
-public:
-	enum WallGrabbedParams {
-		PARAM_LEDGE_TRF,
-	};
-
-private:
-	AgentProceduralAnimator *animator = nullptr;
-	AgentProceduralAnimator::AgentProceduralAnimOptions animator_options;
-	enum LedgeIKPointRaycastType {
-		RAYCAST_HAND,
-		RAYCAST_FOOT,
-		RAYCAST_MAX
-	};
-	struct LedgeIKLimb {
-		Ref<EPASIKNode> ik_node;
-		Vector3 position;
-		Vector3 target_position;
-		int bone_idx;
-		// Magnet pos in local space
-		Vector3 magnet_position;
-		// Hand raycasts are different, they try to find the ledge, while foot raycasts just
-		// try to find a point to place the foot upon.
-		LedgeIKPointRaycastType raycast_type;
-		// Raycast origin used to find the edge, in local space
-		Vector3 raycast_origin;
-		// Raycast target used to find the edge, in local space
-		Vector3 raycast_target;
-
-		// Offset applied to the edge
-		Vector3 target_offset;
-		Ref<Tween> tween;
-		// Normal of the wall the limb is resting against
-		Vector3 wall_normal;
-		// For hands we also know the normal of the ledge (AKA pointing up)
-		Vector3 ledge_normal;
-		// Bone transform in skeleton space, used to aim stuff
-		Transform3D bone_base_trf;
-		float start_time = 0.0f;
-		float end_time = 0.0f;
-		Color debug_color;
-		bool is_dangling = false;
-
-		float get_weight(float p_time) const {
-			if (p_time <= 0.0f || p_time >= 1.0f) {
-				return 1.0f;
-			}
-			float w = 1.0f - sin(p_time * Math_PI);
-			return w * w;
-		}
-	};
-
-	float animation_time = 0.0f;
-	int animation_direction = 1; // Direction in which the animation should be played
-								 // it is okay if the animationa and movement direction
-								 // it doesn't look too bad, it's just eyecandy :P
-
-	// Velocity spring values
-	float ledge_movement_velocity = 0.0f;
-	float ledge_movement_acceleration = 0.0f;
-
-	Vector<LedgeIKLimb> ledge_ik_points;
-
-	Vector3 animation_root_offset;
-	Vector3 target_agent_position;
-	float target_spring_halflife = 0.175f;
-	Vector3 target_agent_spring_velocity;
-	Vector3 limb_rotation_spring_velocity;
-	float limb_rotation_spring_halflife = 0.175;
-
-	bool inertialization_finished = false;
-
-	struct IKDebugInfo { // Debug graph info
-		bool ui_config_init = false;
-		static const int IK_OFFSET_PLOT_SIZE = 90;
-		float plot_time = 0.0f;
-		float graph_x_time[IK_OFFSET_PLOT_SIZE] = { 0.0f };
-		float ik_tip_influence_y_graph[AgentIKLimbType::LIMB_TYPE_MAX][IK_OFFSET_PLOT_SIZE] = { { 0.0f } };
-		float ik_hip_offset_graph[IK_OFFSET_PLOT_SIZE] = { 0.0f };
-		// We do this because the physics threads updates at a different rate than the process thread the UI uses
-		bool last_data_is_valid = true;
-		// This is here because we migh do more than one physics step between
-		float physics_time_delta = 0.0f;
-		float last_tip_weights[AgentIKLimbType::LIMB_TYPE_MAX] = { 0.0f };
-		float last_hip_offset_x = 0.0f;
-		Vector2 transformed_movement_input;
-		bool show_limb_raycasts = false;
-		bool show_center_raycast = false;
-	} ik_debug_info;
-
-	Transform3D _get_ledge_point_target_trf(const Transform3D &p_graphics_trf, const Vector3 &p_limb_position_world, const Vector3 &p_wall_normal) const;
-	bool _find_ledge(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_wall_normal, Vector3 &p_out_ledge_normal, const Color &p_debug_color) const;
-	bool _find_ledge_sweep(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_wall_normal, Vector3 &p_out_ledge_normal, const Color &p_debug_color, Vector3 p_sweep_offset, int p_sweep_iterations = 5) const;
-	bool _find_wall_point(const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_normal, const Color &p_debug_color) const;
-	void _init_ik_points();
-	bool _handle_getup();
-	void _debug_init_settings();
-	bool _handle_transition_inputs();
-
-protected:
-	virtual void enter(const Dictionary &p_args) override;
-	virtual void exit() override;
-	virtual void physics_process(float p_delta) override;
-	virtual void debug_ui_draw() override;
-
-public:
-	struct WallGrabbedStateInitialPoseParams {
-		Transform3D ledge_transform;
-	};
-	struct LedgeAgentIKPose {
-		AgentIKPose pose;
-		Vector3 wall_normals[AgentIKLimbType::LIMB_TYPE_MAX];
-		Vector3 ledge_normals[AgentIKLimbType::LIMB_TYPE_MAX];
-		Transform3D ledge_transforms[AgentIKLimbType::LIMB_TYPE_MAX];
-	};
-	bool find_initial_pose(LedgeAgentIKPose &p_pose, const WallGrabbedStateInitialPoseParams &p_params) const;
-	Vector3 calculate_animation_root_offset();
-	Transform3D _get_limb_ik_target_trf(const Transform3D &p_graphics_trf, const Transform3D &p_ledge_trf, const Transform3D &p_bone_base_trf, const Vector3 &p_bone_offset) const;
-	Transform3D get_ledge_agent_trf(Transform3D p_world_ledge_trf) const;
-	HBAgentLedgeGrabbedState();
-	~HBAgentLedgeGrabbedState();
-};
-
 class HBAgentLedgeGrabbedStateNew : public HBAgentState {
 	GDCLASS(HBAgentLedgeGrabbedStateNew, HBAgentState);
 	HBLedgeTraversalController *controller = nullptr;
@@ -292,17 +158,23 @@ class HBAgentLedgeGrabbedStateNew : public HBAgentState {
 	} limbs[AgentProceduralAnimator::LIMB_MAX];
 
 	Vector3 hand_offset_euler;
+	HBAgentParkourLedge *ledge = nullptr;
 
+public:
 	enum WallGrabbedParams {
-		PARAM_LEDGE_TRF,
+		PARAM_LEDGE,
 	};
-	void _update_ik_transforms();
+	void _update_ik_transforms(AgentProceduralAnimator::AgentProceduralPose &p_pose);
+	void _apply_ik_transforms(AgentProceduralAnimator::AgentProceduralPose &p_pose, bool p_inertialize_graphics_trf = false);
+	void _update_animator();
+	bool _handle_getup();
 
 public:
 	virtual void enter(const Dictionary &p_args) override;
 	virtual void exit() override;
 	virtual void physics_process(float p_delta) override;
 	virtual void debug_ui_draw() override;
+	void get_initial_pose_for_edge(HBAgentParkourLedge *p_ledge, AgentProceduralAnimator::AgentProceduralPose &p_pose, float p_offset);
 
 	HBAgentLedgeGrabbedStateNew();
 	~HBAgentLedgeGrabbedStateNew();
@@ -477,14 +349,16 @@ class HBAgentParkourAutoJumpState : public HBAgentState {
 	GDCLASS(HBAgentParkourAutoJumpState, HBAgentState);
 	ParkourAutojump::AgentParkourAutojumpData autojump_data;
 	float time;
-	Transform3D ledge_trf;
+	HBAgentParkourLedge *ledge_node = nullptr;
+	float ledge_offset = 0.0f;
 	Dictionary target_state_args;
 	StringName target_state_name;
 
 public:
 	enum AutoJumpParams {
 		PARAM_TYPE,
-		PARAM_LEDGE_TRF,
+		PARAM_LEDGE,
+		PARAM_LEDGE_OFFSET,
 		PARAM_TARGET_STATE_NAME,
 		PARAM_TARGET_STATE_ARGS
 	};
@@ -540,11 +414,13 @@ private:
 	Dictionary next_state_args;
 	StringName next_state;
 	Vector3 prev_pos;
+	Vector3 prev_prev_pos;
 	Vector3 starting_velocity;
 
 public:
 	enum RootMotionParams {
 		PARAM_WARP_POINTS,
+		PARAM_PREV_POSITION,
 		PARAM_ANIMATION_NODE_NAME,
 		PARAM_TRANSITION_NODE_INDEX,
 		PARAM_NEXT_STATE,

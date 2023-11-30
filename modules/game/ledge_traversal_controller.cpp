@@ -1,6 +1,7 @@
 #include "ledge_traversal_controller.h"
 #include "physics_layers.h"
 #include "scene/3d/collision_shape_3d.h"
+#include "scene/resources/cylinder_shape_3d.h"
 #include "scene/resources/immediate_mesh.h"
 #include "scene/resources/sphere_shape_3d.h"
 #include "springs.h"
@@ -13,7 +14,7 @@ bool is_floor_n(const Vector3 &p_normal, float p_floor_max_angle) {
 	return p_normal.angle_to(Vector3(0.0f, 1.0f, 0.0f)) <= p_floor_max_angle;
 }
 
-bool _find_ledge(CharacterBody3D *p_body, const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_wall_normal, Vector3 &p_out_ledge_normal, const Color &p_debug_color) {
+bool _find_ledge(CharacterBody3D *p_body, const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_wall_pos, Vector3 &p_out_wall_normal, Vector3 &p_out_ledge_normal, const Color &p_debug_color) {
 	ERR_FAIL_COND_V(!p_body, false);
 
 	PhysicsDirectSpaceState3D::RayParameters ray_params;
@@ -40,6 +41,8 @@ bool _find_ledge(CharacterBody3D *p_body, const Vector3 &p_from, const Vector3 &
 	if (!is_wall_n(ray_result.normal, p_body->get_floor_max_angle())) {
 		return false;
 	}
+
+	p_out_wall_pos = ray_result.position;
 
 	Vector3 wall_normal = ray_result.normal;
 
@@ -69,30 +72,17 @@ bool _find_ledge(CharacterBody3D *p_body, const Vector3 &p_from, const Vector3 &
 	return true;
 }
 
-bool _find_ledge_sweep(CharacterBody3D *p_body, const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_wall_normal, Vector3 &p_out_ledge_normal, const Color &p_debug_color, Vector3 p_sweep_offset, int p_sweep_iterations) {
+bool _find_ledge_sweep(CharacterBody3D *p_body, const Vector3 &p_from, const Vector3 &p_to, Vector3 &p_out, Vector3 &p_out_wall_pos, Vector3 &p_out_wall_normal, Vector3 &p_out_ledge_normal, const Color &p_debug_color, Vector3 p_sweep_offset, int p_sweep_iterations) {
 	for (int i = 0; i < p_sweep_iterations; i++) {
 		Vector3 offset = p_sweep_offset * (i / ((float)p_sweep_iterations - 1.0f));
 
-		bool result = _find_ledge(p_body, p_from + offset, p_to + offset, p_out, p_out_wall_normal, p_out_ledge_normal, p_debug_color);
+		bool result = _find_ledge(p_body, p_from + offset, p_to + offset, p_out, p_out_wall_pos, p_out_wall_normal, p_out_ledge_normal, p_debug_color);
 		if (result) {
 			return true;
 		}
 	}
 
 	return false;
-}
-
-void HBLedgeTraversalController::move_to_ledge(const Transform3D &p_ledge_transform) {
-	Vector3 normal = p_ledge_transform.basis.xform(Vector3(0.0f, 0.0f, -1.0f));
-	Vector3 new_pos = p_ledge_transform.origin;
-	new_pos += normal * radius;
-	new_pos.y -= 0.01f;
-	out_rotation = Quaternion(Vector3(0.0f, 0.0f, -1.0f), -normal);
-	current_wall = p_ledge_transform;
-	set_global_position(new_pos);
-	is_turning_in_place = false;
-	_update_movement_dir_debug_graphic();
-	_handle_limbs();
 }
 
 void HBLedgeTraversalController::update(float p_delta) {
@@ -104,113 +94,19 @@ void HBLedgeTraversalController::update(float p_delta) {
 	}
 
 	debug_geo->clear();
-	debug_geo->debug_sphere(current_wall.origin, 0.05f, Color("RED"));
-	debug_geo->debug_sphere(wall_being_rotated_towards.origin, 0.05f, Color("GREEN"));
-	debug_geo->debug_line(current_wall.origin, current_wall.origin + current_wall.basis.xform(Vector3(0.0f, 0.0f, -1.0f)), Color("RED"));
-	debug_geo->debug_line(wall_being_rotated_towards.origin, wall_being_rotated_towards.origin + wall_being_rotated_towards.basis.xform(Vector3(0.0f, 0.0f, -1.0f)), Color("GREEN"));
-	if (is_turning_in_place) {
-		_handle_turn_in_place(p_delta);
-		return;
-	}
-
-	set_max_slides(1);
-
 	// Try one, try to move in the direction of the wall
-	movement_velocity_target = movement_input.x * max_movement_velocity;
+	movement_velocity_target = (-movement_input.x) * max_movement_velocity;
 	HBSprings::velocity_spring(&movement_velocity, &movement_acceleration, movement_velocity_target, 0.175f, p_delta);
-	Vector3 vel = out_rotation.xform(Vector3(movement_velocity_target, 0.0f, 0.0f));
-	if (vel.is_zero_approx()) {
-		return;
+
+	float new_offset = curve_offset;
+	new_offset += movement_velocity * p_delta;
+	new_offset = Math::fposmod(new_offset, current_curve->get_baked_length());
+
+	move_to_offset(new_offset);
+
+	for (int i = 0; i < AgentProceduralAnimator::LIMB_MAX; i++) {
+		debug_geo->debug_sphere(limb_transforms[i].origin);
 	}
-	Vector3 original_position = get_global_position();
-	Vector3 movement_starting_position = original_position;
-	set_velocity(vel);
-
-	bool collided = move_and_slide();
-
-	// Try two, try to move into the wall from our new position
-	Vector3 current_wall_normal = current_wall.basis.xform(Vector3(0.0, 0.0, -1.0));
-	if (!collided) {
-		vel = -current_wall_normal * Math::abs(movement_velocity) * 1.0f;
-		set_velocity(vel);
-		collided = move_and_slide();
-		movement_starting_position = get_global_position();
-	}
-
-	if (!collided) {
-		set_global_position(original_position);
-	} else {
-		_handle_collision(original_position);
-	}
-}
-
-void HBLedgeTraversalController::_handle_collision(const Vector3 &p_previous_pos) {
-	PhysicsServer3D::MotionCollision closest_collision = get_slide_collision(0).collisions[0];
-	// Find motion that's closest in direction to our travel direction
-	for (int j = 0; j < get_slide_collision_count(); j++) {
-		PhysicsServer3D::MotionResult motion = get_slide_collision(j);
-		Vector3 travel_dir = motion.travel.normalized();
-		for (int i = 1; i < motion.collision_count; i++) {
-			float dot_a = travel_dir.dot(p_previous_pos.direction_to(closest_collision.position));
-			float dot_b = travel_dir.dot(p_previous_pos.direction_to(motion.collisions[i].position));
-			if (dot_a < dot_b) {
-				closest_collision = motion.collisions[i];
-			}
-		}
-	}
-
-	Vector3 new_normal = get_global_position().direction_to(closest_collision.position);
-	new_normal.y = 0.0f;
-	new_normal.normalize();
-	Quaternion new_rotation = Quaternion(Vector3(0.0f, 0.0f, -1.0f), new_normal);
-
-	Transform3D new_wall_trf;
-	new_wall_trf.basis = Quaternion(Vector3(0.0f, 0.0f, -1.0f), closest_collision.normal);
-	new_wall_trf.origin = closest_collision.position;
-
-	Vector3 wall_normal = new_wall_trf.basis.xform(Vector3(0.0f, 0.0f, -1.0f));
-	Vector3 from = new_wall_trf.origin + wall_normal * 0.5f - Vector3(0.0, 0.01f, 0.0f);
-	Vector3 to = from - wall_normal;
-	Vector3 out_ledge_pos;
-	Vector3 out_ledge_normal;
-	Vector3 out_wall_normal;
-	bool found_ledge = false;
-	for (int i = 1; i > -2; i -= 2) {
-		Vector3 offset = Vector3(0.0, 1.0f, 0.0f).cross(wall_normal) * 0.05f * i;
-		if (!_find_ledge_sweep(this, from, to, out_ledge_pos, out_wall_normal, out_ledge_normal, Color(), offset, 5)) {
-			continue;
-		}
-		float new_y = out_ledge_pos.y;
-		Vector3 gp = get_global_position();
-		gp.y = new_y - 0.01;
-		set_global_position(gp);
-		found_ledge = true;
-		break;
-	}
-
-	if (!found_ledge) {
-		set_global_position(p_previous_pos);
-		return;
-	}
-
-	if (new_rotation.angle_to(out_rotation) < Math::deg_to_rad(25.0f)) {
-		if (new_normal.is_normalized()) {
-			out_rotation = new_rotation.normalized();
-			current_wall = new_wall_trf;
-		}
-	} else {
-		turn_in_place_values[0].basis = out_rotation;
-		turn_in_place_values[1].basis = new_rotation;
-		is_turning_in_place = true;
-		turn_progress = 0.0f;
-		wall_being_rotated_towards = new_wall_trf;
-		rotation_movement_dir = SIGN(movement_input.x);
-		turn_in_place_values[0].origin = p_previous_pos;
-		turn_in_place_values[1].origin = get_global_position();
-		set_global_position(p_previous_pos);
-	}
-	_handle_limbs();
-	_update_movement_dir_debug_graphic();
 }
 
 void HBLedgeTraversalController::_update_movement_dir_debug_graphic() {
@@ -273,123 +169,51 @@ void HBLedgeTraversalController::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("move_to_ledge", "ledge_transform"), &HBLedgeTraversalController::move_to_ledge);
 }
 
-void HBLedgeTraversalController::_handle_turn_in_place(float p_delta) {
-	if (movement_input.x != 0.0f && SIGN(movement_input.x) != rotation_movement_dir) {
-		rotation_movement_dir = -rotation_movement_dir;
-		SWAP(turn_in_place_values[0], turn_in_place_values[1]);
-		SWAP(current_wall, wall_being_rotated_towards);
-		turn_progress = 1.0f - turn_progress;
-	}
-
-	Quaternion first_rot = turn_in_place_values[0].basis.get_rotation_quaternion();
-	Quaternion second_rot = turn_in_place_values[1].basis.get_rotation_quaternion();
-	float controller_perimeter = 2.0f * Math_PI * radius;
-	// angular velocity will always be positive because we will always be going towards 1
-	float angular_velocity = (Math_TAU / controller_perimeter) * abs(movement_velocity) * abs(movement_input.x);
-	float angle_curr_to_target = first_rot.angle_to(second_rot);
-	turn_progress = MIN(turn_progress + ((angular_velocity * p_delta) / angle_curr_to_target), 1.0f);
-	out_rotation = first_rot.slerp(second_rot, turn_progress).normalized();
-	set_global_position(turn_in_place_values[0].origin.lerp(turn_in_place_values[1].origin, turn_progress));
-	_update_movement_dir_debug_graphic();
-
-	print_line(turn_progress, angular_velocity);
-
-	//debug_geo->debug_sphere(wall_being_rotated_towards.origin, 0.05f, Color("BLUE"));
-	//debug_geo->debug_sphere(current_wall.origin, 0.05f, Color("ORANGE"));
-
-	if (turn_progress >= 1.0f) {
-		is_turning_in_place = false;
-		out_rotation = turn_in_place_values[1].basis.get_rotation_quaternion().normalized();
-		current_wall = wall_being_rotated_towards;
-	} else {
-		_handle_limbs();
-	}
-}
-
 void HBLedgeTraversalController::_handle_limbs() {
 	Vector3 forward = out_rotation.xform(Vector3(0.0f, 0.0f, -1.0f));
 	Vector3 right = out_rotation.xform(Vector3(1.0f, 0.0f, 0.0f));
 
-	for (int i = 0; i < AgentProceduralAnimator::LIMB_MAX; i++) {
-		AgentProceduralAnimator::AgentLimb limb = static_cast<AgentProceduralAnimator::AgentLimb>(i);
-		limb_dangle_status[limb] = false;
-		float dir = i % 2 == 0 ? -1.0f : 1.0f;
-		Vector3 from = get_global_position() + right * radius * 0.5f * dir - Vector3(0.0f, height * 0.5, 0.0f);
-		Vector3 to = from + forward;
-
-		if (limb_test_body->get_child_count() == 0) {
-			Ref<SphereShape3D> sphere;
-			sphere.instantiate();
-			sphere->set_radius(radius * 0.5f);
-			CollisionShape3D *cs = memnew(CollisionShape3D);
-			cs->set_shape(sphere);
-			limb_test_body->add_child(cs);
-			cs->set_position(Vector3());
-			limb_test_shape = sphere;
-		}
-
-		// For hands we try higher up, so we can dangle the feet
-		if (i <= AgentProceduralAnimator::LIMB_RIGHT_HAND) {
-			from += Vector3(0.0f, height * 0.45, 0.0f);
-			to += Vector3(0.0f, height * 0.45, 0.0f);
-		}
-
-		limb_test_body->set_global_position(from);
-		PhysicsServer3D::MotionParameters motion_params;
-		motion_params.from.origin = from;
-		motion_params.max_collisions = 1;
-		motion_params.motion = to - from;
-		motion_params.exclude_bodies.insert(get_rid());
-		PhysicsServer3D::MotionResult mot_result;
-
-		debug_geo->debug_shape(limb_test_shape, limb_test_body->get_global_transform());
-		debug_geo->debug_line(limb_test_body->get_global_transform().origin, limb_test_body->get_global_transform().origin + motion_params.motion);
-
-		if (!limb_test_body->move_and_collide(motion_params, mot_result, false, false)) {
-			limb_dangle_status[limb] = true;
-			continue;
-		}
-
-		// Feet don't need to find the ledge above
-		if (i > AgentProceduralAnimator::LIMB_RIGHT_HAND) {
-			limb_transforms[limb].origin = mot_result.collisions[0].position;
-			limb_transforms[limb].basis = Quaternion(Vector3(0.0f, 0.0f, 1.0f), mot_result.collisions[0].normal);
-			continue;
-		}
-
-		Color col = i == 0 ? Color("RED") : Color("GREEN");
-
-		Vector3 out_ledge_pos;
-		Vector3 out_wall_normal;
-		Vector3 out_ledge_normal;
-
-		Vector3 ledge_from = mot_result.collisions[0].position + mot_result.collisions[0].normal + Vector3(0.0f, -radius * 0.5f, 0.0f);
-		Vector3 ledge_to = mot_result.collisions[0].position - mot_result.collisions[0].normal + Vector3(0.0f, -radius * 0.5f, 0.0f);
-
-		bool found = _find_ledge_sweep(
-				this,
-				ledge_from,
-				ledge_to,
-				out_ledge_pos,
-				out_wall_normal,
-				out_ledge_normal,
-				Color("RED"),
-				Vector3(),
-				2);
-		if (!found) {
-			limb_dangle_status[limb] = true;
-			continue;
-		}
-
-		limb_transforms[limb].origin = out_ledge_pos;
-		limb_transforms[limb].basis = Quaternion(Vector3(0.0f, 0.0f, 1.0f), mot_result.collisions[0].normal);
+	for (int i = 0; i < AgentProceduralAnimator::LIMB_LEFT_FOOT; i++) {
+		int offset_mul = 1 - i * 2;
+		real_t offset = curve_offset + offset_mul * radius;
+		offset = Math::fposmod(offset, current_curve->get_baked_length());
+		Transform3D hand_trf = current_curve->sample_baked_with_rotation(offset);
+		Vector3 normal = hand_trf.basis.get_rotation_quaternion().xform(Vector3(-1.0f, 0.0f, 0.0f));
+		limb_transforms[i].origin = hand_trf.origin;
+		limb_transforms[i].basis = Quaternion(Vector3(0.0f, 0.0f, 1.0f), normal);
 	}
 
-	for (int i = 0; i < 2; i++) {
-		AgentProceduralAnimator::AgentLimb hand = static_cast<AgentProceduralAnimator::AgentLimb>(i);
-		Color col = i == 0 ? Color("RED") : Color("GREEN");
-		//debug_geo->debug_sphere(limb_transforms[hand].origin, radius * 0.05f, col);
+	for (int i = AgentProceduralAnimator::LIMB_LEFT_FOOT; i < AgentProceduralAnimator::LIMB_MAX; i++) {
+		limb_transforms[i] = limb_transforms[i - 2];
+		limb_transforms[i].origin -= Vector3(0.0f, height * 0.4f, 0.0f);
 	}
+}
+
+void HBLedgeTraversalController::calculate_pose(HBAgentParkourLedge *p_ledge, float p_offset, AgentProceduralAnimator::AgentProceduralPose &p_pose) const {
+	Ref<Curve3D> curve = p_ledge->get_curve();
+	for (int i = 0; i < AgentProceduralAnimator::LIMB_LEFT_FOOT; i++) {
+		int offset_mul = 1 - i * 2;
+		real_t offset = p_offset + offset_mul * radius;
+		offset = Math::fposmod(offset, curve->get_baked_length());
+		Transform3D hand_trf = curve->sample_baked_with_rotation(offset);
+		Vector3 normal = hand_trf.basis.get_rotation_quaternion().xform(Vector3(-1.0f, 0.0f, 0.0f));
+		p_pose.ik_targets[i].origin = hand_trf.origin;
+		p_pose.ik_targets[i].basis = Quaternion(Vector3(0.0f, 0.0f, 1.0f), normal);
+	}
+
+	for (int i = AgentProceduralAnimator::LIMB_LEFT_FOOT; i < AgentProceduralAnimator::LIMB_MAX; i++) {
+		p_pose.ik_targets[i] = p_pose.ik_targets[i - 2];
+		p_pose.ik_targets[i].origin -= Vector3(0.0f, height * 0.4f, 0.0f);
+	}
+
+	Transform3D trf = p_pose.ik_targets[AgentProceduralAnimator::LIMB_LEFT_HAND];
+	trf = trf.interpolate_with(p_pose.ik_targets[AgentProceduralAnimator::LIMB_RIGHT_HAND], 0.5f);
+	Vector3 normal = trf.basis.xform(Vector3(0.0f, 0.0f, -1.0f));
+	Vector3 new_pos = trf.origin;
+	new_pos += normal * radius;
+	trf.basis = Quaternion(Vector3(0.0, 0.0, 1.0f), trf.basis.get_rotation_quaternion().xform(Vector3(0.0f, 0.0f, -1.0f)));
+
+	p_pose.skeleton_trf = trf;
 }
 
 Quaternion HBLedgeTraversalController::get_graphics_rotation() const {
@@ -409,6 +233,78 @@ void HBLedgeTraversalController::_notification(int p_what) {
 	}
 }
 
+void HBLedgeTraversalController::move_to_ledge(HBAgentParkourLedge *p_ledge, const float p_offset) {
+	curve_offset = p_offset;
+	//curve_offset = p_ledge->get_curve()->get_closest_offset(p_ledge->to_local(p_current_agent_position));
+	ledge = p_ledge;
+	current_curve = ledge->get_curve();
+	move_to_offset(curve_offset);
+	_update_movement_dir_debug_graphic();
+	_handle_limbs();
+}
+
+void HBLedgeTraversalController::move_to_offset(float p_offset) {
+	if (!debug_geo) {
+		debug_geo = memnew(HBDebugGeometry);
+		add_child(debug_geo);
+		debug_geo->set_as_top_level(true);
+		debug_geo->set_global_position(Vector3());
+	}
+	Transform3D hand_trfs[2] = {
+		ledge->get_ledge_transform_at_offset(p_offset + radius),
+		ledge->get_ledge_transform_at_offset(p_offset - radius),
+
+	};
+
+	for (size_t i = 0; i < std::size(hand_trfs); i++) {
+		hand_trfs[i].basis = Quaternion(Vector3(0.0f, 0.0f, -1.0f), Vector3(0.0f, 0.0f, 1.0f)) * hand_trfs[i].basis.get_rotation_quaternion();
+	}
+
+	Transform3D trf = hand_trfs[0].interpolate_with(hand_trfs[1], 0.5f);
+
+	PhysicsDirectSpaceState3D *dss = get_world_3d()->get_direct_space_state();
+	PhysicsDirectSpaceState3D::ShapeRestInfo rest_info;
+	// TODO: Pretty this one up
+	Ref<CylinderShape3D> cyl;
+	cyl.instantiate();
+	cyl->set_height(height);
+	cyl->set_radius(radius);
+	PhysicsDirectSpaceState3D::ShapeParameters params;
+	params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
+	params.shape_rid = cyl->get_rid();
+
+	bool collision_check_hit = false;
+
+	for (size_t i = 0; i < std::size(hand_trfs); i++) {
+		Transform3D collision_test_trf = hand_trfs[i];
+		Vector3 collision_test_normal = collision_test_trf.basis.xform(Vector3(0.0f, 0.0f, -1.0f));
+		Vector3 collision_test_pos = collision_test_trf.origin;
+		collision_test_pos += collision_test_normal * radius;
+		collision_test_pos += collision_test_normal * 0.1f;
+		params.transform.origin = collision_test_pos;
+		collision_check_hit = dss->rest_info(params, &rest_info);
+		debug_geo->debug_shape(cyl, params.transform);
+		if (collision_check_hit) {
+			break;
+		}
+	}
+
+	if (!collision_check_hit) {
+		out_rotation = Quaternion(Vector3(0.0, 0.0, 1.0f), trf.basis.get_rotation_quaternion().xform(Vector3(0.0f, 0.0f, -1.0f)));
+		curve_offset = p_offset;
+		set_global_position(trf.origin);
+		_update_movement_dir_debug_graphic();
+		_handle_limbs();
+	} else {
+		movement_velocity = 0.0f;
+		movement_velocity_target = 0.0f;
+	}
+}
+
+float HBLedgeTraversalController::get_ledge_offset() const {
+	return curve_offset;
+}
+
 Transform3D HBLedgeTraversalController::get_limb_transform(AgentProceduralAnimator::AgentLimb p_limb) const {
 	return limb_transforms[p_limb];
 }
@@ -419,4 +315,10 @@ bool HBLedgeTraversalController::get_limb_is_dangling(AgentProceduralAnimator::A
 
 float HBLedgeTraversalController::get_movement_velocity() const {
 	return movement_velocity;
+}
+
+bool HBLedgeTraversalController::get_is_turning_in_place() const {
+	return is_turning_in_place;
+}
+HBLedgeTraversalController::HBLedgeTraversalController() {
 }

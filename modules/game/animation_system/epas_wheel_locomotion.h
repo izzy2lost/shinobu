@@ -161,6 +161,7 @@ public:
 	void set_hip_bone_name(const StringName &p_hip_bone_name);
 
 	void sync_with(TypedArray<EPASWheelLocomotion> p_locomotion);
+	void reset_foot_ik();
 
 	EPASWheelLocomotion();
 

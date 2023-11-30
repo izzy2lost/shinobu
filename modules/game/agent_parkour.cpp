@@ -175,3 +175,78 @@ HBAgentParkourBeam::HBAgentParkourBeam() {
 	set_collision_layer(HBPhysicsLayers::LAYER_PARKOUR_NODES);
 	set_collision_mask(0);
 }
+
+void HBAgentParkourLedge::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("get_curve"), &HBAgentParkourLedge::get_curve);
+	ClassDB::bind_method(D_METHOD("set_curve", "curve"), &HBAgentParkourLedge::set_curve);
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "curve", PROPERTY_HINT_RESOURCE_TYPE, "Curve3D"), "set_curve", "get_curve");
+}
+
+Ref<Curve3D> HBAgentParkourLedge::get_curve() const { return curve; }
+
+void HBAgentParkourLedge::set_curve(const Ref<Curve3D> &p_curve) { curve = p_curve; }
+
+void HBAgentParkourLedge::generate_colliders() {
+	ERR_FAIL_COND(!curve.is_valid());
+	for (int i = 0; i < curve->get_point_count(); i++) {
+		Ref<BoxShape3D> box_shape;
+		box_shape.instantiate();
+		Vector3 a = curve->get_point_position(i);
+		Vector3 b = curve->get_point_position((i + 1) % curve->get_point_count());
+		Vector3 a_b = b - a;
+
+		Vector3 size = Vector3(0.1, 0.1, 0.0);
+		size.z = a_b.length();
+		if (Math::is_zero_approx(size.z)) {
+			continue;
+		}
+		box_shape->set_size(size);
+
+		Vector3 pos = a + a_b * 0.5f;
+		Quaternion rot = Quaternion(Vector3(0.0, 0.0, -1.0f), a_b.normalized());
+
+		CollisionShape3D *col = memnew(CollisionShape3D);
+		col->set_shape(box_shape);
+		col->set_quaternion(rot);
+		col->set_position(pos);
+
+		add_child(col);
+
+		col->set_owner(get_tree()->get_edited_scene_root());
+	}
+}
+
+float HBAgentParkourLedge::get_closest_offset(const Vector3 &p_global_pos) const {
+	ERR_FAIL_COND_V(!curve.is_valid(), -1.0f);
+	return curve->get_closest_offset(to_local(p_global_pos));
+}
+
+Transform3D HBAgentParkourLedge::get_ledge_transform_at_offset(float p_offset) const {
+	ERR_FAIL_COND_V(!curve.is_valid(), Transform3D());
+	Transform3D trf = curve->sample_baked_with_rotation(Math::fposmod(p_offset, curve->get_baked_length()));
+	Quaternion rot = Quaternion(Vector3(0.0, 0.0, -1.0f), trf.basis.xform(Vector3(1.0f, 0.0f, 0.0f)));
+	rot = Quaternion(rot.xform(Vector3(0.0f, 1.0f, 0.0f)), Vector3(0.0f, 1.0f, 0.0f)) * rot;
+	trf.basis = rot;
+	return trf;
+}
+
+bool HBAgentParkourLedge::check_agent_fits(HBAgent *p_agent, float p_offset, HBDebugGeometry *p_debug_geo) const {
+	PhysicsDirectSpaceState3D *dss = p_agent->get_world_3d()->get_direct_space_state();
+	PhysicsDirectSpaceState3D::ShapeParameters shape_params;
+	shape_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
+	Transform3D ledge_trf = get_ledge_transform_at_offset(p_offset);
+	Ref<Shape3D> shape = p_agent->get_collision_shape();
+	shape_params.shape_rid = shape->get_rid();
+	shape_params.transform.origin = ledge_trf.origin + ledge_trf.basis.xform(Vector3(0.0, 0.0, 1.0)) * (p_agent->get_radius() + 0.1f);
+	PhysicsDirectSpaceState3D::ShapeRestInfo rest_info;
+	bool hit = dss->rest_info(shape_params, &rest_info);
+	if (p_debug_geo) {
+		p_debug_geo->debug_cast_motion(shape, shape_params, Color("BLUE"));
+	}
+	return !hit;
+}
+
+HBAgentParkourLedge::HBAgentParkourLedge() {
+	set_collision_mask(0);
+	set_collision_layer(HBPhysicsLayers::LAYER_PARKOUR_NODES);
+}

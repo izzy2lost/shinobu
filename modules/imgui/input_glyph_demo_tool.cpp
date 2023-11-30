@@ -97,6 +97,7 @@ void InputGlyphDemoTool::draw_ui() {
 		"PS5 Controller",
 		"Switch Pro Controller",
 		"Steam Deck Controller",
+		"Keyboard",
 	};
 
 	static_assert(std::size(input_type_names) == InputGlyphsConstants::InputType::INPUT_TYPE_MAX);

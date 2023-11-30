@@ -187,7 +187,7 @@ void HBDebugGeometry::debug_sphere(const Vector3 &p_position, float p_radius, co
 void HBDebugGeometry::debug_cast_motion(const Ref<Shape3D> &p_shape, const PhysicsDirectSpaceState3D::ShapeParameters &p_shape_cast_3d, const Color &p_color) {
 	if (!p_shape_cast_3d.motion.is_zero_approx()) {
 		current_group->immediate_mesh->surface_begin(Mesh::PRIMITIVE_LINES);
-		_draw_arrow(p_shape_cast_3d.transform.origin, p_shape_cast_3d.transform.origin + p_shape_cast_3d.motion);
+		_draw_arrow(p_shape_cast_3d.transform.origin, p_shape_cast_3d.transform.origin + p_shape_cast_3d.motion, p_color);
 		current_group->immediate_mesh->surface_end();
 	}
 	debug_shape(p_shape, p_shape_cast_3d.transform, p_color);
