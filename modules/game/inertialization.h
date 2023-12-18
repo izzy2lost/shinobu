@@ -5,12 +5,15 @@
 
 class EPASPoseInertializer;
 class RotationInertializer : public RefCounted {
+	GDCLASS(RotationInertializer, RefCounted);
 	float current_transition_time = 0.0f;
 	Vector3 rotation_offset_axis;
 	float rotation_offset_angle = 0.0f;
 	float rotation_velocity = 0.0f;
 	float transition_duration = 0.0f;
-	Quaternion qpr;
+
+protected:
+	static void _bind_methods();
 
 public:
 	Quaternion advance(float p_delta);

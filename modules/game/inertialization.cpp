@@ -4,17 +4,33 @@
 static String rot = "";
 
 static float inertialize(float p_x0, float p_v0, float p_blend_time, float p_t) {
-	float accel = MAX(-8.0f * p_v0 * p_blend_time - 20.0f * p_x0, 0.0f);
+	float blend_time_1 = -5.0 * (p_x0 / p_v0);
+	if (blend_time_1 > 0) {
+		p_blend_time = MIN(blend_time_1, p_blend_time);
+	}
+
+	float bt_2 = p_blend_time * p_blend_time;
+	float bt_3 = bt_2 * p_blend_time;
+	float bt_4 = bt_3 * p_blend_time;
+	float bt_5 = bt_4 * p_blend_time;
+	float accel = MAX((-8.0f * p_v0 * p_blend_time - 20.0f * p_x0) / bt_2, 0.0f);
 	//accel = -8.0f * p_v0 * p_blend_time - 20.0f * p_x0;
-	float A = -((accel * Math::pow(p_blend_time, 2.0f) + 6.0f * p_v0 * p_blend_time + 12.0f * p_x0) / (2.0f * Math::pow(p_blend_time, 5.0f)));
-	float B = (3.0f * accel * Math::pow(p_blend_time, 2.0f) + 16.0f * p_v0 * p_blend_time + 30.0f * p_x0) / (2.0f * Math::pow(p_blend_time, 4.0f));
-	float C = -((3.0f * accel * Math::pow(p_blend_time, 2.0f) + 12.0f * p_v0 * p_blend_time + 20.0f * p_x0) / (2.0f * Math::pow(p_blend_time, 3.0f)));
+	float A = -((accel * bt_2 + 6.0f * p_v0 * p_blend_time + 12.0f * p_x0) / (2.0f * bt_5));
+	float B = (3.0f * accel * bt_2 + 16.0f * p_v0 * p_blend_time + 30.0f * p_x0) / (2.0f * bt_4);
+	float C = -((3.0f * accel * bt_2 + 12.0f * p_v0 * p_blend_time + 20.0f * p_x0) / (2.0f * bt_3));
 
 	return A * Math::pow(p_t, 5.0f) + B * Math::pow(p_t, 4.0f) + C * Math::pow(p_t, 3.0f) + (accel * 0.5f) * Math::pow(p_t, 2.0f) + p_v0 * p_t + p_x0;
 }
 
+void RotationInertializer::_bind_methods() {
+	ClassDB::bind_static_method("RotationInertializer", D_METHOD("create", "prev_prev", "prev", "target", "transition_time", "delta"), &RotationInertializer::create);
+	ClassDB::bind_method(D_METHOD("advance", "delta"), &RotationInertializer::advance);
+	ClassDB::bind_method(D_METHOD("is_done"), &RotationInertializer::is_done);
+}
+
 Quaternion RotationInertializer::advance(float p_delta) {
 	current_transition_time += p_delta;
+	current_transition_time = MIN(current_transition_time, transition_duration);
 	float rot_x = inertialize(rotation_offset_angle, rotation_velocity, transition_duration, current_transition_time);
 	Quaternion rot_off = Quaternion(rotation_offset_axis, rot_x);
 	return rot_off;
@@ -32,6 +48,18 @@ Vector3 RotationInertializer::get_offset_axis() const {
 	return rotation_offset_axis;
 }
 
+void quat_to_angle_axis(Quaternion q, float &angle, Vector3 &axis, float eps = 1e-8f) {
+	float length = sqrtf(q.x * q.x + q.y * q.y + q.z * q.z);
+
+	if (length < eps) {
+		angle = 0.0f;
+		axis = Vector3(1.0f, 0.0f, 0.0f);
+	} else {
+		angle = 2.0f * acosf(CLAMP(q.w, -1.0f, 1.0f));
+		axis = Vector3(q.x, q.y, q.z) / length;
+	}
+}
+
 Ref<RotationInertializer> RotationInertializer::create(const Quaternion &p_prev_prev, const Quaternion &p_prev, const Quaternion &p_target, float p_duration, float p_delta) {
 	Ref<RotationInertializer> in;
 	in.instantiate();
@@ -39,8 +67,12 @@ Ref<RotationInertializer> RotationInertializer::create(const Quaternion &p_prev_
 	Quaternion q_prev = p_target.inverse() * p_prev;
 	q_prev.normalize();
 	Quaternion q_prev_prev = p_target.inverse() * p_prev_prev;
-	Vector3 x0_axis = q_prev.get_axis();
-	float x0_angle = q_prev.get_angle();
+	Vector3 x0_axis;
+	float x0_angle;
+
+	// We have to use this function because godot's built in angle axis decomposition thing is entirely broken
+	// and may sometimes return NaNs
+	quat_to_angle_axis(q_prev, x0_angle, x0_axis);
 
 	x0_axis.normalize();
 
@@ -50,18 +82,12 @@ Ref<RotationInertializer> RotationInertializer::create(const Quaternion &p_prev_
 		x0_axis = -x0_axis;
 	}
 
-	if (x0_axis.is_normalized()) {
-		Vector3 q_x_y_z = Vector3(q_prev_prev.x, q_prev_prev.y, q_prev_prev.z);
-		float q_x_m_1 = 2.0f * Math::atan(q_x_y_z.dot(x0_axis) / q_prev_prev.w);
-		in->rotation_velocity = MIN((x0_angle - q_x_m_1) / p_delta, 0.0f);
-		in->rotation_offset_angle = x0_angle;
-		in->rotation_offset_axis = x0_axis;
-		in->transition_duration = p_duration;
-		in->qpr = q_prev;
-		if (in->rotation_velocity != 0.0f) {
-			in->transition_duration = MIN(p_duration, -5.0f * x0_angle / in->rotation_velocity);
-		}
-	}
+	Vector3 q_x_y_z = Vector3(q_prev_prev.x, q_prev_prev.y, q_prev_prev.z);
+	float q_x_m_1 = 2.0f * Math::atan(q_x_y_z.dot(x0_axis) / q_prev_prev.w);
+	in->rotation_velocity = (x0_angle - q_x_m_1) / p_delta;
+	in->rotation_offset_angle = x0_angle;
+	in->rotation_offset_axis = x0_axis;
+	in->transition_duration = p_duration;
 
 	return in;
 }
@@ -161,10 +187,11 @@ Ref<EPASPoseInertializer> EPASPoseInertializer::create(const Ref<EPASPose> p_pos
 		Quaternion prev_prev_bone_rot = prev_prev_pose->get_bone_rotation(bone_name, p_base_pose);
 		Quaternion prev_bone_rot = prev_pose->get_bone_rotation(bone_name, p_base_pose);
 		Quaternion target_bone_rot = target_pose->get_bone_rotation(bone_name, p_base_pose);
-		Ref<RotationInertializer> rot_inertializer = RotationInertializer::create(prev_prev_bone_rot, prev_bone_rot, target_bone_rot, p_transition_duration, p_delta);
-		if (!Math::is_zero_approx(rot_inertializer->get_offset_angle())) {
-			ti.rotation_inertializer = rot_inertializer;
+		if (bone_name == "thigh.L") {
+			print_line(Math::rad_to_deg(prev_prev_bone_rot.angle_to(prev_bone_rot)), Math::rad_to_deg(prev_bone_rot.angle_to(target_bone_rot)));
 		}
+		Ref<RotationInertializer> rot_inertializer = RotationInertializer::create(prev_prev_bone_rot, prev_bone_rot, target_bone_rot, p_transition_duration, p_delta);
+		ti.rotation_inertializer = rot_inertializer;
 
 		if (ti.rotation_inertializer.is_valid() && ti.rotation_inertializer->transition_duration == 0.0f) {
 			ti.rotation_inertializer = Ref<RotationInertializer>();

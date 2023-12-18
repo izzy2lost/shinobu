@@ -87,7 +87,6 @@ void EPASInertializationNode::process_node(const Ref<EPASPose> &p_base_pose, Ref
 		start_inertialization(p_base_pose, inert_target_pose, p_delta);
 		inertialization_queued = false;
 		print_line(vformat("Fulfilled inertialization on frame %d %.2f", Engine::get_singleton()->get_frames_drawn(), pose_inertializer->get_current_transition_time()));
-		delta = 0.0f;
 	}
 	process_input_pose_inertialized(0, p_base_pose, p_target_pose, delta);
 	last_last_frame_pose = last_frame_pose;
