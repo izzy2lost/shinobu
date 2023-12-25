@@ -51,6 +51,12 @@ public:
 		MOVEMENT_STANDING_JUMP_TO_LEDGE = 14,
 		MOVEMENT_SHORT_HOP = 15,
 		MOVEMENT_BACK_EJECT_TO_LEDGE = 16,
+		MOVEMENT_BACK_EJECT_TO_SURFACE = 17,
+		MOVEMENT_WALLPARKOUR_UP_LONG_JUMP = 18,
+		MOVEMENT_WALLPARKOUR_DOWN_LONG_JUMP = 19,
+		MOVEMENT_WALLPARKOUR_LEFT_LONG_JUMP = 20,
+		MOVEMENT_WALLPARKOUR_RIGHT_LONG_JUMP = 21,
+		MOVEMENT_MAX
 	};
 
 	float get_max_move_velocity() const;
@@ -89,5 +95,7 @@ public:
 	float get_default_inertialization_transition_duration() const;
 	void set_default_inertialization_transition_duration(float p_default_inertialization_transition_duration);
 };
+
+VARIANT_ENUM_CAST(HBAgentConstants::MovementTransitionInputs);
 
 #endif // AGENT_CONSTANTS_H

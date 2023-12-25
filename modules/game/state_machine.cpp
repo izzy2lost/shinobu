@@ -14,18 +14,20 @@ void HBStateMachine::_notification(int p_what) {
 				actor->connect("ready", callable_mp(this, &HBStateMachine::transition_to).bind(default_state, Dictionary()), CONNECT_ONE_SHOT);
 			}
 		} break;
-		case NOTIFICATION_ENTER_TREE: {
-			REGISTER_DEBUG(this);
-		} break;
-		case NOTIFICATION_EXIT_TREE: {
-			UNREGISTER_DEBUG(this);
-		} break;
 		case NOTIFICATION_PHYSICS_PROCESS: {
 			HBStateMachineState *current_state = _get_current_state();
 			if (current_state) {
 				current_state->physics_process(get_physics_process_delta_time());
 			}
 		} break;
+#ifdef DEBUG_ENABLED
+		case NOTIFICATION_ENTER_TREE: {
+			REGISTER_DEBUG(this);
+		} break;
+		case NOTIFICATION_EXIT_TREE: {
+			UNREGISTER_DEBUG(this);
+		} break;
+#endif
 		case NOTIFICATION_PROCESS: {
 			HBStateMachineState *current_state = _get_current_state();
 			if (current_state) {

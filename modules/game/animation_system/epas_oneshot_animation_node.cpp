@@ -33,6 +33,7 @@ void EPASOneshotAnimationNode::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("playback_finished"));
 }
 
+#ifdef DEBUG_ENABLED
 void EPASOneshotAnimationNode::_debug_node_draw() const {
 	String interp_type;
 	switch (interpolation_method) {
@@ -51,6 +52,7 @@ void EPASOneshotAnimationNode::_debug_node_draw() const {
 	}
 	ImGui::Text("Interp: %s", interp_type.utf8().get_data());
 }
+#endif
 
 void EPASOneshotAnimationNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) {
 	if (animation.is_valid() && playing) {

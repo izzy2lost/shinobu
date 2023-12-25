@@ -15,6 +15,8 @@
 class HBAgentParkourLedge : public Area3D {
 	GDCLASS(HBAgentParkourLedge, Area3D);
 	Ref<Curve3D> curve;
+	// Curve the agent will follow
+	Ref<Curve3D> agent_curve;
 
 protected:
 	static void _bind_methods();
@@ -24,10 +26,15 @@ public:
 	void set_curve(const Ref<Curve3D> &p_curve);
 	void generate_colliders();
 	float get_closest_offset(const Vector3 &p_global_pos) const;
+	float get_closest_offset_agent(const Vector3 &p_global_pos) const;
 	Transform3D get_ledge_transform_at_offset(float p_offset) const;
+	Transform3D get_agent_ledge_transform_at_offset(float p_offset) const;
 	bool check_agent_fits(HBAgent *p_agent, float p_offset, HBDebugGeometry *p_debug_geo = nullptr) const;
 
 	HBAgentParkourLedge();
+
+	Ref<Curve3D> get_agent_curve() const { return agent_curve; }
+	void set_agent_curve(const Ref<Curve3D> &agent_curve_) { agent_curve = agent_curve_; }
 };
 
 class HBAgentParkourPoint : public StaticBody3D, public TBLoaderEntity {

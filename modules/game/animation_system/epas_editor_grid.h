@@ -1,4 +1,3 @@
-#ifdef DEBUG_ENABLED
 #ifndef EPAS_EDITOR_GRID_H
 #define EPAS_EDITOR_GRID_H
 
@@ -23,4 +22,3 @@ public:
 };
 
 #endif // EPAS_EDITOR_GRID_H
-#endif // DEBUG_ENABLED

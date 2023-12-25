@@ -180,6 +180,10 @@ void HBAgentParkourLedge::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_curve"), &HBAgentParkourLedge::get_curve);
 	ClassDB::bind_method(D_METHOD("set_curve", "curve"), &HBAgentParkourLedge::set_curve);
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "curve", PROPERTY_HINT_RESOURCE_TYPE, "Curve3D"), "set_curve", "get_curve");
+
+	ClassDB::bind_method(D_METHOD("get_agent_curve"), &HBAgentParkourLedge::get_agent_curve);
+	ClassDB::bind_method(D_METHOD("set_agent_curve", "agent_curve"), &HBAgentParkourLedge::set_agent_curve);
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "agent_curve", PROPERTY_HINT_RESOURCE_TYPE, "Curve3D"), "set_agent_curve", "get_agent_curve");
 }
 
 Ref<Curve3D> HBAgentParkourLedge::get_curve() const { return curve; }
@@ -221,10 +225,24 @@ float HBAgentParkourLedge::get_closest_offset(const Vector3 &p_global_pos) const
 	return curve->get_closest_offset(to_local(p_global_pos));
 }
 
+float HBAgentParkourLedge::get_closest_offset_agent(const Vector3 &p_global_pos) const {
+	ERR_FAIL_COND_V(!agent_curve.is_valid(), -1.0f);
+	return agent_curve->get_closest_offset(p_global_pos);
+}
+
 Transform3D HBAgentParkourLedge::get_ledge_transform_at_offset(float p_offset) const {
 	ERR_FAIL_COND_V(!curve.is_valid(), Transform3D());
 	Transform3D trf = curve->sample_baked_with_rotation(Math::fposmod(p_offset, curve->get_baked_length()));
 	Quaternion rot = Quaternion(Vector3(0.0, 0.0, -1.0f), trf.basis.xform(Vector3(1.0f, 0.0f, 0.0f)));
+	rot = Quaternion(rot.xform(Vector3(0.0f, 1.0f, 0.0f)), Vector3(0.0f, 1.0f, 0.0f)) * rot;
+	trf.basis = rot;
+	return trf;
+}
+
+Transform3D HBAgentParkourLedge::get_agent_ledge_transform_at_offset(float p_offset) const {
+	ERR_FAIL_COND_V(!agent_curve.is_valid(), Transform3D());
+	Transform3D trf = agent_curve->sample_baked_with_rotation(Math::fposmod(p_offset, agent_curve->get_baked_length()));
+	Quaternion rot = Quaternion(Vector3(0.0, 0.0, -1.0f), trf.basis.xform(Vector3(1.0f, 0.0f, 0.0f))).normalized();
 	rot = Quaternion(rot.xform(Vector3(0.0f, 1.0f, 0.0f)), Vector3(0.0f, 1.0f, 0.0f)) * rot;
 	trf.basis = rot;
 	return trf;

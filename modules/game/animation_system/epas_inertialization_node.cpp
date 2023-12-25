@@ -1,5 +1,6 @@
 #include "epas_inertialization_node.h"
 #include "epas_animation.h"
+#include "modules/game/animation_system/epas_animation_editor.h"
 
 void EPASInertializationNode::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("inertialize", "transition_duration", "bone_filter"), &EPASInertializationNode::inertialize, DEFVAL(0.25f), DEFVAL(TypedArray<StringName>()));
@@ -36,7 +37,7 @@ void EPASInertializationNode::start_inertialization(const Ref<EPASPose> &p_base_
 	poses.set(EPASPoseInertializer::InertializationPose::PREV_POSE, last_frame_pose);
 	poses.set(EPASPoseInertializer::InertializationPose::TARGET_POSE, p_target_pose);
 
-	Ref<EPASAnimation> polla;
+	/*Ref<EPASEditorAnimation> polla;
 	polla.instantiate();
 	Ref<EPASKeyframe> kf1 = memnew(EPASKeyframe);
 	kf1->set_time(0.0f);
@@ -52,7 +53,7 @@ void EPASInertializationNode::start_inertialization(const Ref<EPASPose> &p_base_
 	polla->add_keyframe(kf2);
 	polla->add_keyframe(kf3);
 	ResourceSaver::save(polla, "res://inertialization_dumped.tres");
-
+	*/
 	pose_inertializer = EPASPoseInertializer::create(poses.ptr(), p_base_pose, desired_blend_time, p_delta, bone_filter);
 }
 

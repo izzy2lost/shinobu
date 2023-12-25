@@ -87,13 +87,13 @@ void HBPlayerAgentController::_notification(int p_what) {
 				agent->set_movement_input(input_3d_space);
 			}
 		} break;
+#ifdef DEBUG_ENABLED
 		case NOTIFICATION_ENTER_TREE: {
 			REGISTER_DEBUG(this);
 		} break;
 		case NOTIFICATION_EXIT_TREE: {
 			UNREGISTER_DEBUG(this);
 		} break;
-#ifdef DEBUG_ENABLED
 		case NOTIFICATION_INTERNAL_PROCESS: {
 			GodotImGui *gim = GodotImGui::get_singleton();
 			if (gim && gim->is_debug_enabled(this)) {

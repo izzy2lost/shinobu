@@ -36,27 +36,36 @@ struct AgentIKPose {
 
 class HBAgentState : public HBStateMachineState {
 	GDCLASS(HBAgentState, HBStateMachineState);
+#ifdef DEBUG_ENABLED
 	HBDebugGeometry *debug_geo = nullptr;
 	HBDebugGeometry *_get_debug_geo();
 	bool draw_debug_geometry = true;
 	bool ui_settings_init = false; // Lazily initialize loading of settings
 	void _init_ui_settings_if_needed();
-	bool _try_slide_edge(Vector3 p_dir);
-	bool _try_find_parkour_point(Vector3 p_dir, float p_length, float p_radius, HBAgentParkourPoint **p_out_parkour_point);
-
+#endif
 protected:
+#ifdef DEBUG_ENABLED
 	void debug_draw_shape(Ref<Shape3D> p_shape, const Vector3 &p_position, const Color &p_color = Color());
 	void debug_draw_clear();
 	void debug_draw_raycast(const PhysicsDirectSpaceState3D::RayParameters &p_params, const Color &p_color = Color());
 	void debug_draw_sphere(const Vector3 &p_position, float p_radius = 0.05f, const Color &p_color = Color());
 	void debug_draw_line(const Vector3 &p_from, const Vector3 &p_to, const Color &p_color = Color());
 	void debug_draw_cast_motion(const Ref<Shape3D> &p_shape, const PhysicsDirectSpaceState3D::ShapeParameters &p_shape_cast_3d, const Color &p_color = Color());
+	HBDebugGeometry *get_debug_geometry();
+#else
+	void debug_draw_shape(Ref<Shape3D> p_shape, const Vector3 &p_position, const Color &p_color = Color()) {};
+	void debug_draw_clear() {};
+	void debug_draw_raycast(const PhysicsDirectSpaceState3D::RayParameters &p_params, const Color &p_color = Color()) {};
+	void debug_draw_sphere(const Vector3 &p_position, float p_radius = 0.05f, const Color &p_color = Color()) {};
+	void debug_draw_line(const Vector3 &p_from, const Vector3 &p_to, const Color &p_color = Color()) {};
+	void debug_draw_cast_motion(const Ref<Shape3D> &p_shape, const PhysicsDirectSpaceState3D::ShapeParameters &p_shape_cast_3d, const Color &p_color = Color()) {};
+	HBDebugGeometry *get_debug_geometry() { return nullptr; };
+#endif
 	bool find_facing_wall(PhysicsDirectSpaceState3D::RayResult &p_result);
 	bool find_ledge(const Vector3 &p_wall_base_point, const Vector3 &p_wall_normal, Transform3D &p_ledge_transform);
 	bool find_lege_wall_sweep(const Vector3 &p_from, const Vector3 &p_to, const Vector3 &p_offset, Transform3D &p_out_edge_trf, HBAgentParkourLedge **p_out_ledge, int p_iterations = 5);
-	HBDebugGeometry *get_debug_geometry();
-	bool handle_autojump_mid(Vector3 p_dir, bool p_needs_gap = false);
-	bool handle_autojump_down(Vector3 p_dir, bool p_needs_gap = false);
+	void _transition_to_short_hop(const Vector3 &p_target_point, const StringName p_next_state, const Dictionary &p_next_state_args = {});
+	bool whisker_reach_check(const Vector3 &p_from, const Vector3 &p_target, const float p_height_start, const float p_height_end);
 
 public:
 	HBAgent *get_agent() const;
@@ -67,8 +76,9 @@ public:
 	Node3D *get_graphics_node() const;
 	Ref<EPASSoftnessNode> get_softness_node() const;
 	Ref<EPASWheelLocomotion> get_wheel_locomotion_node() const;
+#ifdef DEBUG_ENABLED
 	virtual void debug_ui_draw() override;
-
+#endif
 	friend class HBStateMachine;
 };
 
@@ -87,10 +97,10 @@ protected:
 	void _update_lookat();
 	void _on_agent_edge_hit();
 	bool _try_vault_over_obstacle();
-	void _transition_to_short_hop(const Vector3 &p_target_point, const StringName p_next_state, const Dictionary &p_next_state_args = {});
 	bool _handle_parkour_up();
 	bool _handle_parkour_mid();
-	bool _handle_jump_to_ledge(Ref<Shape3D> p_shape, const Transform3D &p_shape_trf);
+	bool _handle_jump_to_ledge(Ref<BoxShape3D> p_shape, const Transform3D &p_shape_trf);
+	bool _handle_jump_to_parkour_point(Ref<BoxShape3D> p_shape, const Transform3D &p_shape_trf);
 	bool _handle_parkour();
 	bool _handle_parkour_down();
 	bool _check_wall(PhysicsDirectSpaceState3D::RayResult &p_result);
@@ -112,39 +122,6 @@ protected:
 	virtual void process(float p_delta) override;
 };
 
-class HBAgentWallrunState : public HBAgentState {
-	GDCLASS(HBAgentWallrunState, HBAgentState);
-	Ref<EPASOneshotAnimationNode> animation_node;
-	EPASOneshotAnimationNodeDebug *dbg = nullptr;
-	Vector3 ledge_position;
-	Vector3 ledge_normal;
-	StaticBody3D *parkour_point_target = nullptr;
-	HBAgentParkourLedge *parkour_ledge_target = nullptr;
-	Transform3D ledge_transform;
-	bool autojump_queued = false;
-	Vector3 autojump_dir;
-
-public:
-	enum WallrunParams {
-		PARAM_BASE,
-		PARAM_EDGE,
-		PARAM_WALLRUN_TYPE,
-		PARAM_TARGET_PARKOUR_NODE,
-		PARAM_TARGET_PARKOUR_LEDGE
-	};
-	enum WallrunType {
-		TO_LEDGE,
-		TO_PARKOUR_POINT,
-		EMPTY_CLIMB
-	};
-
-private:
-	int wallrun_type = WallrunType::EMPTY_CLIMB;
-
-protected:
-	virtual void enter(const Dictionary &p_args) override;
-	virtual void physics_process(float p_delta) override;
-};
 class HBAgentLedgeGrabbedStateNew : public HBAgentState {
 	GDCLASS(HBAgentLedgeGrabbedStateNew, HBAgentState);
 	HBLedgeTraversalController *controller = nullptr;
@@ -168,12 +145,15 @@ public:
 	void _apply_ik_transforms(AgentProceduralAnimator::AgentProceduralPose &p_pose, bool p_inertialize_graphics_trf = false);
 	void _update_animator();
 	bool _handle_getup();
+	bool _handle_parkour_mid();
 
 public:
 	virtual void enter(const Dictionary &p_args) override;
 	virtual void exit() override;
 	virtual void physics_process(float p_delta) override;
+#ifdef DEBUG_ENABLED
 	virtual void debug_ui_draw() override;
+#endif
 	void get_initial_pose_for_edge(HBAgentParkourLedge *p_ledge, AgentProceduralAnimator::AgentProceduralPose &p_pose, float p_offset);
 
 	HBAgentLedgeGrabbedStateNew();
@@ -186,26 +166,6 @@ class HBAgentFallState : public HBAgentState {
 protected:
 	virtual void enter(const Dictionary &p_args) override;
 	virtual void physics_process(float p_delta) override;
-};
-
-class HBAgentLedgeGetUpState : public HBAgentState {
-	GDCLASS(HBAgentLedgeGetUpState, HBAgentState);
-	Ref<EPASOneshotAnimationNode> animation_node;
-	Vector3 prev_position;
-
-	void _on_animation_finished();
-	StringName target_state;
-	Dictionary target_state_args;
-
-public:
-	enum LedgeGetUpParams {
-		TARGET_STATE,
-		TARGET_STATE_ARGS
-	};
-
-protected:
-	void enter(const Dictionary &p_args) override;
-	void process(float p_delta) override;
 };
 
 class HBAgentWallParkourState : public HBAgentState {
@@ -335,7 +295,9 @@ protected:
 	virtual void enter(const Dictionary &p_args) override;
 	virtual void exit() override;
 	virtual void physics_process(float p_delta) override;
+#ifdef DEBUG_ENABLED
 	virtual void debug_ui_draw() override;
+#endif
 	void _notification(int p_what);
 
 public:
@@ -345,38 +307,48 @@ public:
 	HBAgentWallParkourState();
 };
 
-class HBAgentParkourAutoJumpState : public HBAgentState {
-	GDCLASS(HBAgentParkourAutoJumpState, HBAgentState);
-	ParkourAutojump::AgentParkourAutojumpData autojump_data;
-	float time;
-	HBAgentParkourLedge *ledge_node = nullptr;
-	float ledge_offset = 0.0f;
-	Dictionary target_state_args;
-	StringName target_state_name;
-
-public:
-	enum AutoJumpParams {
-		PARAM_TYPE,
-		PARAM_LEDGE,
-		PARAM_LEDGE_OFFSET,
-		PARAM_TARGET_STATE_NAME,
-		PARAM_TARGET_STATE_ARGS
+class HBAgentWallParkourStateNew : public HBAgentState {
+	GDCLASS(HBAgentWallParkourStateNew, HBAgentState);
+	AgentProceduralAnimator animator;
+	struct WallParkourInitialPose {
+		AgentProceduralAnimator::AgentProceduralPose pose;
+		HBAgentParkourPoint *parkour_points[AgentProceduralAnimator::LIMB_MAX] = { nullptr };
+		
 	};
-	enum AutoJumpType {
-		AUTOJUMP_WORLD,
-		AUTOJUMP_LEDGE,
-		AUTOJUMP_TO_STATE,
+	enum WallParkourParams {
+		PARAM_PARKOUR_NODE
 	};
 
-	AutoJumpType type;
+	WallParkourInitialPose target_pose;
+	AgentProceduralAnimator::AgentProceduralAnimOptions animator_options;
+	// Parkour point currently being moved towards
+	HBAgentParkourPoint *current_parkour_point_target = nullptr;
+	// Limb currently being moved
+	AgentProceduralAnimator::AgentLimb current_limb;
 
-	void set_autojump_data(ParkourAutojump::AgentParkourAutojumpData p_autojump_data);
+	// Back straightness
+	float back_straightness_target = 0.0f;
+	float back_straightness_velocity = 0.0f;
+	Ref<EPASBlendNode> back_straightness_blend_node;
+
+
+	void apply_offsets(AgentProceduralAnimator::AgentProceduralPose &p_pose) const;
+	void apply_pose(AgentProceduralAnimator::AgentProceduralPose &p_pose);
+	void find_initial_pose(WallParkourInitialPose &p_pose, const HBAgentParkourPoint *p_point) const;
+	void update_animator(const AgentProceduralAnimator::AgentLimb p_limb_to_move);
+	void update_animator_initial();
+	void bring_hands_together();
+	void calculate_magnet_for_limbs(AgentProceduralAnimator::AgentProceduralPose &p_pose);
 	virtual void enter(const Dictionary &p_args) override;
+	virtual void exit() override;
 	virtual void physics_process(float p_delta) override;
+	bool _handle_parkour_mid();
+	HBAgentParkourPoint* find_reachable_parkour_point(const AgentProceduralAnimator::AgentLimb p_sampling_limb, const Vector3 &p_direction, const float &p_reach) const;
+	HBAgentWallParkourStateNew();
 };
 
-class HBAgentParkourBeamWalk : public HBAgentState {
-	GDCLASS(HBAgentParkourBeamWalk, HBAgentState);
+class HBAgentParkourBeamWalk : public HBAgentMoveState {
+	GDCLASS(HBAgentParkourBeamWalk, HBAgentMoveState);
 	HBAgentParkourBeam *beam = nullptr;
 	Ref<PositionInertializer> pos_inertializer;
 
@@ -388,6 +360,7 @@ public:
 	float curve_offset = 0.0f;
 	Vector3 agent_global_position;
 	virtual void enter(const Dictionary &p_args) override;
+	virtual void exit() override {};
 	virtual void physics_process(float p_delta) override;
 
 	bool try_ledge_drop();
@@ -416,6 +389,7 @@ private:
 	Vector3 prev_pos;
 	Vector3 prev_prev_pos;
 	Vector3 starting_velocity;
+	bool inertialization_init = false;
 
 public:
 	enum RootMotionParams {
@@ -427,8 +401,12 @@ public:
 		PARAM_NEXT_STATE_ARGS,
 		PARAM_VELOCITY_MODE
 	};
+	bool hack = false;
 	virtual void enter(const Dictionary &p_args) override;
 	virtual void physics_process(float p_delta) override;
+#ifdef DEBUG_ENABLED
+	virtual void debug_ui_draw() override;
+#endif
 };
 
 #endif // AGENT_STATE_H

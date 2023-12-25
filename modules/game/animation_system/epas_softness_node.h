@@ -29,8 +29,9 @@ class EPASSoftnessNode : public EPASNode {
 
 protected:
 	static void _bind_methods();
+#ifdef DEBUG_ENABLED
 	virtual void _debug_node_draw() const override;
-
+#endif
 public:
 	void set_bone_softness(const StringName &p_bone_name, float p_softness);
 	void set_character(HBAgent *p_agent);

@@ -13,6 +13,7 @@ void EPASSoftnessNode::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "influence"), "set_influence", "get_influence");
 }
 
+#ifdef DEBUG_ENABLED
 void EPASSoftnessNode::_debug_node_draw() const {
 	if (ImPlot::BeginPlot(vformat("acceleration\n%.2f", acceleration_plot[1][PLOT_SAMPLES - 1]).utf8().get_data(), ImVec2(300, 200))) {
 		ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoTickLabels);
@@ -26,6 +27,7 @@ void EPASSoftnessNode::_debug_node_draw() const {
 	ImGui::SliderFloat("Influence", const_cast<float *>(&influence), 0.0f, 1.0f);
 	ImGui::PopItemWidth();
 }
+#endif
 
 void EPASSoftnessNode::set_bone_softness(const StringName &p_bone_name, float p_softness) {
 	if (p_softness == 0) {

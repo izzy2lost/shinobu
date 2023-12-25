@@ -57,12 +57,24 @@ void AgentProceduralAnimator::_process_springs(AgentProceduralAnimOptions &p_opt
 	if (p_options.skeleton_position_spring_halflife <= 0.0f) {
 		skeleton_trf.origin = skeleton_transform.origin;
 	} else {
-		HBSprings::critical_spring_damper_exact_vector3(
-				skeleton_trf.origin,
-				skeleton_position_spring_velocity,
-				skeleton_transform.origin,
-				p_options.skeleton_position_spring_halflife,
-				p_delta);
+		if (p_options.skeleton_spring_mode == AgentProceduralAnimOptions::CRITICAL) {
+			HBSprings::critical_spring_damper_exact_vector3(
+					skeleton_trf.origin,
+					skeleton_position_spring_velocity,
+					skeleton_transform.origin,
+					p_options.skeleton_position_spring_halflife,
+					p_delta);
+		} else {
+			HBSprings::spring_damper_exact_ratio_vector3(
+					skeleton_trf.origin,
+					skeleton_position_spring_velocity,
+					Vector3(),
+					skeleton_transform.origin,
+					p_options.skeleton_position_spring_halflife,
+					p_options.skeleton_position_spring_damping_ratio,
+					p_delta);
+		}
+
 	}
 	skeleton_output_transform = skeleton_trf;
 	HBSprings::critical_spring_damper_exact_vector3(
@@ -75,7 +87,7 @@ void AgentProceduralAnimator::_process_springs(AgentProceduralAnimOptions &p_opt
 
 void AgentProceduralAnimator::process(AgentProceduralAnimOptions &p_options, float p_delta) {
 	animation_time += p_delta;
-	animation_time = MIN(animation_time, 1.0f);
+	animation_time = MIN(animation_time, animation_duration);
 
 	float total_weight = 0.0f;
 	float weights[LIMB_MAX];
@@ -88,7 +100,7 @@ void AgentProceduralAnimator::process(AgentProceduralAnimOptions &p_options, flo
 		AgentLimb limb = static_cast<AgentLimb>(i);
 		float t = CLAMP(get_limb_time(p_options, limb), 0.0, 1.0f);
 		limb_transforms[i] = p_options.starting_limb_transforms[i].interpolate_with(p_options.target_limb_transforms[i], t);
-		limb_transforms[i].origin += p_options.limb_peak_position[i] * sin(Math_PI * t) * p_options.anim_blend;
+		limb_transforms[i].origin += limb_transforms[i].basis.xform(p_options.limb_peak_position[i]) * sin(Math_PI * t) * p_options.anim_blend;
 		weights[i] = get_limb_weight(t);
 		total_weight += weights[i];
 		limb_avg += limb_transforms[i].origin;
@@ -108,9 +120,7 @@ void AgentProceduralAnimator::process(AgentProceduralAnimOptions &p_options, flo
 
 	skeleton_position_offset_target = (limb_weighted_avg - limb_avg) * p_options.anim_blend;
 
-	skeleton_transform = p_options.starting_skeleton_transform.interpolate_with(p_options.target_skeleton_transform, animation_time);
-
-	skeleton_transform.origin = limb_avg;
+	skeleton_transform = p_options.starting_skeleton_transform.interpolate_with(p_options.target_skeleton_transform, animation_time / animation_duration);
 
 	if (restart_queued) {
 		restart_queued = false;
@@ -124,7 +134,7 @@ void AgentProceduralAnimator::process(AgentProceduralAnimOptions &p_options, flo
 }
 
 bool AgentProceduralAnimator::is_done() const {
-	return animation_time >= 1.0f;
+	return animation_time >= animation_duration;
 }
 
 void AgentProceduralAnimator::get_output_pose(AgentProceduralPose &p_pose) const {
@@ -139,7 +149,7 @@ void AgentProceduralAnimator::get_output_pose(AgentProceduralPose &p_pose) const
 void AgentProceduralAnimator::get_unsprung_pose(AgentProceduralPose &p_pose) {
 	p_pose.skeleton_trf = skeleton_transform;
 	for (int i = 0; i < LIMB_MAX; i++) {
-		//p_pose.ik_targets[i] = skeleton_transform[i];
+		p_pose.ik_targets[i] = limb_transforms[i];
 	}
 	p_pose.valid = true;
 }
@@ -151,6 +161,10 @@ void AgentProceduralAnimator::reset() {
 void AgentProceduralAnimator::seek(float p_playback_position) {
 	animation_time = p_playback_position;
 }
+
+float AgentProceduralAnimator::get_animation_duration() const { return animation_duration; }
+
+void AgentProceduralAnimator::set_animation_duration(float p_animation_duration) { animation_duration = p_animation_duration; }
 
 void AgentProceduralAnimator::restart() {
 	reset();
@@ -176,6 +190,6 @@ float AgentProceduralAnimator::get_limb_time(const AgentProceduralAnimOptions &p
 
 		SWAP(start, end);
 	}
-	float t = Math::inverse_lerp(start, end, animation_time);
+	float t = Math::inverse_lerp(start, end, animation_time / animation_duration);
 	return t;
 }

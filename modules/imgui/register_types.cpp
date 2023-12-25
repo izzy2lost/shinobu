@@ -24,6 +24,12 @@ void imgui_module_post_init() {
 	Engine::get_singleton()->add_singleton(Engine::Singleton("GodotImGui", GodotImGui::get_singleton()));
 }
 
+void imgui_module_unload() {
+	if (gd_imgui_singleton) {
+		memdelete(gd_imgui_singleton);
+	}
+}
+
 void initialize_imgui_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
 		GDREGISTER_ABSTRACT_CLASS(GodotImGui);

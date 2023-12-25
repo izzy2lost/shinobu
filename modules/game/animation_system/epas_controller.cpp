@@ -2,8 +2,8 @@
 
 #include "core/variant/array.h"
 #include "core/variant/variant.h"
-#include "imgui.h"
 #ifdef DEBUG_ENABLED
+#include "imgui.h"
 #include "implot.h"
 #include "modules/imgui/godot_imgui.h"
 #include "modules/imgui/godot_imgui_macros.h"
@@ -44,11 +44,15 @@ void EPASController::_notification(int p_what) {
 		} break;
 		case NOTIFICATION_ENTER_TREE: {
 			_update_process_mode();
+#ifdef DEBUG_ENABLED
 			REGISTER_DEBUG(this);
+#endif
 		} break;
+#ifdef DEBUG_ENABLED
 		case NOTIFICATION_EXIT_TREE: {
 			UNREGISTER_DEBUG(this);
 		} break;
+#endif
 		case NOTIFICATION_INTERNAL_PROCESS: {
 #ifdef DEBUG_ENABLED
 			GodotImGui *gim = GodotImGui::get_singleton();
@@ -110,14 +114,14 @@ void EPASController::_debug_draw_node(Ref<EPASNode> p_node, int *p_output_attrib
 		p_node->set_meta("epas_pos", pos);
 		ImNodes::SetNodeEditorSpacePos(object_id, ImVec2(pos.x, pos.y));
 	} else {
-		ImVec2 curr_pos = ImNodes::GetNodeEditorSpacePos(object_id);
+		/*ImVec2 curr_pos = ImNodes::GetNodeEditorSpacePos((int32_t)object_id);
 		Vector2 new_pos = Vector2(curr_pos.x, curr_pos.y);
 		Vector2 prev_pos = p_node->get_meta("epas_pos");
 		if (prev_pos != new_pos) {
 			p_node->set_meta("epas_pos", new_pos);
 			GodotImGui::get_singleton()->set_config_value(this, p_node->get_meta("epas_pos_property_name"), new_pos);
 			node_position_changed = true;
-		}
+		}*/
 	}
 	ImNodes::BeginNode((int32_t)object_id);
 	// Root node doesn't have an output
@@ -323,6 +327,7 @@ void EPASController::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("connect_node_to_root", "from", "unique_name"), &EPASController::connect_node_to_root);
 	ClassDB::bind_method(D_METHOD("connect_node", "from", "to", "unique_name", "input"), &EPASController::connect_node);
 	ClassDB::bind_method(D_METHOD("get_epas_node", "node_name"), &EPASController::get_epas_node);
+	ClassDB::bind_method(D_METHOD("get_base_pose"), &EPASController::get_base_pose);
 
 	BIND_ENUM_CONSTANT(IDLE);
 	BIND_ENUM_CONSTANT(PHYSICS_PROCESS);
@@ -374,6 +379,7 @@ Skeleton3D *EPASController::get_skeleton() {
 EPASController::EPASController() {
 	root = Ref<EPASRootNode>(memnew(EPASRootNode));
 	nodes.push_back(root);
+	print_line("ROOT CREATE");
 #ifdef DEBUG_ENABLED
 	set_process_internal(true);
 	root->set_meta("epas_name", "Output");
@@ -383,4 +389,7 @@ EPASController::EPASController() {
 }
 
 EPASController::~EPASController() {
+	node_name_map.clear();
+	nodes.clear();
+	print_line("CONTROLLER OUT!");
 }

@@ -20,8 +20,9 @@ class EPASOneshotAnimationNode : public EPASNode {
 
 protected:
 	static void _bind_methods();
+#ifdef DEBUG_ENABLED
 	virtual void _debug_node_draw() const override;
-
+#endif
 public:
 	virtual void process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) override;
 

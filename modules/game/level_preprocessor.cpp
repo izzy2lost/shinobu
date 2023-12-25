@@ -5,6 +5,7 @@
 #include "scene/resources/concave_polygon_shape_3d.h"
 #include "scene/resources/mesh_data_tool.h"
 #include <iterator>
+#include "clipper2/clipper.h"
 
 struct Group {
 	Vector<Vector3> triangles;
@@ -47,7 +48,6 @@ bool try_merge_buckets(const HBLevelPreprocessor::CollisionBucket &p_a, const HB
 #define SCALE_FACTOR 100000.0 // Based on CMP_EPSILON.
 
 void zfill_callback(ClipperLib3D::IntPoint &e1bot, ClipperLib3D::IntPoint &e1top, ClipperLib3D::IntPoint &e2bot, ClipperLib3D::IntPoint &e2top, ClipperLib3D::IntPoint &pt) {
-	print_line("ZFILL");
 	Vector3 a0 = Vector3(e1bot.X, e1bot.Z, e1bot.Y) / SCALE_FACTOR;
 	Vector3 a1 = Vector3(e1top.X, e1top.Z, e1top.Y) / SCALE_FACTOR;
 	Vector3 b0 = Vector3(e2bot.X, e2bot.Z, e2bot.Y) / SCALE_FACTOR;

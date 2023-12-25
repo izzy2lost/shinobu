@@ -2,6 +2,7 @@
 #define AGENT_PROCEDURAL_ANIM_H
 
 #include "core/math/transform_3d.h"
+#include "core/string/string_name.h"
 
 class AgentProceduralAnimator {
 public:
@@ -26,9 +27,14 @@ public:
 		float limb_rotation_spring_halflifes[LIMB_MAX] = { 0.250f };
 		Vector3 limb_peak_position[LIMB_MAX];
 		float skeleton_position_spring_halflife = 0.05f;
+		float skeleton_position_spring_damping_ratio = 0.8f;
 		float skeleton_rotation_spring_halflife = 0.25f;
-		float skeleton_position_offset_spring_halflife = 0.15f;
-		float skeleton_position_offset_spring_damping_ratio = 0.8f;
+		enum SkeletonSpringMode {
+			CRITICAL,
+			DAMPED
+		};
+		SkeletonSpringMode skeleton_spring_mode = SkeletonSpringMode::CRITICAL;
+		float skeleton_position_offset_spring_halflife = 0.25f;
 		float limb_animation_timings[LIMB_MAX][2] = { { 0.0f } };
 		bool limb_dangle_status[LIMB_MAX] = { false };
 
@@ -44,6 +50,7 @@ private:
 	void _advance_animation(AgentProceduralAnimOptions &p_options, float p_delta);
 	void _process_springs(AgentProceduralAnimOptions &p_options, float p_delta);
 	float animation_time = 0.0f;
+	float animation_duration = 1.0f;
 	// Unsprung transform, this is what's actually animated by us
 	Transform3D limb_transforms[LIMB_MAX] = {};
 	// (Potentially) sprung transform
@@ -83,6 +90,31 @@ public:
 	// Restarts animation playback from 0 and resets all springs
 	void reset();
 	void seek(float p_playback_position);
+
+	static StringName limb_to_bone_name(AgentLimb p_limb) {
+		StringName sn;
+		switch (p_limb) {
+			case LIMB_LEFT_HAND: {
+				sn = "hand.L";
+			} break;
+			case LIMB_RIGHT_HAND: {
+				sn = "hand.R";
+			} break;
+			case LIMB_LEFT_FOOT: {
+				sn = "foot.L";
+			} break;
+			case LIMB_RIGHT_FOOT: {
+				sn = "foot.R";
+			} break;
+			default: {
+				DEV_ASSERT(false);
+			} break;
+		}
+		return sn;
+	}
+
+	float get_animation_duration() const;
+	void set_animation_duration(float p_animation_duration);
 };
 
 #endif // AGENT_PROCEDURAL_ANIM_H

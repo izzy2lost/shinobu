@@ -290,8 +290,7 @@ void EPASAnimation::interpolate(float p_time, const Ref<EPASPose> &p_base_pose, 
 					if (!p_playback_info->warp_point_transforms.has(wp_name)) {
 						continue;
 					}
-					Transform3D local_new_wp_trf = p_playback_info->starting_global_trf.affine_inverse() * p_playback_info->warp_point_transforms[wp_name];
-					local_new_wp_trf = initial_root_trf * local_new_wp_trf;
+					const Transform3D local_new_wp_trf = initial_root_trf * (p_playback_info->starting_global_trf.affine_inverse() * p_playback_info->warp_point_transforms[wp_name]);
 					if (wp->get_facing_start() <= frame && wp->has_facing()) {
 						// Process facing rotation
 						int start_frame = wp->get_facing_start();
@@ -305,7 +304,10 @@ void EPASAnimation::interpolate(float p_time, const Ref<EPASPose> &p_base_pose, 
 						// persists between frames? who knows, I'm not being paid enough for this
 						Transform3D transformed_root_trf = base_root_trf;
 						transformed_root_trf.origin += translation_offset;
-						Quaternion new_lookat = transformed_root_trf.looking_at(local_new_wp_trf.origin).basis.get_rotation_quaternion();
+						transformed_root_trf.origin.y = 0.0f;
+						Transform3D wp_trf_cpy = local_new_wp_trf;
+						wp_trf_cpy.origin.y = 0.0f;
+						Quaternion new_lookat = transformed_root_trf.looking_at(wp_trf_cpy.origin).basis.get_rotation_quaternion();
 						if (p_playback_info->forward != Vector3(0.0f, 0.0f, -1.0f)) {
 							ERR_FAIL_COND(!p_playback_info->forward.is_normalized());
 							Quaternion forward_offset = Basis().looking_at(p_playback_info->forward).get_rotation_quaternion();

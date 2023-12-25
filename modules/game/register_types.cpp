@@ -62,12 +62,10 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(HBAgentState);
 	GDREGISTER_CLASS(HBAgentMoveState);
 	GDREGISTER_CLASS(HBAgentTurnState);
-	GDREGISTER_CLASS(HBAgentWallrunState);
 	GDREGISTER_CLASS(HBAgentLedgeGrabbedStateNew);
 	GDREGISTER_CLASS(HBAgentFallState);
-	GDREGISTER_CLASS(HBAgentLedgeGetUpState);
 	GDREGISTER_CLASS(HBAgentWallParkourState);
-	GDREGISTER_CLASS(HBAgentParkourAutoJumpState);
+	GDREGISTER_CLASS(HBAgentWallParkourStateNew);
 	GDREGISTER_CLASS(HBAgentParkourBeamWalk);
 	GDREGISTER_CLASS(HBAgentRootMotionState);
 	// State machine stuff
@@ -106,6 +104,7 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(HBLevelPreprocessor);
 	GDREGISTER_CLASS(HBAgentParkourLedge);
 	GDREGISTER_CLASS(EPASEditorAnimation);
+	GDREGISTER_CLASS(RotationInertializer);
 
 	TBLoaderSingleton::register_entity_type<HBAgentParkourPoint>();
 	TBLoaderSingleton::register_entity_type<HBAgentParkourBeam>();

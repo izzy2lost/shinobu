@@ -1,7 +1,9 @@
 #include "epas_animation_node.h"
 #include "core/object/class_db.h"
 #include "core/object/object.h"
+#ifdef DEBUG_ENABLED
 #include "imgui.h"
+#endif
 #include "modules/game/animation_system/epas_node.h"
 #include "scene/resources/animation.h"
 
@@ -69,8 +71,12 @@ void EPASAnimationNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASP
 		} else {
 			time = MIN(time, animation->get_length());
 		}
-		animation->interpolate(time, p_base_pose, p_target_pose, interpolation_method);
+		interpolate(p_base_pose, p_target_pose, time);
 	}
+}
+
+void EPASAnimationNode::interpolate(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_time) {
+	animation->interpolate(p_time, p_base_pose, p_target_pose, get_interpolation_method());
 }
 
 void EPASAnimationNode::set_animation(Ref<EPASAnimation> p_animation) {

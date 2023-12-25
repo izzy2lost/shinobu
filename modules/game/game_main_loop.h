@@ -11,6 +11,7 @@ class HBGameMainLoop : public SceneTree {
 	void change_scene(Node *p_new_scene);
 	virtual bool process(double p_time) override;
 	virtual bool physics_process(double p_time) override;
+	virtual void finalize() override;
 
 	HBGameMainLoop();
 

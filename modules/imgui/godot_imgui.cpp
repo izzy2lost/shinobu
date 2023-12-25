@@ -759,7 +759,6 @@ void GodotImGui::_init_imgui() {
 			pmss,
 			pdss,
 			blend_state);
-	print_line("MADE PIPELINE", pipeline);
 	RenderingDevice::SamplerState sampler_state;
 	sampler_state.min_filter = RenderingDevice::SamplerFilter::SAMPLER_FILTER_LINEAR;
 	sampler_state.mag_filter = RenderingDevice::SamplerFilter::SAMPLER_FILTER_LINEAR;

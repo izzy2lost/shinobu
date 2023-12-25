@@ -3,6 +3,26 @@
 #include "core/math/transform_3d.h"
 #include "modules/game/animation_system/epas_animation.h"
 #include "modules/game/animation_system/epas_animation_node.h"
+#include "modules/game/animation_system/epas_blend_node.h"
+#include "modules/game/animation_system/epas_pose_node.h"
+
+class EPASEditorAnimation : public EPASAnimation {
+	GDCLASS(EPASEditorAnimation, EPASAnimation);
+
+	Ref<EPASAnimation> editor_animation;
+	EPASAnimation::InterpolationMethod editor_interpolation_method = EPASAnimation::InterpolationMethod::LINEAR;
+
+protected:
+	static void _bind_methods();
+
+public:
+	Ref<EPASAnimation> get_editor_animation() const { return editor_animation; }
+	void set_editor_animation(const Ref<EPASAnimation> &p_editor_animation) { editor_animation = p_editor_animation; }
+
+	EPASAnimation::InterpolationMethod get_editor_interpolation_method() const { return editor_interpolation_method; }
+	void set_editor_interpolation_method(EPASAnimation::InterpolationMethod p_editor_interpolation_method) { editor_interpolation_method = p_editor_interpolation_method; }
+};
+
 #ifdef DEBUG_ENABLED
 #include "../fabrik/fabrik.h"
 #include "core/object/ref_counted.h"
@@ -51,6 +71,12 @@ public:
 
 	Ref<FABRIKSolver> get_fabrik_solver() const { return fabrik_solver; }
 	void set_fabrik_solver(const Ref<FABRIKSolver> &p_fabrik_solver) { fabrik_solver = p_fabrik_solver; }
+};
+
+class EPASEditorAnimationNode : public EPASAnimationNode {
+	GDCLASS(EPASEditorAnimationNode, EPASAnimationNode);
+
+	virtual void interpolate(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_time) override;
 };
 
 class EPASAnimationEditor : public Control {
@@ -134,7 +160,7 @@ private:
 	Node3D *current_model = nullptr;
 	Skeleton3D *editing_skeleton = nullptr;
 	Vector<Ref<EPASAnimationEditorIKJoint>> ik_constraints;
-	Ref<EPASAnimation> current_animation;
+	Ref<EPASEditorAnimation> current_animation;
 	Vector<Ref<Selection>> selection_handles;
 	MultiMeshInstance2D *selection_handle_dots;
 	// Spheres that show the location of warp points
@@ -146,7 +172,9 @@ private:
 	Vector<int> editing_selection_handles;
 
 	EPASController *epas_controller;
-	Ref<EPASAnimationNode> epas_animation_node;
+	Ref<EPASEditorAnimationNode> epas_animation_node;
+	Ref<EPASBlendNode> epas_blend_node;
+	Ref<EPASPoseNode> epas_pose_node;
 	Ref<Font> label_font;
 	Ref<EPASAnimationCurvesEditor> curves_editor;
 	int currently_hovered_selection_handle = -1;
@@ -158,6 +186,8 @@ private:
 		int selected_warp_point = -1;
 		Vector<bool> group_visibility;
 		Vector3 copy_buffer;
+		bool enable_rt_ik = false;
+		Ref<EPASPose> pose_copy_buffer;
 	} ui_info;
 
 	UndoRedo *undo_redo = nullptr;
@@ -172,7 +202,8 @@ private:
 	void _set_frame_time(int p_frame_idx, int32_t p_frame_time);
 	void _create_eirteam_humanoid_ik();
 	void _apply_handle_transform(ImGuizmo::OPERATION p_operation, PackedFloat32Array p_delta = PackedFloat32Array());
-	void _apply_constraints();
+	void _apply_constraints_to_current_frame();
+	void _apply_constraints(const Ref<EPASPose> &p_pose);
 	bool _is_playing();
 	void _show_error(const String &error);
 	void _add_warp_point(Ref<EPASWarpPoint> p_warp_point);

@@ -161,11 +161,14 @@ void HBAgent::_bind_methods() {
 }
 
 void HBAgent::_rotate_towards_velocity(float p_delta) {
-	Vector3 planar_vel = get_effective_velocity();
-	planar_vel.y = 0.0f;
-	planar_vel.normalize();
-	if (planar_vel.is_normalized()) {
-		graphics_rotation = Quaternion(Vector3(0.0f, 0.0f, -1.0f), planar_vel).normalized();
+	Vector3 movement_input = get_movement_input();
+	if (movement_input.length() > 0) {
+		Vector3 planar_vel = get_effective_velocity();
+		planar_vel.y = 0.0f;
+		planar_vel.normalize();
+		if (planar_vel.is_normalized()) {
+			graphics_rotation = Quaternion(Vector3(0.0f, 0.0f, -1.0f), planar_vel).normalized();
+		}
 	}
 }
 
@@ -260,7 +263,7 @@ void HBAgent::_physics_process(float p_delta) {
 				}
 			}
 			_rotate_towards_velocity(p_delta);
-			_tilt_towards_acceleration(p_delta);
+			//_tilt_towards_acceleration(p_delta);
 		} break;
 		case MovementMode::MOVE_MANUAL: {
 			set_desired_velocity(Vector3());
@@ -491,13 +494,13 @@ void HBAgent::_notification(int p_what) {
 		case NOTIFICATION_PHYSICS_PROCESS: {
 			_physics_process(get_physics_process_delta_time());
 		} break;
+#ifdef DEBUG_ENABLED
 		case NOTIFICATION_ENTER_TREE: {
 			REGISTER_DEBUG(this);
 		} break;
 		case NOTIFICATION_EXIT_TREE: {
 			UNREGISTER_DEBUG(this);
 		} break;
-#ifdef DEBUG_ENABLED
 		case NOTIFICATION_INTERNAL_PROCESS: {
 			GodotImGui *gim = GodotImGui::get_singleton();
 			if (gim && gim->is_debug_enabled(this)) {

@@ -30,12 +30,12 @@ void EPASIKNode::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "ik_end"), "set_ik_end", "get_ik_end");
 }
 
-void EPASIKNode::_debug_node_draw() const {
 #ifdef DEBUG_ENABLED
+void EPASIKNode::_debug_node_draw() const {
 	ImGui::SetNextItemWidth(100.0f);
 	ImGui::SliderFloat("IK Influence", &const_cast<EPASIKNode *>(this)->ik_influence, 0.0f, 1.0f);
-#endif
 }
+#endif
 
 void EPASIKNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) {
 	Skeleton3D *skel = get_skeleton();

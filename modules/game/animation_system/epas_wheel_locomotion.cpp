@@ -11,7 +11,7 @@ static bool test_flag = false;
 
 void EPASWheelLocomotion::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) {
 	time += p_delta;
-
+#ifdef DEBUG_ENABLED
 	if (!debug_foot_texture.is_valid()) {
 		debug_foot_texture = GameToolsTheme::generate_icon(GameToolsThemeIcons::FOOT);
 		Ref<StandardMaterial3D> mat;
@@ -51,7 +51,7 @@ void EPASWheelLocomotion::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPA
 			mi->set_modulate(Color("PURPLE"));
 		}
 	}
-
+#endif
 	if (sorted_locomotion_sets.size() == 0) {
 		return;
 	}
@@ -215,6 +215,7 @@ void EPASWheelLocomotion::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPA
 					forward = foot_trf[i].basis.get_rotation_quaternion().xform(forward);
 					up = foot_trf[i].xform(up);
 					// We just locked, draw footsteps
+#ifdef DEBUG_ENABLED
 					debug_foot_meshes[curr_debug_foot_mesh]->show();
 					Transform3D decal_trf;
 					decal_trf.origin = foot_trf[i].origin;
@@ -223,14 +224,15 @@ void EPASWheelLocomotion::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPA
 					debug_foot_meshes[curr_debug_foot_mesh]->set_global_transform(decal_trf);
 
 					curr_debug_foot_mesh = (curr_debug_foot_mesh + 1) % MAX_DEBUG_FOOT_MESHES;
-
+#endif
 					foot_ik[i].pinned_position = foot_trf[i].origin;
 					foot_ik[i].pin_recovery_t = 0.0f;
 				}
 				foot_ik[i].pinned = lock_states[i];
 				// Pinned position with a little slide margin applied.
 				Vector3 pinned_position_r = foot_ik[i].pinned_position;
-				Vector3 target_ik = foot_ik[i].ik_node->get_target_transform().origin;
+				Ref<EPASIKNode> ik_node = _get_foot_ik_node(i);
+				Vector3 target_ik = ik_node->get_target_transform().origin;
 				target_ik.y = pinned_position_r.y;
 				Vector3 pinned_to_ik = target_ik - pinned_position_r;
 				pinned_position_r += pinned_to_ik.limit_length(foot_ik_slide_max);
@@ -238,7 +240,7 @@ void EPASWheelLocomotion::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPA
 				if (foot_ik[i].pinned) {
 					Transform3D target_trf = foot_ik[i].ik_node->get_target_transform();
 					target_trf.origin = pinned_position_r;
-					foot_ik[i].ik_node->set_target_transform(target_trf);
+					ik_node->set_target_transform(target_trf);
 					debug_geo->debug_sphere(foot_ik[i].pinned_position, 0.01f, Color("RED"));
 					debug_geo->debug_sphere(pinned_position_r, 0.01f, Color("GREEN"));
 				}
@@ -246,13 +248,13 @@ void EPASWheelLocomotion::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPA
 				if (!foot_ik[i].pinned) {
 					foot_ik[i].pin_recovery_t = MIN(foot_ik[i].pin_recovery_t + p_delta, foot_ik_pin_recovery_time);
 					// When unpinning we interpolate the pinned position to the new target position
-					Transform3D target_trf = foot_ik[i].ik_node->get_target_transform();
+					Transform3D target_trf = ik_node->get_target_transform();
 					target_trf.origin = pinned_position_r.lerp(target_trf.origin, foot_ik[i].pin_recovery_t / foot_ik_pin_recovery_time);
-					foot_ik[i].ik_node->set_target_transform(target_trf);
+					ik_node->set_target_transform(target_trf);
 				}
 
 				foot_ik[i].prev_positions[0] = foot_ik[i].prev_positions[1];
-				foot_ik[i].prev_positions[1] = foot_ik[i].ik_node->get_target_transform().origin;
+				foot_ik[i].prev_positions[1] = ik_node->get_target_transform().origin;
 			}
 		}
 	}
@@ -264,6 +266,13 @@ void EPASWheelLocomotion::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPA
 
 void EPASWheelLocomotion::_sort_sets() {
 	sorted_locomotion_sets.sort_custom<LocomotionSetComparator>();
+}
+
+Ref<EPASIKNode> EPASWheelLocomotion::_get_foot_ik_node(int p_idx) const {
+	DEV_ASSERT(p_idx < std::size(foot_ik));
+	Ref<EPASIKNode> node = Ref<EPASIKNode>(foot_ik[p_idx].ik_node);
+	DEV_ASSERT(node.is_valid());
+	return node;
 }
 
 void EPASWheelLocomotion::_ik_process_foot(LocomotionSet *p_loc_set, float p_foot_ik_grounded[2], Transform3D p_ankle_ik_targets[2], Transform3D p_ankle_pinned_ik_targets[2], const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose) {
@@ -379,13 +388,16 @@ void EPASWheelLocomotion::_ik_process(LocomotionSet *p_loc_sets[2], float p_foot
 	test_flag = false;
 	_ik_process_foot(p_loc_sets[0], p_foot_ik_grounded[1], ankle_global_ik_targets_second, ankle_global_ik_pinned_targets_second, p_base_pose, p_second_pose);
 
+	float hip_offset_targets[2] = { 0.0f };
+
 	for (int i = 0; i < 2; i++) {
 		Transform3D first_ik_target = ankle_global_ik_targets[i].interpolate_with(ankle_global_ik_pinned_targets[i], p_foot_ik_grounded[0][i]);
 		Transform3D second_ik_target = ankle_global_ik_targets_second[i].interpolate_with(ankle_global_ik_pinned_targets_second[i], p_foot_ik_grounded[1][i]);
 
 		foot_ik[i].out_ik_transform = first_ik_target.interpolate_with(second_ik_target, p_x);
-		DEV_ASSERT(foot_ik[i].ik_node.is_valid());
-		foot_ik[i].ik_node->set_target_transform(foot_ik[i].out_ik_transform);
+		//DEV_ASSERT(foot_ik[i].ik_node.is_valid());
+		Ref<EPASIKNode> ik_node = _get_foot_ik_node(i);
+		ik_node->set_target_transform(foot_ik[i].out_ik_transform);
 
 		Transform3D first_original_ankle = get_skeleton()->get_global_transform() * p_target_pose->calculate_bone_global_transform(foot_ik[i].bone_name, get_skeleton(), p_base_pose);
 		Transform3D second_original_ankle = get_skeleton()->get_global_transform() * p_second_pose->calculate_bone_global_transform(foot_ik[i].bone_name, get_skeleton(), p_base_pose);
@@ -396,7 +408,7 @@ void EPASWheelLocomotion::_ik_process(LocomotionSet *p_loc_sets[2], float p_foot
 		calculate_ik_pole_position(foot_ik[i].bone_name, second_ik_target.origin, p_second_pose, p_base_pose, &pole_position_second, get_skeleton());
 
 		foot_ik[i].out_ik_magnet_position = pole_position_first.lerp(pole_position_second, p_x);
-		foot_ik[i].ik_node->set_magnet_position(foot_ik[i].out_ik_magnet_position);
+		ik_node->set_magnet_position(foot_ik[i].out_ik_magnet_position);
 
 		// Calculate new pole position
 		// to do this, we grab both original bones and use the to figure a percentage from thigh to ankle to use as the starting point
@@ -408,6 +420,9 @@ void EPASWheelLocomotion::_ik_process(LocomotionSet *p_loc_sets[2], float p_foot
 		Vector3 offset_second;
 		offset_second.y = (second_ik_target.origin.y - second_original_ankle.origin.y);
 
+		hip_offset_targets[0] = MIN(hip_offset_targets[0], offset_first.y);
+		hip_offset_targets[1] = MIN(hip_offset_targets[1], offset_second.y);
+
 		if (!p_target_pose->has_bone(hip_bone_name)) {
 			p_target_pose->create_bone(hip_bone_name);
 		}
@@ -415,20 +430,21 @@ void EPASWheelLocomotion::_ik_process(LocomotionSet *p_loc_sets[2], float p_foot
 		if (!p_second_pose->has_bone(hip_bone_name)) {
 			p_second_pose->create_bone(hip_bone_name);
 		}
-
-		// Adjust hip position
-		// LAZY HACK: Assuming root is 0,0,0 and hip is a child of it...
-		float hl = 0.05f;
-		Vector3 new_first_bone_pos = p_target_pose->get_bone_position(hip_bone_name, p_base_pose);
-		HBSprings::critical_spring_damper_exact_vector3(p_loc_sets[0]->hip_offset, p_loc_sets[0]->hip_offset_spring_vel, offset_first, hl, p_delta);
-		new_first_bone_pos += p_loc_sets[0]->hip_offset;
-		p_target_pose->set_bone_position(hip_bone_name, new_first_bone_pos);
-
-		Vector3 new_second_bone_pos = p_second_pose->get_bone_position(hip_bone_name, p_base_pose);
-		HBSprings::critical_spring_damper_exact_vector3(p_loc_sets[1]->hip_offset, p_loc_sets[1]->hip_offset_spring_vel, offset_second, hl, p_delta);
-		new_second_bone_pos += p_loc_sets[1]->hip_offset;
-		p_second_pose->set_bone_position(hip_bone_name, new_second_bone_pos);
 	}
+	// Adjust hip position
+	// LAZY HACK: Assuming root is 0,0,0 and hip is a child of it...
+	float hl = 0.05f;
+	Vector3 new_first_bone_pos = p_target_pose->get_bone_position(hip_bone_name, p_base_pose);
+	HBSprings::critical_spring_damper_exact_vector3(p_loc_sets[0]->hip_offset, p_loc_sets[0]->hip_offset_spring_vel, Vector3(0.0f, hip_offset_targets[0], 0.0f), hl, p_delta);
+	new_first_bone_pos += p_loc_sets[0]->hip_offset;
+	p_target_pose->set_bone_position(hip_bone_name, new_first_bone_pos);
+
+	Vector3 new_second_bone_pos = p_second_pose->get_bone_position(hip_bone_name, p_base_pose);
+	HBSprings::critical_spring_damper_exact_vector3(p_loc_sets[1]->hip_offset, p_loc_sets[1]->hip_offset_spring_vel, Vector3(0.0f, hip_offset_targets[1], 0.0f), hl, p_delta);
+	new_second_bone_pos += p_loc_sets[1]->hip_offset;
+	p_second_pose->set_bone_position(hip_bone_name, new_second_bone_pos);
+	debug_geo->debug_sphere(foot_ik[0].out_ik_transform.origin);
+	debug_geo->debug_sphere(foot_ik[1].out_ik_transform.origin);
 }
 
 float EPASWheelLocomotion::find_next_feet_ground_time(Ref<EPASAnimation> p_anim, float p_times[2]) const {
@@ -529,11 +545,11 @@ void EPASWheelLocomotion::set_use_foot_ik(bool p_use_foot_ik) {
 }
 
 void EPASWheelLocomotion::set_left_foot_ik_node(Ref<EPASIKNode> p_ik_left_foot_ik_node) {
-	foot_ik[0].ik_node = p_ik_left_foot_ik_node;
+	foot_ik[0].ik_node = p_ik_left_foot_ik_node.ptr();
 }
 
 void EPASWheelLocomotion::set_right_foot_ik_node(Ref<EPASIKNode> p_ik_right_foot_ik_node) {
-	foot_ik[1].ik_node = p_ik_right_foot_ik_node;
+	foot_ik[1].ik_node = p_ik_right_foot_ik_node.ptr();
 }
 
 StringName EPASWheelLocomotion::get_left_foot_bone_name() const {
@@ -612,6 +628,9 @@ float EPASWheelLocomotion::get_x_blend() const {
 }
 
 EPASWheelLocomotion::~EPASWheelLocomotion() {
+	for (int i = 0; i < std::size(foot_ik); i++) {
+		//foot_ik[i].ik_node = Ref<EPASIKNode>();
+	}
 	for (int i = 0; i < locomotion_sets.size(); i++) {
 		memdelete(locomotion_sets[i]);
 	}
@@ -640,6 +659,8 @@ void EPASWheelLocomotion::reset_foot_ik() {
 }
 
 EPASWheelLocomotion::EPASWheelLocomotion() {
+	locomotion_sets = Vector<LocomotionSet*>();
+	sorted_locomotion_sets = Vector<LocomotionSet*>();
 }
 
 #ifdef DEBUG_ENABLED

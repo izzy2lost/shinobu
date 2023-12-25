@@ -31,6 +31,7 @@ public:
 	virtual void _debug_node_draw() const override;
 #endif
 	virtual void process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) override;
+	virtual void interpolate(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_time);
 	void set_animation(Ref<EPASAnimation> p_animation);
 	Ref<EPASAnimation> get_animation() const;
 	void set_playback_mode(PlaybackMode p_playback_mode);

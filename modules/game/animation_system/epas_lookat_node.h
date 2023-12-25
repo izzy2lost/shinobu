@@ -39,14 +39,15 @@ public:
 	float get_influence() const;
 	void set_influence(float p_influence);
 
+	float get_max_angle_degrees() const;
+	void set_max_angle_degrees(float p_max_angle_degrees);
+
 	float get_spring_halflife() const;
 	void set_spring_halflife(float p_spring_halflife);
 	void reset();
 
 #ifdef DEBUG_ENABLED
 	virtual void _debug_node_draw() const override;
-	float get_max_angle_degrees() const;
-	void set_max_angle_degrees(float p_max_angle_degrees);
 #endif
 };
 

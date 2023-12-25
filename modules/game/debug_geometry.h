@@ -12,7 +12,6 @@ class HBDebugGeometry : public Node3D {
 
 private:
 	const int SPHERE_INSTANCE_COUNT = 32;
-	static Ref<WeakRef> debug_material_s;
 	Ref<StandardMaterial3D> debug_material;
 	Ref<StandardMaterial3D> get_debug_material();
 	struct DebugGeometryGroup {

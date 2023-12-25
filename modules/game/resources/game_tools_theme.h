@@ -1,6 +1,8 @@
 #ifndef GAME_TOOLS_THEME_H
 #define GAME_TOOLS_THEME_H
 
+#ifdef DEBUG_ENABLED
+
 #include "modules/svg/image_loader_svg.h"
 #include "scene/resources/texture.h"
 #include "scene/resources/theme.h"
@@ -42,3 +44,4 @@ static Ref<Theme> generate_theme() {
 } //namespace GameToolsTheme
 
 #endif // GAME_TOOLS_THEME_H
+#endif // DEBUG_ENABLED

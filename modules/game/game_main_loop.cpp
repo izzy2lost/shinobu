@@ -24,7 +24,9 @@
 #include "modules/input_glyphs/input_glyphs_source.h"
 
 HBGameMainLoop::HBGameMainLoop() {
+#ifdef DEBUG_ENABLED
 	imgui_module_post_init();
+#endif
 #ifdef MODULE_STEAMWORKS_ENABLED
 	Steamworks::get_singleton()->init(1216230);
 	if (Steamworks::get_singleton()->is_valid()) {
@@ -58,6 +60,10 @@ bool HBGameMainLoop::physics_process(double p_time) {
 	ZoneScopedN("Physics Frame");
 	bool result = SceneTree::physics_process(p_time);
 	return result;
+}
+
+void HBGameMainLoop::finalize() {
+	SceneTree::finalize();
 }
 
 void HBGameMainLoop::enable_fp_exceptions() {

@@ -2,28 +2,17 @@
 #include "scene/resources/primitive_meshes.h"
 #include "scene/resources/shape_3d.h"
 
-Ref<WeakRef> HBDebugGeometry::debug_material_s;
-
 Ref<StandardMaterial3D> HBDebugGeometry::get_debug_material() {
 	if (debug_material.is_valid()) {
 		return debug_material;
 	}
 
-	if (debug_material_s.is_valid()) {
-		Ref<StandardMaterial3D> mat = debug_material_s->get_ref();
-		if (mat.is_valid()) {
-			debug_material = mat;
-			return debug_material;
-		}
-	}
-
-	debug_material_s.instantiate();
+	debug_material.instantiate();
 	Ref<StandardMaterial3D> mat;
 	mat.instantiate();
 	mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
 	mat->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
 	mat->set_flag(BaseMaterial3D::FLAG_DISABLE_DEPTH_TEST, true);
-	debug_material_s->set_ref(mat);
 	debug_material = mat;
 	return debug_material;
 }
