@@ -10,6 +10,8 @@ if env.debug_features:
     env_game.Prepend(CPPPATH=["#modules/imgui/thirdparty/imgui"])
 env_game.Prepend(CPPPATH=["#modules/jolt/src"])
 env_game.Prepend(CPPPATH=["#modules/jolt/thirdparty/jolt"])
+env_game.Prepend(CPPPATH="#modules/jolt/thirdparty/mimalloc/include")
+
 env_game.Prepend(CPPDEFINES=["USINGZ"])
 env_game.Prepend(CPPPATH=["#modules/game/thirdparty/clipper2"])
 

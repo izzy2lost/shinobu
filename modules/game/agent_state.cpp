@@ -2478,7 +2478,7 @@ void HBAgentWallParkourStateNew::enter(const Dictionary &p_args) {
 	for (int i = 0; i < AgentProceduralAnimator::AgentLimb::LIMB_MAX; i++) {
 		animator_options.limb_position_spring_halflifes[i] = 0.2f;
 	}
-	animator_options.skeleton_position_spring_halflife = 0.1f;
+	animator_options.skeleton_position_spring_halflife = 0.4f;
 	animator.set_animation_duration(0.4f);
 	animator.restart();
 	back_straightness_target = 0.0f;
