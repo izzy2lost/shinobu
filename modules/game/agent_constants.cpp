@@ -42,6 +42,7 @@ void HBAgentConstants::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "default_inertialization_transition_duration"), "set_default_inertialization_transition_duration", "get_default_inertialization_transition_duration");
 	BIND_ENUM_CONSTANT(MOVEMENT_MOVE);
 	BIND_ENUM_CONSTANT(MOVEMENT_VAULT);
+	BIND_ENUM_CONSTANT(MOVEMENT_TURN180_L);
 	BIND_ENUM_CONSTANT(MOVEMENT_TURN180_R);
 	BIND_ENUM_CONSTANT(MOVEMENT_WALLRUN);
 	BIND_ENUM_CONSTANT(MOVEMENT_WALLGRABBED);

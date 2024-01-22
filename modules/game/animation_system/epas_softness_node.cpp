@@ -59,6 +59,7 @@ float EPASSoftnessNode::get_influence() const {
 
 void EPASSoftnessNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) {
 	process_input_pose(0, p_base_pose, p_target_pose, p_delta);
+	return;
 	/*if (influence <= 0.0f) {
 		return;
 	}*/

@@ -52,8 +52,6 @@ private:
 	NavigationAgent3D *navigation_agent;
 	MovementMode movement_mode = MovementMode::MOVE_GROUNDED;
 
-	Vector3 velocity_spring_acceleration;
-
 	Quaternion current_rotation;
 	Quaternion rotation_spring_target;
 	Vector3 rotation_spring_velocity;
@@ -148,8 +146,6 @@ public:
 	Vector<float> velocity_plot_lines_x;
 	Vector<float> velocity_plot_lines_y;
 	Vector<float> desired_velocity_plot_lines_y;
-	Vector<float> acceleration_plot_lines_x;
-	Vector<float> acceleration_plot_lines_y;
 #endif
 
 	HBAgent();

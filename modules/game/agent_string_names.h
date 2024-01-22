@@ -17,6 +17,7 @@ public:
 	const StringName wall_parkour_state;
 	const StringName beam_walk_state;
 	const StringName root_motion_state;
+	const StringName wall_parkour_transition_state;
 
 	const StringName right_hand_ik_node;
 	const StringName left_hand_ik_node;

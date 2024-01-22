@@ -56,10 +56,12 @@ void EPASOneshotAnimationNode::_debug_node_draw() const {
 
 void EPASOneshotAnimationNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) {
 	if (animation.is_valid() && playing) {
-		time += p_delta;
-		float sample_time = MIN(time, animation->get_length());
+		time += p_delta * speed_scale;
+		float sample_end_time = end_time > 0 ? MIN(animation->get_length(), end_time) : animation->get_length();
+		float sample_time = MIN(time, sample_end_time);
+
 		animation->interpolate(sample_time, p_base_pose, p_target_pose, interpolation_method, &playback_info);
-		if (time >= animation->get_length()) {
+		if (time >= sample_end_time) {
 			emit_signal(SNAME("playback_finished"));
 			playing = false;
 		}

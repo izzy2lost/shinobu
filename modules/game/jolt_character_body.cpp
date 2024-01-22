@@ -24,28 +24,15 @@ JoltCharacterBody3D::~JoltCharacterBody3D() {
 
 JPH::Ref<JPH::CharacterVirtualSettings> JoltCharacterBody3D::get_settings() const {
 	JPH::Ref<JPH::CharacterVirtualSettings> settings = new JPH::CharacterVirtualSettings();
-	static constexpr float character_height = 1.4f;
+	static constexpr float character_height = 1.2f;
 	static constexpr float character_radius = 0.2f;
 	settings->mShape = JPH::RotatedTranslatedShapeSettings(JPH::Vec3(0, 0.5f * character_height + character_radius, 0), JPH::Quat::sIdentity(), new JPH::CapsuleShape(0.5f * character_height, character_radius)).Create().Get();
+	settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), -character_radius); // Accept contacts that touch the lower sphere of the capsule
 	return settings;
 }
 
 void JoltCharacterBody3D::_notification(int p_what) {
 	switch (p_what) {
-		case NOTIFICATION_READY: {
-			Ref<CapsuleShape3D> capsule;
-			capsule.instantiate();
-			static constexpr float character_height = 1.4f;
-			static constexpr float character_radius = 0.2f;
-			capsule->set_height(character_height);
-			capsule->set_radius(character_radius);
-			CollisionShape3D *shape = memnew(CollisionShape3D);
-			add_child(shape);
-			shape->set_position(Vector3(0.0f, 0.5f * character_height + character_radius, 0.0f));
-			shape->set_owner(get_owner());
-			shape->set_shape(capsule);
-			set_collision_layer(0);
-		} break;
 		case NOTIFICATION_ENTER_WORLD: {
 			character = nullptr;
 

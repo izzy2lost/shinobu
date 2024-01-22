@@ -3,6 +3,7 @@
 #define PLAYER_AGENT_H
 
 #include "agent.h"
+#include "modules/game/swansong_gltf_extension.h"
 #include "modules/tbloader/src/tb_loader_singleton.h"
 
 class HBPlayerAgentController : public Node {

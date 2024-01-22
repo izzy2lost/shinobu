@@ -1,4 +1,5 @@
 #include "agent.h"
+#include "core/math/transform_3d.h"
 #include "modules/game/agent_parkour.h"
 #include "physics_layers.h"
 #include "springs.h"
@@ -24,8 +25,6 @@ HBAgent::HBAgent() :
 	velocity_plot_lines_y.resize_zeroed(VELOCITY_PLOT_SIZE);
 	velocity_plot_lines_x.resize_zeroed(VELOCITY_PLOT_SIZE);
 	desired_velocity_plot_lines_y.resize_zeroed(VELOCITY_PLOT_SIZE);
-	acceleration_plot_lines_x.resize_zeroed(VELOCITY_PLOT_SIZE);
-	acceleration_plot_lines_y.resize_zeroed(VELOCITY_PLOT_SIZE);
 #endif
 }
 
@@ -162,48 +161,33 @@ void HBAgent::_bind_methods() {
 
 void HBAgent::_rotate_towards_velocity(float p_delta) {
 	Vector3 movement_input = get_movement_input();
-	if (movement_input.length() > 0) {
-		Vector3 planar_vel = get_effective_velocity();
-		planar_vel.y = 0.0f;
-		planar_vel.normalize();
-		if (planar_vel.is_normalized()) {
-			graphics_rotation = Quaternion(Vector3(0.0f, 0.0f, -1.0f), planar_vel).normalized();
+	Vector3 dir = get_effective_velocity();
+	dir.y = 0.0f;
+	dir.normalize();
+
+	if (dir.is_normalized()) {
+		const float angle = get_graphics_rotation().xform(Vector3(0.0f, 0.0f, -1.0f)).angle_to(dir);
+
+		if (movement_input.length() > 0) {
+			Vector3 planar_vel = get_effective_velocity();
+			planar_vel.y = 0.0f;
+			planar_vel.normalize();
+			if (planar_vel.is_normalized()) {
+				graphics_rotation = Quaternion(Vector3(0.0f, 0.0f, -1.0f), planar_vel).normalized();
+			}
 		}
 	}
 }
 
+static Vector3 prev_velocities[2];
+
 void HBAgent::_tilt_towards_acceleration(float p_delta) {
 	Node3D *tn = _get_tilt_node();
 
-	if (tn && agent_constants.is_valid()) {
-		// Handle acceleration tilting of the actor
-		Vector3 accel = velocity_spring_acceleration;
-		float alpha = 0.2;
-		// Smooth accel using a low pass filter
-		smoothed_accel = smoothed_accel * (1 - alpha) + accel * alpha;
-		accel = smoothed_accel;
-		accel.y = 0.0f;
-		Vector3 tilt_axis = accel.cross(Vector3(0.0f, 1.0f, 0.0));
-		tilt_axis.normalize();
-		// rough calculation of maximum tilt, seems to work ok
-		float max_accel = agent_constants->get_max_move_velocity() / agent_constants->get_velocity_spring_halflife();
-		float max_tilt_angle_degrees = agent_constants->get_tilt_max_angle_degrees();
-		real_t angle = Math::deg_to_rad(CLAMP(-accel.length() / max_accel, -1.0f, 1.0f) * max_tilt_angle_degrees);
 
-		Transform3D global_trf = tn->get_global_transform();
 
-		if (!tilt_axis.is_normalized()) {
-			tilt_axis = global_trf.get_basis().get_column(Vector3::AXIS_X);
-		}
-
-		Quaternion rotation_goal(tilt_axis, angle);
-
-		Quaternion current_rot = tn->get_global_transform().basis.get_rotation_quaternion();
-		rotation_goal = rotation_goal * tn->get_parent_node_3d()->get_global_transform().get_basis().get_rotation_quaternion();
-		HBSprings::simple_spring_damper_exact_quat(current_rot, tilt_spring_velocity, rotation_goal, agent_constants->get_tilt_spring_halflife(), p_delta);
-		global_trf.basis = Basis(current_rot);
-		tn->set_global_transform(global_trf);
-	}
+	prev_velocities[0] = prev_velocities[1];
+	prev_velocities[1] = get_effective_velocity();
 }
 
 void HBAgent::_physics_process(float p_delta) {
@@ -217,7 +201,7 @@ void HBAgent::_physics_process(float p_delta) {
 			update(p_delta);
 		} break;
 		case MovementMode::MOVE_GROUNDED: {
-			Vector3 input_vector = get_desired_movement_input_transformed();
+			/*Vector3 input_vector = get_desired_movement_input_transformed();
 			Vector3 target_desired_velocity = input_vector * agent_constants->get_max_move_velocity();
 
 			Vector3 prev_horiz_dir = get_velocity();
@@ -229,12 +213,6 @@ void HBAgent::_physics_process(float p_delta) {
 
 			bool was_at_edge = prev_horiz_dir.is_normalized() && is_at_edge(prev_horiz_dir);
 
-			HBSprings::velocity_spring_vector3(
-					desired_velocity,
-					velocity_spring_acceleration,
-					target_desired_velocity,
-					agent_constants->get_velocity_spring_halflife(),
-					p_delta);
 			set_desired_velocity(desired_velocity);
 
 			Vector3 prev_vel_horiz = get_velocity();
@@ -262,12 +240,11 @@ void HBAgent::_physics_process(float p_delta) {
 					emit_signal(SNAME("stopped_at_edge"));
 				}
 			}
-			_rotate_towards_velocity(p_delta);
+			_rotate_towards_velocity(p_delta);*/
 			//_tilt_towards_acceleration(p_delta);
 		} break;
 		case MovementMode::MOVE_MANUAL: {
 			set_desired_velocity(Vector3());
-			velocity_spring_acceleration = Vector3();
 			tilt_spring_velocity = Vector3();
 		} break;
 	}
@@ -305,7 +282,6 @@ bool HBAgent::is_at_edge(Vector3 p_direction) {
 
 void HBAgent::reset_desired_input_velocity_to(const Vector3 &p_new_vel) {
 	desired_velocity = p_new_vel;
-	velocity_spring_acceleration = Vector3();
 }
 
 Area3D *HBAgent::get_ledge_detector() const {
@@ -452,7 +428,6 @@ void HBAgent::set_movement_mode(MovementMode p_movement_mode) {
 			// HACK-ish, should probably inertialize this
 			_get_tilt_node()->set_transform(Transform3D());
 		}
-		velocity_spring_acceleration = Vector3();
 		rotation_spring_velocity = Vector3();
 	}
 	movement_mode = p_movement_mode;
@@ -529,27 +504,6 @@ void HBAgent::_notification(int p_what) {
 							ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0f, 4.0f);
 							ImPlot::PlotLine("Velocity", velocity_plot_lines_x.ptr(), velocity_plot_lines_y.ptr(), VELOCITY_PLOT_SIZE);
 							ImPlot::PlotLine("Desired velocity", velocity_plot_lines_x.ptr(), desired_velocity_plot_lines_y.ptr(), VELOCITY_PLOT_SIZE);
-							ImPlot::EndPlot();
-						}
-					}
-
-					{
-						for (int i = 1; i < VELOCITY_PLOT_SIZE; i++) {
-							acceleration_plot_lines_x.set(i - 1, acceleration_plot_lines_x[i]);
-							acceleration_plot_lines_y.set(i - 1, acceleration_plot_lines_y[i]);
-						}
-						float accel_number = Math::abs(get_velocity().angle_to(velocity_spring_acceleration));
-						accel_number = Math::remap(accel_number, 0.0f, Math::deg_to_rad(180.0f), 1.0f, -1.0f);
-						accel_number *= velocity_spring_acceleration.length();
-						acceleration_plot_lines_x.set(VELOCITY_PLOT_SIZE - 1, plot_t);
-						acceleration_plot_lines_y.set(VELOCITY_PLOT_SIZE - 1, accel_number);
-
-						String title = vformat("Acceleration\n%.2f m/s2", accel_number);
-						if (ImPlot::BeginPlot(title.utf8().get_data(), ImVec2(-1, 200.0f), ImPlotFlags_CanvasOnly & ~ImPlotFlags_NoTitle)) {
-							ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoTickLabels);
-							ImPlot::SetupAxisLimits(ImAxis_X1, acceleration_plot_lines_x[0], acceleration_plot_lines_x[VELOCITY_PLOT_SIZE - 1], ImGuiCond_Always);
-							ImPlot::SetupAxisLimits(ImAxis_Y1, -10.0f, 10.0f);
-							ImPlot::PlotLine("Acceleration", acceleration_plot_lines_x.ptr(), acceleration_plot_lines_y.ptr(), VELOCITY_PLOT_SIZE);
 							ImPlot::EndPlot();
 						}
 					}

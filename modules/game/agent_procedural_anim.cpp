@@ -6,17 +6,20 @@ void AgentProceduralAnimator::_advance_animation(AgentProceduralAnimOptions &p_o
 }
 
 void AgentProceduralAnimator::_process_springs(AgentProceduralAnimOptions &p_options, float p_delta) {
+	if (p_delta == 0.0f) {
+		return;
+	}
 	// Process limb springs
 	for (int i = 0; i < LIMB_MAX; i++) {
-		Transform3D trf = limb_output_transforms[i];
+		Transform3D trf = animator_state.limb_output_transforms[i];
 		float position_spring_halflife = p_options.limb_position_spring_halflifes[i];
 		if (position_spring_halflife <= 0.0f) {
-			trf.origin = limb_transforms[i].origin;
+			trf.origin = animator_state.limb_transforms[i].origin;
 		} else {
 			HBSprings::critical_spring_damper_exact_vector3(
 					trf.origin,
-					limb_position_spring_velocities[i],
-					limb_transforms[i].origin,
+					animator_state.limb_position_spring_velocities[i],
+					animator_state.limb_transforms[i].origin,
 					position_spring_halflife,
 					p_delta);
 		}
@@ -24,65 +27,74 @@ void AgentProceduralAnimator::_process_springs(AgentProceduralAnimOptions &p_opt
 		float rotation_spring_halflife = p_options.limb_rotation_spring_halflifes[i];
 
 		if (rotation_spring_halflife <= 0.0f) {
-			trf.basis = limb_transforms[i].basis;
+			trf.basis = animator_state.limb_transforms[i].basis;
 		} else {
 			Quaternion rot = trf.basis.get_rotation_quaternion();
 			HBSprings::simple_spring_damper_exact_quat(
 					rot,
-					limb_rotation_spring_velocities[i],
-					limb_transforms[i].basis.get_rotation_quaternion(),
+					animator_state.limb_rotation_spring_velocities[i],
+					animator_state.limb_transforms[i].basis.get_rotation_quaternion(),
 					rotation_spring_halflife,
 					p_delta);
 			trf.basis = rot;
 		}
 
-		limb_output_transforms[i] = trf;
+		animator_state.limb_output_transforms[i] = trf;
 	}
 
 	// Process skeleton springs
-	Transform3D skeleton_trf = skeleton_output_transform;
+	Transform3D skeleton_trf = animator_state.skeleton_output_transform;
 	if (p_options.skeleton_rotation_spring_halflife <= 0.0f) {
-		skeleton_trf.basis = skeleton_transform.basis;
+		skeleton_trf.basis = animator_state.skeleton_transform.basis;
 	} else {
-		Quaternion rot = skeleton_output_transform.basis.get_rotation_quaternion();
+		Quaternion rot = animator_state.skeleton_output_transform.basis.get_rotation_quaternion();
 		HBSprings::simple_spring_damper_exact_quat(
 				rot,
-				skeleton_rotation_spring_velocity,
-				skeleton_transform.basis.get_rotation_quaternion(),
+				animator_state.skeleton_rotation_spring_velocity,
+				animator_state.skeleton_transform.basis.get_rotation_quaternion(),
 				p_options.skeleton_rotation_spring_halflife,
 				p_delta);
 		skeleton_trf.basis = rot;
 	}
 
 	if (p_options.skeleton_position_spring_halflife <= 0.0f) {
-		skeleton_trf.origin = skeleton_transform.origin;
+		skeleton_trf.origin = animator_state.skeleton_transform.origin;
 	} else {
 		if (p_options.skeleton_spring_mode == AgentProceduralAnimOptions::CRITICAL) {
 			HBSprings::critical_spring_damper_exact_vector3(
 					skeleton_trf.origin,
-					skeleton_position_spring_velocity,
-					skeleton_transform.origin,
+					animator_state.skeleton_position_spring_velocity,
+					animator_state.skeleton_transform.origin,
 					p_options.skeleton_position_spring_halflife,
 					p_delta);
 		} else {
 			HBSprings::spring_damper_exact_ratio_vector3(
 					skeleton_trf.origin,
-					skeleton_position_spring_velocity,
+					animator_state.skeleton_position_spring_velocity,
 					Vector3(),
-					skeleton_transform.origin,
+					animator_state.skeleton_transform.origin,
 					p_options.skeleton_position_spring_halflife,
 					p_options.skeleton_position_spring_damping_ratio,
 					p_delta);
 		}
 
 	}
-	skeleton_output_transform = skeleton_trf;
+	animator_state.skeleton_output_transform = skeleton_trf;
 	HBSprings::critical_spring_damper_exact_vector3(
-			skeleton_position_offset,
-			skeleton_position_offset_spring_velocity,
-			skeleton_position_offset_target,
+			animator_state.skeleton_position_offset,
+			animator_state.skeleton_position_offset_spring_velocity,
+			animator_state.skeleton_position_offset_target,
 			p_options.skeleton_position_offset_spring_halflife,
 			p_delta);
+}
+
+bool AgentProceduralAnimator::have_springs_converged() const {
+	for(int i = 0; i < LIMB_MAX; i++) {
+		if (animator_state.limb_position_spring_velocities[i].length() > 0.1f) {
+			return false;
+		}
+	}
+	return true;
 }
 
 void AgentProceduralAnimator::process(AgentProceduralAnimOptions &p_options, float p_delta) {
@@ -99,11 +111,11 @@ void AgentProceduralAnimator::process(AgentProceduralAnimOptions &p_options, flo
 		}
 		AgentLimb limb = static_cast<AgentLimb>(i);
 		float t = CLAMP(get_limb_time(p_options, limb), 0.0, 1.0f);
-		limb_transforms[i] = p_options.starting_limb_transforms[i].interpolate_with(p_options.target_limb_transforms[i], t);
-		limb_transforms[i].origin += limb_transforms[i].basis.xform(p_options.limb_peak_position[i]) * sin(Math_PI * t) * p_options.anim_blend;
+		animator_state.limb_transforms[i] = p_options.starting_limb_transforms[i].interpolate_with(p_options.target_limb_transforms[i], t);
+		animator_state.limb_transforms[i].origin += animator_state.limb_transforms[i].basis.xform(p_options.limb_peak_position[i]) * sin(Math_PI * t) * p_options.anim_blend;
 		weights[i] = get_limb_weight(t);
 		total_weight += weights[i];
-		limb_avg += limb_transforms[i].origin;
+		limb_avg += animator_state.limb_transforms[i].origin;
 		average_limb_count++;
 	}
 
@@ -113,21 +125,29 @@ void AgentProceduralAnimator::process(AgentProceduralAnimOptions &p_options, flo
 		if (p_options.limb_dangle_status[i]) {
 			continue;
 		}
-		limb_weighted_avg += (limb_transforms[i].origin) * (weights[i] / total_weight);
+		limb_weighted_avg += (animator_state.limb_transforms[i].origin) * (weights[i] / total_weight);
 	}
 
-	limb_avg /= average_limb_count;
+	limb_avg /= (float)average_limb_count;
 
-	skeleton_position_offset_target = (limb_weighted_avg - limb_avg) * p_options.anim_blend;
+	animator_state.skeleton_position_offset_target = (limb_weighted_avg - limb_avg) * p_options.anim_blend;
 
-	skeleton_transform = p_options.starting_skeleton_transform.interpolate_with(p_options.target_skeleton_transform, animation_time / animation_duration);
+	if (p_options.use_average_for_skeleton_trf) {
+		animator_state.skeleton_transform.origin = animator_state.limb_transforms[LIMB_LEFT_HAND].origin + animator_state.limb_transforms[LIMB_RIGHT_HAND].origin;
+		animator_state.skeleton_transform.origin /= 2.0f;
+		Transform3D og_trf = p_options.starting_skeleton_transform.interpolate_with(p_options.target_skeleton_transform, animation_time / animation_duration);
+		animator_state.skeleton_transform.basis = og_trf.basis;
+	} else {
+		animator_state.skeleton_transform = p_options.starting_skeleton_transform.interpolate_with(p_options.target_skeleton_transform, animation_time / animation_duration);
+	}
 
-	if (restart_queued) {
-		restart_queued = false;
+	if (animator_state.restart_queued) {
+		animator_state.restart_queued = false;
+		print_line("RESTART!");
 		for (int i = 0; i < LIMB_MAX; i++) {
-			limb_output_transforms[i] = limb_transforms[i];
+			animator_state.limb_output_transforms[i] = animator_state.limb_transforms[i];
 		}
-		skeleton_output_transform = skeleton_transform;
+		animator_state.skeleton_output_transform = animator_state.skeleton_transform;
 	}
 
 	_process_springs(p_options, p_delta);
@@ -138,18 +158,18 @@ bool AgentProceduralAnimator::is_done() const {
 }
 
 void AgentProceduralAnimator::get_output_pose(AgentProceduralPose &p_pose) const {
-	p_pose.skeleton_trf = skeleton_output_transform;
-	p_pose.skeleton_position_offset = skeleton_position_offset;
+	p_pose.skeleton_trf = animator_state.skeleton_output_transform;
+	p_pose.skeleton_position_offset = animator_state.skeleton_position_offset;
 	for (int i = 0; i < LIMB_MAX; i++) {
-		p_pose.ik_targets[i] = limb_output_transforms[i];
+		p_pose.ik_targets[i] = animator_state.limb_output_transforms[i];
 	}
 	p_pose.valid = true;
 }
 
 void AgentProceduralAnimator::get_unsprung_pose(AgentProceduralPose &p_pose) {
-	p_pose.skeleton_trf = skeleton_transform;
+	p_pose.skeleton_trf = animator_state.skeleton_transform;
 	for (int i = 0; i < LIMB_MAX; i++) {
-		p_pose.ik_targets[i] = limb_transforms[i];
+		p_pose.ik_targets[i] = animator_state.limb_transforms[i];
 	}
 	p_pose.valid = true;
 }
@@ -166,15 +186,23 @@ float AgentProceduralAnimator::get_animation_duration() const { return animation
 
 void AgentProceduralAnimator::set_animation_duration(float p_animation_duration) { animation_duration = p_animation_duration; }
 
+AgentProceduralAnimator::AnimatorState AgentProceduralAnimator::get_animator_state() {
+	return animator_state;
+}
+
+void AgentProceduralAnimator::set_animator_state(const AnimatorState &p_animator_state) {
+	animator_state = p_animator_state;
+}
+
 void AgentProceduralAnimator::restart() {
 	reset();
-	restart_queued = true;
+	animator_state.restart_queued = true;
 	for (int i = 0; i < LIMB_MAX; i++) {
-		limb_position_spring_velocities[i] = Vector3();
-		limb_rotation_spring_velocities[i] = Vector3();
+		animator_state.limb_position_spring_velocities[i] = Vector3();
+		animator_state.limb_rotation_spring_velocities[i] = Vector3();
 	}
-	skeleton_position_spring_velocity = Vector3();
-	skeleton_rotation_spring_velocity = Vector3();
+	animator_state.skeleton_position_spring_velocity = Vector3();
+	animator_state.skeleton_rotation_spring_velocity = Vector3();
 }
 
 float AgentProceduralAnimator::get_playback_position() const {

@@ -17,6 +17,8 @@
 #include "modules/game/animation_system/epas_lookat_node.h"
 #include "modules/game/level_preprocessor.h"
 #include "modules/game/map_compile_hooks.h"
+#include "modules/game/swansong_gltf_extension.h"
+#include "modules/gltf/gltf_document.h"
 #include "modules/tbloader/src/tb_loader_singleton.h"
 #include "player_agent.h"
 #include "player_camera_arm.h"
@@ -49,6 +51,10 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
+	Ref<SwansongGLTFExtension> gltf_ext;
+	gltf_ext.instantiate();
+	GLTFDocument::register_gltf_document_extension(gltf_ext);
+
 	GLOBAL_DEF("game/mouse_sensitivity", 175.0f);
 	GLOBAL_DEF("game/player/graphics_rotation_speed", 45.0f);
 	// Agent stuff
@@ -64,10 +70,10 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(HBAgentTurnState);
 	GDREGISTER_CLASS(HBAgentLedgeGrabbedStateNew);
 	GDREGISTER_CLASS(HBAgentFallState);
-	GDREGISTER_CLASS(HBAgentWallParkourState);
 	GDREGISTER_CLASS(HBAgentWallParkourStateNew);
 	GDREGISTER_CLASS(HBAgentParkourBeamWalk);
 	GDREGISTER_CLASS(HBAgentRootMotionState);
+	GDREGISTER_CLASS(HBAgentWallTransitionState);
 	// State machine stuff
 	GDREGISTER_CLASS(HBStateMachine);
 	GDREGISTER_ABSTRACT_CLASS(HBStateMachineState);
@@ -108,8 +114,10 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 
 	TBLoaderSingleton::register_entity_type<HBAgentParkourPoint>();
 	TBLoaderSingleton::register_entity_type<HBAgentParkourBeam>();
+	TBLoaderSingleton::register_entity_type<HBAgentParkourLedge>();
 	TBLoaderSingleton::register_entity_type<HBInfoPlayerStart>();
-	TBLoaderSingleton::register_compile_hook(memnew(MapCompileHooks));
+	//gltf_ext->register_entity_type<HBInfoPlayerStart>();
+	//TBLoaderSingleton::register_compile_hook(memnew(MapCompileHooks));
 #ifdef DEBUG_ENABLED
 	GDREGISTER_CLASS(EPASAnimationEditor);
 	GDREGISTER_CLASS(EPASEditorGrid);

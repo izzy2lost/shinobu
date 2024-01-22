@@ -12,11 +12,13 @@
 #include "scene/resources/box_shape_3d.h"
 #include "scene/resources/sphere_shape_3d.h"
 
-class HBAgentParkourLedge : public Area3D {
+class HBAgentParkourLedge : public Area3D, public TBLoaderEntity {
 	GDCLASS(HBAgentParkourLedge, Area3D);
 	Ref<Curve3D> curve;
 	// Curve the agent will follow
 	Ref<Curve3D> agent_curve;
+
+	bool closed = false;
 
 protected:
 	static void _bind_methods();
@@ -25,16 +27,25 @@ public:
 	Ref<Curve3D> get_curve() const;
 	void set_curve(const Ref<Curve3D> &p_curve);
 	void generate_colliders();
+	void generate_offset_path();
+	void round_path();
 	float get_closest_offset(const Vector3 &p_global_pos) const;
-	float get_closest_offset_agent(const Vector3 &p_global_pos) const;
 	Transform3D get_ledge_transform_at_offset(float p_offset) const;
 	Transform3D get_agent_ledge_transform_at_offset(float p_offset) const;
 	bool check_agent_fits(HBAgent *p_agent, float p_offset, HBDebugGeometry *p_debug_geo = nullptr) const;
 
 	HBAgentParkourLedge();
 
-	Ref<Curve3D> get_agent_curve() const { return agent_curve; }
+	static StringName get_entity_name() {
+		return "func_parkour_ledge";
+	}
+
+	bool get_closed() const { return closed; }
+	void set_closed(bool p_closed) { closed = p_closed; }
+
+
 	void set_agent_curve(const Ref<Curve3D> &agent_curve_) { agent_curve = agent_curve_; }
+	virtual void _editor_build(const EntityCompileInfo &p_info, const HashMap<StringName, EntityCompileInfo> &p_entities) override;
 };
 
 class HBAgentParkourPoint : public StaticBody3D, public TBLoaderEntity {
@@ -56,24 +67,41 @@ public:
 
 class HBAgentParkourBeam : public Area3D, public TBLoaderEntity {
 	GDCLASS(HBAgentParkourBeam, Area3D);
-	Ref<Curve3D> curve;
+	Ref<Curve3D> curve_cache;
+	bool is_curve_dirty = true;
+	void _update_curve();
 
 	MeshInstance3D *debug_preview = nullptr;
 	bool line_redraw_queued = false;
 	void _line_redraw();
 
+	bool is_edge = false;
+
+	struct BeamPointData {
+		bool is_edge = false;
+		Vector3 position;
+	};
+
+	Vector<BeamPointData> beam_points_data;
+
 protected:
 	static void _bind_methods();
 	void _notification(int p_what);
-
+	bool _set(const StringName &p_name, const Variant &p_value);
+	bool _get(const StringName &p_name, Variant &r_ret) const;
+	void _get_property_list(List<PropertyInfo> *p_list) const;
 public:
 	virtual void _editor_build(const EntityCompileInfo &p_info, const HashMap<StringName, EntityCompileInfo> &p_entities) override;
-	void set_curve(Ref<Curve3D> p_curve);
 	Ref<Curve3D> get_curve() const;
 	void _queue_line_redraw();
 	static StringName get_entity_name() {
 		return "func_parkour_beam";
 	}
+
+	bool get_is_edge() const;
+	void set_is_edge(bool p_is_edge);
+
+	bool is_point_edge(int p_point_idx) const;
 
 	HBAgentParkourBeam();
 };

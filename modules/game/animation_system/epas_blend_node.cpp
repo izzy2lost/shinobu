@@ -1,4 +1,6 @@
 #include "epas_blend_node.h"
+#include "scene/gui/box_container.h"
+#include "scene/gui/slider.h"
 
 void EPASBlendNode::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_blend_amount", "amount"), &EPASBlendNode::set_blend_amount);
@@ -34,6 +36,20 @@ void EPASBlendNode::_debug_node_draw() const {
 	ImGui::SliderFloat("Amount", const_cast<float *>(&blend_amount), 0.0f, 1.0f);
 	ImGui::PopItemWidth();
 };
+Control* EPASBlendNode::_debug_node_create() {
+	VBoxContainer *container = memnew(VBoxContainer);
+	HSlider *slider = memnew(HSlider);
+	
+	container->set_h_size_flags(Control::SizeFlags::SIZE_EXPAND_FILL);
+	slider->set_h_size_flags(Control::SizeFlags::SIZE_EXPAND_FILL);
+	
+	slider->set_min(0.0f);
+	slider->set_max(1.0f);
+	slider->set_step(0.0f);
+	container->add_child(slider);
+	
+	return container;
+}
 #endif
 
 EPASBlendNode::EPASBlendNode() {

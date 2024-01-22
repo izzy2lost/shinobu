@@ -121,12 +121,13 @@ void HBStateMachine::_on_child_entered_tree(Node *p_child) {
 
 void HBStateMachine::transition_to(const StringName &p_name, const Dictionary &p_args) {
 	HBStateMachineState *current_state = _get_current_state();
+	print_line("TRANSITION TO", p_name);
 	if (current_state) {
 		current_state->exit();
 		// HACK: hide debug collisions when switching states, please ignore
 		HBAgentState *agent_state = Object::cast_to<HBAgentState>(current_state);
 		if (agent_state) {
-			agent_state->debug_draw_clear();
+			//agent_state->debug_draw_clear();
 		}
 		current_state = nullptr;
 	}

@@ -2,6 +2,7 @@
 #define EPAS_NODE_H
 
 #include "epas_pose.h"
+#include "scene/gui/control.h"
 
 class EPASController;
 
@@ -9,6 +10,7 @@ class EPASNode : public RefCounted {
 	GDCLASS(EPASNode, RefCounted);
 
 	Vector<Ref<EPASNode>> children;
+	StringName node_name;
 	EPASController *epas_controller;
 
 private:
@@ -27,6 +29,7 @@ public:
 	Ref<EPASNode> get_input(int p_input) const;
 #ifdef DEBUG_ENABLED
 	virtual void _debug_node_draw() const {};
+	virtual Control *_debug_node_create() { return nullptr; };
 #endif
 	virtual ~EPASNode(){};
 	friend class EPASController;

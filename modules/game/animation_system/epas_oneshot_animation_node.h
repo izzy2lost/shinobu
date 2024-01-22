@@ -13,7 +13,9 @@ class EPASOneshotAnimationNode : public EPASNode {
 
 	float time = 0.0f;
 	bool playing = false;
-	EPASAnimation::InterpolationMethod interpolation_method = EPASAnimation::InterpolationMethod::BICUBIC_SPLINE_CLAMPED;
+	float speed_scale = 1.0f;
+	float end_time = -1.0f;
+	EPASAnimation::InterpolationMethod interpolation_method = EPASAnimation::InterpolationMethod::LINEAR;
 	EPASAnimationPlaybackInfo playback_info;
 
 	Ref<EPASAnimation> animation;
@@ -50,6 +52,10 @@ public:
 	void play_with_warp_points(const Dictionary &p_warp_points);
 
 	Transform3D get_root_motion_transform() const;
+	float get_speed_scale() const { return speed_scale; }
+	void set_speed_scale(float speed_scale_) { speed_scale = speed_scale_; }
+	float get_end_time() const { return end_time; }
+	void set_end_time(float end_time_) { end_time = end_time_; }
 	friend class EPASOneshotAnimationNodeDebug;
 };
 

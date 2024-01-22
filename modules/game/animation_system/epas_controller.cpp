@@ -2,6 +2,7 @@
 
 #include "core/variant/array.h"
 #include "core/variant/variant.h"
+#include "modules/game/animation_system/epas_animation_node.h"
 #ifdef DEBUG_ENABLED
 #include "imgui.h"
 #include "implot.h"
@@ -78,6 +79,10 @@ void EPASController::_notification(int p_what) {
 					}
 
 					ImGui::Text("Node count %d", nodes.size());
+					ImGui::SameLine();
+					if (ImGui::Button("Arrange")) {
+						_arrange_nodes();
+					}
 					ImNodes::BeginNodeEditor();
 					debug_draw_accumulator = 0;
 					debug_draw_link_accumulator = 0;
@@ -212,6 +217,61 @@ void EPASController::_debug_update_skeleton_vis() {
 
 	mesh->surface_update_vertex_region(0, 0, skel_dbg_vertex_array.to_byte_array());
 	debug_skeleton_vis->set_global_transform(skel->get_global_transform());
+}
+void EPASController::_arrange_nodes() {
+	Ref<EPASNode> root_node = get_epas_node("Output");
+	Vector<Vector<Ref<EPASNode>>> grouped_nodes;
+	grouped_nodes.resize_zeroed(32);
+
+	int depth_count = get_nodes_by_depth(root_node, grouped_nodes);
+
+	float depth_width_accumulator = 0.0f;
+	const float VERTICAL_MARGIN = 25.0f;
+	const float HORIZONTAL_MARGIN = 50.0f;
+	for(int i = 0; i < depth_count; i++) {
+		float this_depth_width = 0.0f;
+		float this_depth_height = 0.0f;
+		float height_accumulator = 0.0f;
+		for (int j = 0; j < grouped_nodes[i].size(); j++) {
+			int64_t obj_id = grouped_nodes[i][j]->get_instance_id();
+			this_depth_width = MAX(ImNodes::GetNodeDimensions(obj_id).x, this_depth_width);
+			this_depth_height += ImNodes::GetNodeDimensions(obj_id).y;
+
+			if (j != grouped_nodes[i].size()-1) {
+				this_depth_height += VERTICAL_MARGIN;
+			}
+		}
+		for (int j = 0; j < grouped_nodes[i].size(); j++) {
+			Vector2 node_pos;
+			node_pos.x -= depth_width_accumulator;
+			node_pos.x -= this_depth_width;
+			int64_t obj_id = grouped_nodes[i][j]->get_instance_id();
+			node_pos.x += (this_depth_width - ImNodes::GetNodeDimensions(obj_id).x)*0.5f;
+
+			node_pos.y = height_accumulator;
+			node_pos.y -= this_depth_height * 0.5f;
+			ImNodes::SetNodeEditorSpacePos(obj_id, node_pos);
+
+			height_accumulator += ImNodes::GetNodeDimensions(obj_id).y + VERTICAL_MARGIN;
+		}
+		depth_width_accumulator += this_depth_width + HORIZONTAL_MARGIN;
+	}
+}
+int EPASController::get_nodes_by_depth(Ref<EPASNode> p_node, Vector<Vector<Ref<EPASNode>>> &r_nodes_by_depth, int p_current_depth) const {
+	r_nodes_by_depth.ptrw()[p_current_depth].push_back(p_node);
+	p_current_depth++;
+
+	int highest_depth = p_current_depth;
+
+	for (int i = 0; i < p_node->get_input_count(); i++) {
+		Ref<EPASNode> child_node = p_node->get_input(i);
+		if (!child_node.is_valid()) {
+			continue;
+		}
+		highest_depth = MAX(highest_depth, get_nodes_by_depth(child_node, r_nodes_by_depth, p_current_depth));
+	}
+
+	return highest_depth;
 }
 #endif
 
@@ -379,6 +439,7 @@ Skeleton3D *EPASController::get_skeleton() {
 EPASController::EPASController() {
 	root = Ref<EPASRootNode>(memnew(EPASRootNode));
 	nodes.push_back(root);
+	node_name_map.insert("Output", root);
 	print_line("ROOT CREATE");
 #ifdef DEBUG_ENABLED
 	set_process_internal(true);

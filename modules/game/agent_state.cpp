@@ -100,7 +100,7 @@ HBDebugGeometry *HBAgentState::get_debug_geometry() {
 }
 #endif
 
-bool HBAgentState::find_facing_wall(PhysicsDirectSpaceState3D::RayResult &p_result) {
+bool HBAgentState::find_facing_wall(PhysicsDirectSpaceState3D::RayResult &p_result) const {
 	// Finds a wall that is in front of the agent
 	HBAgent *agent = get_agent();
 	ERR_FAIL_COND_V(agent == nullptr, false);
@@ -123,8 +123,6 @@ bool HBAgentState::find_facing_wall(PhysicsDirectSpaceState3D::RayResult &p_resu
 	ray_params.from = agent->get_global_position() + Vector3(0.0f, mid_height, 0.0f);
 	Vector3 movement_input_dir = agent->get_desired_movement_input_transformed();
 	ray_params.to = ray_params.from + movement_input_dir * parkour_wall_check_distance;
-
-	debug_draw_raycast(ray_params, Color(1.0f, 0.0f, 0.0f));
 
 	if (!dss->intersect_ray(ray_params, p_result) || !is_wall(p_result.normal, floor_max_angle)) {
 		// Not a wall, abort
@@ -180,91 +178,8 @@ bool HBAgentState::whisker_reach_check(const Vector3 &p_from, const Vector3 &p_t
 	return true;
 }
 
-bool HBAgentState::find_lege_wall_sweep(const Vector3 &p_from, const Vector3 &p_to, const Vector3 &p_offset, Transform3D &p_out_edge_trf, HBAgentParkourLedge **p_out_ledge, int p_iterations) {
-	*p_out_ledge = nullptr;
-	PhysicsDirectSpaceState3D *dss = get_agent()->get_world_3d()->get_direct_space_state();
-	PhysicsDirectSpaceState3D::RayParameters ray_params;
-	ray_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
-	ray_params.hit_back_faces = false;
-	PhysicsDirectSpaceState3D::RayResult ray_result;
-	bool has_result = false;
-	const float floor_max_angle = get_agent()->get_floor_max_angle();
-	for (int i = 0; i < p_iterations; i++) {
-		float t = i / (float)(p_iterations - 1);
-		ray_params.from = p_from + p_offset * t;
-		ray_params.to = p_to + p_offset * t;
-		PhysicsDirectSpaceState3D::RayResult ray_result_tmp;
-		debug_draw_raycast(ray_params);
-		if (!dss->intersect_ray(ray_params, ray_result_tmp) || !is_wall(ray_result_tmp.normal, floor_max_angle)) {
-			continue;
-		}
-
-		has_result = true;
-		ray_result = ray_result_tmp;
-		break;
-	}
-	ray_params.hit_back_faces = true;
-
-	if (!has_result) {
-		return false;
-	}
-
-	ray_params.from = ray_result.position + ray_result.normal * -0.01;
-	ray_params.to = ray_params.from;
-	ray_params.from.y += get_agent()->get_height();
-
-	Transform3D edge_trf;
-	edge_trf.origin = ray_result.position;
-	edge_trf.basis = Quaternion(Vector3(0.0f, 0.0f, -1.0f), ray_result.normal);
-
-	debug_draw_raycast(ray_params, Color("RED"));
-	if (!dss->intersect_ray(ray_params, ray_result) || !is_floor(ray_result.normal, floor_max_angle)) {
-		return false;
-	}
-
-	edge_trf.origin.y = ray_result.position.y;
-
-	p_out_edge_trf = edge_trf;
-
-	PhysicsDirectSpaceState3D::ShapeParameters params;
-	Ref<SphereShape3D> sphere;
-	sphere.instantiate();
-	sphere->set_radius(0.1f);
-	params.shape_rid = sphere->get_rid();
-	params.collide_with_bodies = false;
-	params.collide_with_areas = true;
-	params.collision_mask = HBPhysicsLayers::LAYER_PARKOUR_NODES;
-	params.transform.origin = p_out_edge_trf.origin;
-	const int MAX_RESULTS = 10;
-	Vector<PhysicsDirectSpaceState3D::ShapeResult> results;
-	results.resize(MAX_RESULTS);
-
-	HBAgentParkourLedge *ledge_r = nullptr;
-	int result_count = dss->intersect_shape(params, results.ptrw(), MAX_RESULTS);
-	for (int i = 0; i < result_count; i++) {
-		HBAgentParkourLedge *ledge = Object::cast_to<HBAgentParkourLedge>(results[i].collider);
-		if (!ledge) {
-			continue;
-		}
-		Vector3 test_pos = ledge->to_local(p_out_edge_trf.origin);
-		Transform3D ref_trf = ledge->get_curve()->sample_baked_with_rotation(ledge->get_curve()->get_closest_offset(test_pos));
-		Vector3 ledge_normal = ref_trf.basis.get_rotation_quaternion().xform(Vector3(-1.0f, 0.0f, 0.0f));
-
-		if (ledge_normal.angle_to(p_out_edge_trf.basis.get_rotation_quaternion().xform(Vector3(0.0f, 0.0f, -1.0f))) > Math::deg_to_rad(15.0f)) {
-			continue;
-		}
-
-		ledge_r = ledge;
-		break;
-	}
-
-	if (!ledge_r) {
-		return false;
-	}
-
-	*p_out_ledge = ledge_r;
-
-	return true;
+void HBAgentState::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("whisker_reach_check", "from", "to", "height_start", "height_end"), &HBAgentState::whisker_reach_check);
 }
 
 HBAgent *HBAgentState::get_agent() const {
@@ -308,7 +223,7 @@ Ref<EPASSoftnessNode> HBAgentState::get_softness_node() const {
 }
 
 Ref<EPASWheelLocomotion> HBAgentState::get_wheel_locomotion_node() const {
-	ERR_FAIL_COND_V(get_epas_controller() == nullptr, Ref<EPASInertializationNode>());
+	ERR_FAIL_COND_V(get_epas_controller() == nullptr, Ref<EPASWheelLocomotion>());
 	return get_epas_controller()->get_epas_node(SNAME("MovementWheel"));
 }
 
@@ -346,9 +261,12 @@ void HBAgentMoveState::enter(const Dictionary &p_args) {
 	transition_node->transition_to(HBAgentConstants::MovementTransitionInputs::MOVEMENT_MOVE);
 	float x_blend = get_agent()->get_velocity().length() / get_agent()->get_agent_constants()->get_max_move_velocity();
 	x_blend = CLAMP(x_blend, 0.0f, 1.0f);
-	get_wheel_locomotion_node()->set_x_blend(x_blend);
+	get_wheel_locomotion_node()->set_x_blend(0.0f);
+	get_wheel_locomotion_node()->set_linear_velocity(Vector3());
 	get_wheel_locomotion_node()->reset_foot_ik();
-	get_inertialization_node()->inertialize(p_args.get(MoveStateParams::PARAM_TRANSITION_DURATION, 0.2f));
+	velocity_spring_acceleration = Vector3();
+	get_agent()->set_desired_velocity(Vector3());
+	//get_inertialization_node()->inertialize(p_args.get(MoveStateParams::PARAM_TRANSITION_DURATION, 0.2f));
 	get_agent()->connect("stopped_at_edge", callable_mp(this, &HBAgentMoveState::_on_agent_edge_hit));
 	Ref<EPASLookatNode> torso_lookat_node = get_epas_controller()->get_epas_node("TorsoLookAt");
 	Ref<EPASLookatNode> head_lookat_node = get_epas_controller()->get_epas_node("HeadLookAt");
@@ -356,6 +274,11 @@ void HBAgentMoveState::enter(const Dictionary &p_args) {
 	head_lookat_node->set_influence(0.0f);
 	get_softness_node()->set_influence(1.0f);
 	get_wheel_locomotion_node()->set_use_foot_ik(true);
+	Ref<EPASIKNode> left_foot_ik_node = get_epas_controller()->get_epas_node(ASN()->left_foot_ik_node);
+	Ref<EPASIKNode> right_foot_ik_node = get_epas_controller()->get_epas_node(ASN()->right_foot_ik_node);
+
+	left_foot_ik_node->set_ik_influence(1.0f);
+	right_foot_ik_node->set_ik_influence(1.0f);
 }
 
 void HBAgentMoveState::exit() {
@@ -374,17 +297,26 @@ void HBAgentMoveState::exit() {
 void HBAgentMoveState::physics_process(float p_delta) {
 	ZoneScopedN("HBAgentMoveState physics process");
 	HBAgent *agent = get_agent();
+
+	Vector3 input_vector = agent->get_desired_movement_input_transformed();
+	Vector3 target_desired_velocity = input_vector * agent->get_agent_constants()->get_max_move_velocity();
+	Vector3 desired_velocity = agent->get_desired_velocity();
+	HBSprings::velocity_spring_vector3(
+		desired_velocity,
+		velocity_spring_acceleration,
+		target_desired_velocity,
+		agent->get_agent_constants()->get_velocity_spring_halflife(),
+		p_delta);
+	agent->set_desired_velocity(desired_velocity);
+
 	Ref<EPASIKNode> left_foot_ik_node = get_epas_controller()->get_epas_node(ASN()->left_foot_ik_node);
 	Ref<EPASIKNode> right_foot_ik_node = get_epas_controller()->get_epas_node(ASN()->right_foot_ik_node);
-
-	left_foot_ik_node->set_ik_influence(1.0f);
-	right_foot_ik_node->set_ik_influence(1.0f);
 
 	debug_draw_clear();
 	Vector3 parkour_dir = agent->get_desired_movement_input_transformed().normalized();
 
 	if (parkour_dir.is_normalized()) {
-		if (_handle_parkour()) {
+		if (handle_parkour()) {
 			return;
 		}
 	}
@@ -417,11 +349,24 @@ void HBAgentMoveState::physics_process(float p_delta) {
 			head_lookat_node->set_influence(1.0f);
 			head_lookat_node->reset();
 			torso_lookat_node->reset();
+			get_inertialization_node()->inertialize();
 		}
 	} else {
 		if (torso_lookat_node->get_influence() == 1.0f) {
 			torso_lookat_node->set_influence(0.0f);
 			head_lookat_node->set_influence(0.0f);
+			get_inertialization_node()->inertialize();
+		}
+	}
+
+	{
+		Vector3 facing_dir = agent->get_graphics_rotation().xform(Vector3(0.0f, 0.0f, -1.0f));
+		if (agent->get_linear_velocity().project(facing_dir).length() < 0.1f && agent->get_graphics_rotation().xform(Vector3(0.0f, 0.0f, -1.0f)).angle_to(movement_input) > Math::deg_to_rad(45.0f)) {
+			float rotation_angle = agent->get_graphics_rotation().xform(Vector3(0.0f, 0.0f, -1.0f)).signed_angle_to(movement_input, Vector3(0.0f, 1.0f, 0.0f));
+			Dictionary args;
+			args[HBAgentTurnState::PARAM_ANGLE] = Math::rad_to_deg(rotation_angle);
+			state_machine->transition_to(ASN()->turn_state, args);
+			return;
 		}
 	}
 
@@ -488,6 +433,21 @@ void HBAgentMoveState::physics_process(float p_delta) {
 			state_machine->transition_to(ASN()->beam_walk_state, dict);
 		}
 	}
+	agent->handle_input(desired_velocity, p_delta);
+	agent->update(p_delta);
+	Vector3 linear_vel = agent->get_linear_velocity();
+	Vector3 dir = linear_vel;
+	dir.y = 0.0f;
+	dir.normalize();
+	if (dir.is_normalized()) {
+		agent->set_graphics_rotation(Basis::looking_at(dir).get_rotation_quaternion());
+	}
+	Vector3 linear_vel_horizontal = agent->get_linear_velocity().project(dir);
+	if (!linear_vel_horizontal.is_finite()) {
+		linear_vel_horizontal = Vector3();
+	}
+	get_wheel_locomotion_node()->set_linear_velocity(linear_vel_horizontal);
+	get_wheel_locomotion_node()->set_x_blend(CLAMP(linear_vel_horizontal.length() / agent->get_agent_constants()->get_max_move_velocity(), 0.0, 1.0));
 }
 
 void HBAgentMoveState::_update_lookat() {
@@ -506,7 +466,7 @@ void HBAgentMoveState::_on_agent_edge_hit() {
  *               |     |
  * Base near --> |-----| <-- Base far
  */
-bool HBAgentMoveState::_try_vault_over_obstacle() {
+bool HBAgentGroundStateBase::try_vault_over_obstacle() {
 	HBAgent *agent = get_agent();
 	ERR_FAIL_COND_V(agent == nullptr, false);
 
@@ -554,8 +514,6 @@ bool HBAgentMoveState::_try_vault_over_obstacle() {
 	ray_params.from.y += agent->get_height() * 1.5f;
 	ray_params.to = ray_result.position - ray_result.normal * 0.05f;
 
-	debug_draw_raycast(ray_params, Color(0.0f, 1.0f, 0.0f));
-
 	if (!dss->intersect_ray(ray_params, ray_result) || !is_floor(ray_result.normal, floor_max_angle)) {
 		// Not a floor or not hit
 		return false;
@@ -568,7 +526,6 @@ bool HBAgentMoveState::_try_vault_over_obstacle() {
 	ray_params.to = vault_base_near;
 	ray_params.to.y += agent->get_height() * 0.5f;
 	ray_params.from = ray_params.to + movement_input_dir * vault_max_obstacle_width;
-	debug_draw_raycast(ray_params, Color(0.0f, 0.0f, 1.0f));
 
 	if (!dss->intersect_ray(ray_params, ray_result) || !is_wall(ray_result.normal, floor_max_angle)) {
 		// No wall on the other side!
@@ -582,7 +539,6 @@ bool HBAgentMoveState::_try_vault_over_obstacle() {
 	ray_params.from.y += mid_height;
 	ray_params.from -= movement_input_dir * 0.01f;
 	ray_params.to = vault_base_far - movement_input_dir * 0.01f;
-	debug_draw_raycast(ray_params, Color(1.0f, 1.0f, 0.0f));
 
 	if (!dss->intersect_ray(ray_params, ray_result) || !is_floor(ray_result.normal, floor_max_angle)) {
 		return false;
@@ -634,12 +590,43 @@ bool HBAgentMoveState::_try_vault_over_obstacle() {
 	return true;
 }
 
-bool HBAgentMoveState::_handle_parkour_up() {
+bool HBAgentGroundStateBase::handle_parkour_up() {
 	HBAgent *agent = get_agent();
-	Ref<Shape3D> agent_shape = agent->get_collision_shape();
-	const float agent_height = agent->get_height();
-	// Find a wall in front
+
+	PhysicsDirectSpaceState3D::RayParameters ray_params;
+	ray_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
+	ray_params.from = agent->get_global_position() + Vector3(0.0f, agent->get_height() * 0.5f, 0.0f);
+	ray_params.to = ray_params.from + agent->get_graphics_rotation().xform(Vector3(0.0f, 0.0f, -1.0f)) * 0.4f;
+	
 	PhysicsDirectSpaceState3D *dss = agent->get_world_3d()->get_direct_space_state();
+	PhysicsDirectSpaceState3D::RayResult ray_result;
+	bool hit = dss->intersect_ray(ray_params, ray_result);
+	
+	if (!hit || !is_wall(ray_result.normal, agent->get_floor_max_angle())) {
+		return false;
+	}
+
+	const float agent_height = agent->get_height();
+	Ref<CylinderShape3D> cyl_check_shape;
+	cyl_check_shape.instantiate();
+	cyl_check_shape->set_radius(agent->get_radius());
+	const float reachable_height = agent_height * 3.0f;
+	cyl_check_shape->set_height(reachable_height);
+
+	Transform3D wall_trf;
+	wall_trf.origin = ray_result.position;
+	wall_trf.basis = Basis::looking_at(ray_result.normal);
+	
+	Transform3D pp_check_shape_trf;
+	pp_check_shape_trf.origin = wall_trf.xform(Vector3(0.0f, reachable_height * 0.5f, 0.0f));
+	
+	if (handle_wallrun_to_parkour_point(cyl_check_shape, pp_check_shape_trf, wall_trf)) {
+		return true;
+	}
+
+
+	Ref<Shape3D> agent_shape = agent->get_collision_shape();
+	// Find a wall in front
 	PhysicsDirectSpaceState3D::ShapeParameters shape_params;
 	shape_params.shape_rid = agent_shape->get_rid();
 	shape_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
@@ -651,25 +638,19 @@ bool HBAgentMoveState::_handle_parkour_up() {
 
 	real_t closest_safe, closest_unsafe;
 	dss->cast_motion(shape_params, closest_safe, closest_unsafe);
-	bool hit = closest_safe != 1.0f && closest_unsafe != 1.0f;
+	hit = closest_safe != 1.0f && closest_unsafe != 1.0f;
 
-	debug_draw_cast_motion(agent_shape, shape_params, Color("GREEN"));
 	if (hit) {
 		//TODO: Check if there's a wall in front of us
 		Vector3 base_wp_origin = shape_params.transform.origin + shape_params.motion * closest_safe + input_forward * agent->get_radius();
 		base_wp_origin.y -= agent_height * 1.5f;
 
-		Ref<CylinderShape3D> cyl_shape;
-		cyl_shape.instantiate();
-		cyl_shape->set_radius(agent->get_radius());
-		const float reachable_height = agent_height * 3.0f;
-		cyl_shape->set_height(reachable_height);
 		shape_params.transform.origin = shape_params.transform.origin + shape_params.motion * closest_safe;
 		shape_params.collide_with_areas = true;
 		shape_params.collide_with_bodies = false;
 		shape_params.collision_mask = HBPhysicsLayers::LAYER_PARKOUR_NODES;
 		shape_params.motion = Vector3();
-		shape_params.shape_rid = cyl_shape->get_rid();
+		shape_params.shape_rid = cyl_check_shape->get_rid();
 
 		static const int constexpr MAX_RESULTS = 5;
 		Vector<PhysicsDirectSpaceState3D::ShapeResult> results;
@@ -677,10 +658,18 @@ bool HBAgentMoveState::_handle_parkour_up() {
 		int result_count = dss->intersect_shape(shape_params, results.ptrw(), MAX_RESULTS);
 		for (int i = 0; i < result_count; i++) {
 			HBAgentParkourLedge *ledge = Object::cast_to<HBAgentParkourLedge>(results[i].collider);
+			if (!ledge) {
+				continue;
+			}
 			const float offset = ledge->get_closest_offset(shape_params.transform.origin);
 			const Transform3D ledge_trf = ledge->get_ledge_transform_at_offset(offset);
 
 			const Vector3 a_l = agent->get_global_position().direction_to(ledge_trf.origin);
+
+			debug_draw_sphere(ledge_trf.origin, 0.05f, Color("RED"));
+			debug_draw_line(ledge_trf.origin, ledge_trf.origin + ledge_trf.basis.xform(Vector3(0.0f, 0.0f, -1.0f)), Color("GREEN"));
+
+			debug_draw_line(agent->get_global_position(), agent->get_global_position() + a_l);
 
 			if (a_l.dot(ledge_trf.basis.xform(Vector3(0.0f, 0.0f, -1.0f))) > 0.0) {
 				// Do we fit there?
@@ -723,7 +712,7 @@ bool HBAgentMoveState::_handle_parkour_up() {
 	return false;
 }
 
-bool HBAgentMoveState::_handle_parkour_mid() {
+bool HBAgentGroundStateBase::handle_parkour_mid() {
 	const Vector3 input_forward = get_agent()->get_desired_movement_input_transformed().normalized();
 	const Vector3 agent_pos = get_agent()->get_global_position();
 
@@ -839,7 +828,7 @@ bool HBAgentMoveState::_handle_parkour_mid() {
 	// Second alternative, a short hop up
 	// We first cast our shape forward a bit, colliding with areas
 	// If we hit a ledge it means there's a point we can jump up to without having to grab the ledge first
-	static const int constexpr STEPS = 2;
+	static const int constexpr STEPS = 5;
 
 	for (int i = 0; i < STEPS; i++) {
 		PhysicsDirectSpaceState3D::ShapeParameters shape_params;
@@ -856,6 +845,7 @@ bool HBAgentMoveState::_handle_parkour_mid() {
 		Vector<PhysicsDirectSpaceState3D::ShapeResult> shape_results;
 		shape_results.resize(MAX_RESULTS);
 
+		debug_draw_cast_motion(agent_shape, shape_params, Color("RED"));
 		int result_count = dss->intersect_shape(shape_params, shape_results.ptrw(), MAX_RESULTS);
 
 		// We must make sure the ledge is roughly pointing towards us
@@ -866,23 +856,26 @@ bool HBAgentMoveState::_handle_parkour_mid() {
 			}
 			const float offset = ledge_candidate->get_closest_offset(shape_params.transform.origin);
 			Transform3D ledge_trf = ledge_candidate->get_ledge_transform_at_offset(offset);
-			Vector3 ledge_forward = ledge_trf.basis.xform(Vector3(0.0f, 0.0f, 1.0f));
-			if (input_forward.dot(ledge_forward) < 0.0f) {
+			Vector3 ledge_forward = ledge_trf.basis.xform(Vector3(0.0f, 0.0f, -1.0f));
+			if (input_forward.dot(ledge_forward) > 0.0f) {
 				// finally, we find the character's landing position
 				PhysicsDirectSpaceState3D::ShapeParameters landing_params;
 				landing_params.shape_rid = agent_shape->get_rid();
-				landing_params.transform.origin = ledge_trf.origin + (ledge_forward * -agent->get_radius() * 2.0f);
+				landing_params.transform.origin = ledge_trf.origin + (ledge_forward * agent->get_radius());
 				landing_params.transform.origin.y += agent->get_height();
 				landing_params.motion.y -= agent->get_height() * 1.5f;
 
 				real_t closest_safe, closest_unsafe;
+
+				debug_draw_cast_motion(agent_shape, landing_params, Color("HOTPINK"));
 
 				dss->cast_motion(landing_params, closest_safe, closest_unsafe);
 
 				if (closest_safe != 1.0f && closest_unsafe != 1.0f) {
 					Vector3 landing_point = landing_params.transform.origin + landing_params.motion * closest_unsafe;
 					landing_point.y -= agent->get_height() * 0.5f;
-					if (landing_point.y - agent->get_global_position().y > agent->get_height() * 0.5f) {
+					// Check if landing point is too high
+					if (landing_point.y - agent->get_global_position().y > agent->get_height() * 0.75f) {
 						continue;
 					}
 					_transition_to_short_hop(landing_point, ASN()->move_state);
@@ -904,7 +897,7 @@ bool HBAgentMoveState::_handle_parkour_mid() {
 	// add a margin so we don't hit ledges at our height
 	shape_trf.origin.y += agent->get_height() * 0.5f + agent->get_walk_stairs_step_up().y;
 	shape_trf.basis = Quaternion(Vector3(0.0f, 0.0f, -1.0f), input_forward);
-	if (_handle_jump_to_ledge(box_shape, shape_trf)) {
+	if (handle_jump_to_ledge(box_shape, shape_trf)) {
 		return true;
 	}
 	box_shape.instantiate();
@@ -915,20 +908,20 @@ bool HBAgentMoveState::_handle_parkour_mid() {
 	// add a margin so we don't hit ledges at our height
 	shape_trf.origin.y -= (box_shape->get_size().y * 0.5f) - agent->get_walk_stairs_step_up().y;
 
-	if (is_at_edge && _handle_jump_to_ledge(box_shape, shape_trf)) {
+	if (is_at_edge && handle_jump_to_ledge(box_shape, shape_trf)) {
 		return true;
 	}
 
 	shape_trf.origin.y += box_shape->get_size().y;
 
-	if (_handle_jump_to_parkour_point(box_shape, shape_trf)) {
+	if (handle_jump_to_parkour_point(box_shape, shape_trf)) {
 		return true;
 	}
 
 	return false;
 }
 
-bool HBAgentMoveState::_handle_jump_to_ledge(Ref<BoxShape3D> p_shape, const Transform3D &p_shape_trf) {
+bool HBAgentGroundStateBase::handle_jump_to_ledge(Ref<BoxShape3D> p_shape, const Transform3D &p_shape_trf) {
 	ERR_FAIL_COND_V(!p_shape.is_valid(), false);
 	HBAgent *agent = get_agent();
 	PhysicsDirectSpaceState3D *dss = agent->get_world_3d()->get_direct_space_state();
@@ -997,7 +990,7 @@ bool HBAgentMoveState::_handle_jump_to_ledge(Ref<BoxShape3D> p_shape, const Tran
 	return false;
 }
 
-bool HBAgentMoveState::_handle_jump_to_parkour_point(Ref<BoxShape3D> p_shape, const Transform3D &p_shape_trf) {
+bool HBAgentGroundStateBase::handle_jump_to_parkour_point(Ref<BoxShape3D> p_shape, const Transform3D &p_shape_trf) {
 	ERR_FAIL_COND_V(!p_shape.is_valid(), false);
 	HBAgent *agent = get_agent();
 	PhysicsDirectSpaceState3D *dss = agent->get_world_3d()->get_direct_space_state();
@@ -1039,7 +1032,7 @@ bool HBAgentMoveState::_handle_jump_to_parkour_point(Ref<BoxShape3D> p_shape, co
 			root_motion_args[HBAgentRootMotionState::PARAM_ANIMATION_NODE_NAME] = ASN()->standing_jump_to_ledge_animation_node;
 			root_motion_args[HBAgentRootMotionState::PARAM_TRANSITION_NODE_INDEX] = HBAgentConstants::MOVEMENT_STANDING_JUMP_TO_LEDGE;
 			Dictionary next_state_args;
-			next_state_args[HBAgentWallParkourState::PARAM_TARGET_PARKOUR_NODE] = point;
+			next_state_args[HBAgentWallParkourStateNew::PARAM_PARKOUR_NODE] = point;
 			root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE_ARGS] = next_state_args;
 			root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE] = ASN()->wall_parkour_state;
 
@@ -1057,30 +1050,91 @@ bool HBAgentMoveState::_handle_jump_to_parkour_point(Ref<BoxShape3D> p_shape, co
 	return false;
 }
 
-bool HBAgentMoveState::_handle_parkour() {
-	HBAgent *agent = get_agent();
+bool HBAgentGroundStateBase::handle_wallrun_to_parkour_point(const Ref<Shape3D> &p_shape, const Transform3D &p_shape_trf, const Transform3D &p_wall_base_trf) {
+	PhysicsDirectSpaceState3D::ShapeParameters params;
+	params.shape_rid = p_shape->get_rid();
+	params.collision_mask = HBPhysicsLayers::LAYER_PARKOUR_NODES;
+	params.transform = p_shape_trf;
+
+	PhysicsDirectSpaceState3D *dss = get_agent()->get_world_3d()->get_direct_space_state();
+	const int MAX_RESULTS = 10;
+	PhysicsDirectSpaceState3D::ShapeResult results[MAX_RESULTS];
+	debug_draw_cast_motion(p_shape, params, Color("GREEN"));
+	int result_count = dss->intersect_shape(params, results, MAX_RESULTS);
+
+	HBAgentParkourPoint *parkour_point = nullptr;
+
+	const Vector3 pp_forward = -p_wall_base_trf.basis.get_column(2);
+	float pp_dist_to_angent;
+
+	for (int i = 0; i < result_count; i++) {
+		// Hosti tu, l'Albiol
+		HBAgentParkourPoint *pp_candidate = Object::cast_to<HBAgentParkourPoint>(results[i].collider);
+		if (!pp_candidate) {
+			continue;
+		}
+		Vector3 point_forward = pp_candidate->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
+
+		if (point_forward.dot(pp_forward) > 0.0f) {
+			float distance_to_agent = pp_candidate->get_global_position().distance_to(get_agent()->get_global_position()); 
+			if (parkour_point) {
+				if (distance_to_agent > pp_dist_to_angent) {
+					continue;
+				}
+			}
+			parkour_point = pp_candidate;
+			pp_dist_to_angent = distance_to_agent;
+		}
+	}
+
+	if (!parkour_point) {
+		return false;
+	}
+
+	
+
+	Dictionary warp_points;
+	warp_points[StringName("WallrunBase")] = p_wall_base_trf;
+	warp_points[StringName("WallrunEdge")] = parkour_point->get_global_transform();
+
+	Dictionary wall_parkour_state_args;
+	wall_parkour_state_args[HBAgentWallParkourStateNew::PARAM_PARKOUR_NODE] = parkour_point;
+
+	Dictionary root_motion_args;
+	root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE] = ASN()->wall_parkour_state;
+	root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE_ARGS] = wall_parkour_state_args;
+	root_motion_args[HBAgentRootMotionState::PARAM_TRANSITION_NODE_INDEX] = HBAgentConstants::MOVEMENT_WALLRUN;
+	root_motion_args[HBAgentRootMotionState::PARAM_WARP_POINTS] = warp_points;
+	root_motion_args[HBAgentRootMotionState::PARAM_ANIMATION_NODE_NAME] = StringName("Wallrun");
+
+	state_machine->transition_to(ASN()->root_motion_state, root_motion_args);
+
+	return true;
+}
+
+bool HBAgentGroundStateBase::handle_parkour() {
 	bool is_parkour_down_held = get_agent()->is_action_pressed(HBAgent::INPUT_ACTION_PARKOUR_DOWN);
 	bool is_parkour_up_held = get_agent()->is_action_pressed(HBAgent::INPUT_ACTION_PARKOUR_UP);
 	bool is_run_held = get_agent()->is_action_pressed(HBAgent::INPUT_ACTION_RUN);
-	if (is_parkour_down_held && _handle_parkour_down()) {
+	if (is_parkour_down_held && handle_parkour_down()) {
 		return true;
 	}
 	if (is_parkour_down_held) {
 		return false;
 	}
-	if (is_parkour_up_held && _handle_parkour_up()) {
+	if (is_parkour_up_held && handle_parkour_up()) {
 		return true;
 	}
-	if (is_run_held && _handle_parkour_mid()) {
+	if (is_run_held && handle_parkour_mid()) {
 		return true;
 	}
 	return false;
 }
 
-bool HBAgentMoveState::_handle_parkour_down() {
+bool HBAgentGroundStateBase::handle_parkour_down() {
 	HBAgent *agent = get_agent();
 
-	if (_try_vault_over_obstacle()) {
+	if (try_vault_over_obstacle()) {
 		return true;
 	}
 
@@ -1130,7 +1184,14 @@ bool HBAgentMoveState::_handle_parkour_down() {
 				transition_dict[HBAgentRootMotionState::PARAM_TRANSITION_NODE_INDEX] = HBAgentConstants::MovementTransitionInputs::MOVEMENT_LEDGE_TO_GROUND;
 				transition_dict[HBAgentRootMotionState::PARAM_ANIMATION_NODE_NAME] = ASN()->ledge_to_ground_animation_node;
 
-				Basis animation_basis = Quaternion(Vector3(0.0f, 0.0f, -1.0f), -a_l);
+				Vector3 dir = a_l;
+				dir.y = 0.0f;
+				dir.normalize();
+				if (!dir.is_normalized()) {
+					continue;
+				}
+
+				Basis animation_basis = Basis::looking_at(-dir);
 
 				Transform3D surface_anim_trf;
 				surface_anim_trf.origin = ledge_slide_down_ground_position;
@@ -1142,6 +1203,9 @@ bool HBAgentMoveState::_handle_parkour_down() {
 
 				warp_points[StringName("ledge")] = ledge_anim_trf;
 				warp_points[StringName("surface")] = surface_anim_trf;
+
+				debug_draw_line(surface_anim_trf.origin, surface_anim_trf.xform(Vector3(0.0f, 0.0f, -1.0f)));
+				debug_draw_line(ledge_anim_trf.origin, ledge_anim_trf.xform(Vector3(0.0f, 0.0f, -1.0f)));
 				Dictionary next_state_args;
 				transition_dict[HBAgentRootMotionState::PARAM_NEXT_STATE] = ASN()->move_state;
 			} else {
@@ -1188,51 +1252,31 @@ void HBAgentTurnState::enter(const Dictionary &p_args) {
 	ERR_FAIL_COND(!get_agent());
 	ERR_FAIL_COND(!get_movement_transition_node().is_valid());
 
-	animation_node = get_epas_controller()->get_epas_node("TurnRight");
-	ERR_FAIL_COND(!animation_node.is_valid());
-
-	Node3D *gn = get_graphics_node();
-
-	get_agent()->set_movement_mode(HBAgent::MOVE_MANUAL);
+	target_angle = p_args.get(PARAM_ANGLE, 0.0f);
+	DEV_ASSERT(target_angle != 0.0f);
+	if (SIGN(target_angle) < 0) {
+		animation_node = get_epas_controller()->get_epas_node("TurnRight");
+		get_movement_transition_node()->transition_to(HBAgentConstants::MOVEMENT_TURN180_R);
+	} else {
+		animation_node = get_epas_controller()->get_epas_node("TurnLeft");
+		get_movement_transition_node()->transition_to(HBAgentConstants::MOVEMENT_TURN180_L);
+	}
 	animation_node->set_root_motion_starting_transform(get_skeleton()->get_global_transform());
 	animation_node->set_root_motion_forward(Vector3(0.0f, 0.0f, 1.0f));
-	get_movement_transition_node()->transition_to(HBAgentConstants::MOVEMENT_TURN180_R);
+	animation_node->set_speed_scale(2.0f);
+	float target_time = Math::abs(target_angle) / 180.0f;
+	target_time = target_time * animation_node->get_animation()->get_length();
+	animation_node->set_end_time(target_time);
 	animation_node->play();
-
-	Vector3 movement_input = get_agent()->get_desired_movement_input_transformed();
-
-	Vector3 forward = gn->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
-	forward.y = 0.0f;
-	forward.normalize();
-
-	Vector3 rot_axis = forward.cross(movement_input).normalized();
-	float angle_diff = movement_input.angle_to(forward);
-
-	// Guard against exact 180 degree turns
-	if (forward.dot(movement_input) == -1.0f) {
-		angle_diff = Math_PI;
-		rot_axis = Vector3(0.0f, 1.0f, 0.0f);
-	}
-
-	get_agent()->set_velocity(Vector3());
-
-	starting_rot = gn->get_quaternion();
-	target_rot = gn->get_quaternion() * Quaternion(Vector3(0.0, SIGN(rot_axis.y), 0.0), angle_diff);
-	anim_length = animation_node->get_animation()->get_length() * (angle_diff / Math_PI);
-	time = 0.0f;
-	animation_node->connect("playback_finished", callable_mp(this, &HBAgentTurnState::_on_animation_finished), CONNECT_ONE_SHOT);
+	get_agent()->root_motion_begin(animation_node, get_physics_process_delta_time());
 }
 
-void HBAgentTurnState::process(float p_delta) {
+void HBAgentTurnState::physics_process(float p_delta) {
 	time += p_delta;
 	if (animation_node.is_valid()) {
 		get_agent()->apply_root_motion(animation_node, p_delta);
-		Node3D *gn = get_graphics_node();
-		if (gn) {
-			float w = CLAMP(Math::inverse_lerp(0.0f, anim_length, time), 0.0f, 1.0f);
-			gn->set_quaternion(starting_rot.slerp(target_rot, w));
-		}
 		if (!animation_node->is_playing()) {
+			animation_node.unref();
 			state_machine->transition_to(ASN()->move_state);
 		}
 	}
@@ -1243,11 +1287,14 @@ void HBAgentTurnState::process(float p_delta) {
 ***********************/
 
 void HBAgentLedgeGrabbedStateNew::enter(const Dictionary &p_args) {
-	add_child(controller);
-	controller->set_as_top_level(true);
+	if (!controller->is_inside_tree()) {
+		add_child(controller);
+	}
 	DEV_ASSERT(p_args.has(PARAM_LEDGE));
 	ledge = Object::cast_to<HBAgentParkourLedge>(p_args[PARAM_LEDGE]);
-	controller->move_to_ledge(ledge, ledge->get_closest_offset_agent(get_agent()->get_global_position()));
+	float offset = ledge->get_closest_offset(get_agent()->get_global_position());
+	offset = p_args.get("OFFSET_TEST", offset);
+	controller->move_to_ledge(ledge, offset);
 	animator.restart();
 
 	for (int i = 0; i < AgentProceduralAnimator::AgentLimb::LIMB_MAX; i++) {
@@ -1257,44 +1304,35 @@ void HBAgentLedgeGrabbedStateNew::enter(const Dictionary &p_args) {
 		animator_options.limb_rotation_spring_halflifes[i] = 0.15f;
 	}
 
-	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_LEFT_HAND][0] = 0.5f;
-	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_LEFT_HAND][1] = 0.9f;
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_LEFT_HAND][0] = 0.0f;
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_LEFT_HAND][1] = 0.4f;
 	animator_options.limb_peak_position[AgentProceduralAnimator::LIMB_LEFT_HAND] = Vector3(0.0, 0.05f, 0.0f);
 
-	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_RIGHT_HAND][0] = 0.0f;
-	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_RIGHT_HAND][1] = 0.4f;
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_RIGHT_HAND][0] = 0.5f;
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_RIGHT_HAND][1] = 0.9f;
 	animator_options.limb_peak_position[AgentProceduralAnimator::LIMB_RIGHT_HAND] = Vector3(0.0, 0.05f, 0.0f);
 
-	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_LEFT_FOOT][0] = 0.6f;
-	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_LEFT_FOOT][1] = 1.0f;
-	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_RIGHT_FOOT][0] = 0.1f;
-	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_RIGHT_FOOT][1] = 0.5f;
-
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_LEFT_FOOT][0] = 0.1f;
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_LEFT_FOOT][1] = 0.5f;
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_RIGHT_FOOT][0] = 0.6f;
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_RIGHT_FOOT][1] = 1.0f;
+	animator_options.use_average_for_skeleton_trf = true;
 	animator_options.limb_peak_position[AgentProceduralAnimator::LIMB_LEFT_FOOT] = Vector3(0.0, 0.05f, 0.05f);
 	animator_options.limb_peak_position[AgentProceduralAnimator::LIMB_RIGHT_FOOT] = Vector3(0.0, 0.05f, 0.05f);
-
-
-	limbs[AgentProceduralAnimator::LIMB_LEFT_HAND].ik_node = get_epas_controller()->get_epas_node("LeftHandIK");
-	limbs[AgentProceduralAnimator::LIMB_RIGHT_HAND].ik_node = get_epas_controller()->get_epas_node("RightHandIK");
-	limbs[AgentProceduralAnimator::LIMB_LEFT_FOOT].ik_node = get_epas_controller()->get_epas_node("LeftFootIK");
-	limbs[AgentProceduralAnimator::LIMB_RIGHT_FOOT].ik_node = get_epas_controller()->get_epas_node("RightFootIK");
-
-	limbs[AgentProceduralAnimator::LIMB_LEFT_HAND].bone_name = "hand.L";
-	limbs[AgentProceduralAnimator::LIMB_RIGHT_HAND].bone_name = "hand.R";
-	limbs[AgentProceduralAnimator::LIMB_LEFT_FOOT].bone_name = "foot.L";
-	limbs[AgentProceduralAnimator::LIMB_RIGHT_FOOT].bone_name = "foot.R";
-
-	limbs[AgentProceduralAnimator::LIMB_LEFT_HAND].magnet_name = "IK.Magnet.hand.L";
-	limbs[AgentProceduralAnimator::LIMB_RIGHT_HAND].magnet_name = "IK.Magnet.hand.R";
-	limbs[AgentProceduralAnimator::LIMB_LEFT_FOOT].magnet_name = "IK.Magnet.foot.L";
-	limbs[AgentProceduralAnimator::LIMB_RIGHT_FOOT].magnet_name = "IK.Magnet.foot.R";
+	
+	if (!are_limbs_init) {
+		_init_limbs();
+	}
 
 	for (int i = 0; i < AgentProceduralAnimator::LIMB_MAX; i++) {
 		limbs[i].ik_node->set_ik_influence(1.0f);
 		limbs[i].dangle_status = false;
 	}
 
+
+
 	get_movement_transition_node()->transition_to(HBAgentConstants::MOVEMENT_WALLGRABBED);
+	get_inertialization_node()->inertialize(0.2f);
 	animator.seek(1.0f);
 	animator_options.anim_blend = 0.0f;
 	controller->update(0.0f);
@@ -1319,8 +1357,27 @@ void HBAgentLedgeGrabbedStateNew::exit() {
 }
 
 void HBAgentLedgeGrabbedStateNew::get_initial_pose_for_edge(HBAgentParkourLedge *p_ledge, AgentProceduralAnimator::AgentProceduralPose &p_pose, float p_offset) {
-	controller->calculate_pose(p_ledge, p_offset, p_pose);
-	//_update_ik_transforms(p_pose);
+	if (!are_limbs_init) {
+		_init_limbs();
+	}
+
+	bool was_in_tree = controller->is_inside_tree();
+	if (!was_in_tree) {
+		add_child(controller);
+	}
+	controller->move_to_ledge(p_ledge, p_offset);
+	controller->update(0.0f);
+
+	for (int i = 0; i < AgentProceduralAnimator::LIMB_MAX; i++) {
+		p_pose.ik_targets[i] = controller->get_limb_transform_predicted((AgentProceduralAnimator::AgentLimb)i);
+	}
+	p_pose.skeleton_trf.origin = controller->get_global_position();
+	p_pose.skeleton_trf.basis = controller->get_graphics_rotation();
+	_update_ik_transforms(p_pose);
+
+	if (!was_in_tree) {
+		remove_child(controller);
+	}
 }
 
 #ifdef DEBUG_ENABLED
@@ -1333,7 +1390,7 @@ void HBAgentLedgeGrabbedStateNew::physics_process(float p_delta) {
 	debug_draw_clear();
 	Vector3 input = Vector3(get_agent()->get_movement_input().x, 0.0f, 0.0f);
 	input.normalize();
-	animator_options.playback_direction = controller->get_movement_velocity() != 0.0f ? SIGN(controller->get_movement_velocity()) : animator_options.playback_direction;
+	animator_options.playback_direction = controller->get_movement_velocity() != 0.0f ? -SIGN(controller->get_movement_velocity()) : animator_options.playback_direction;
 	Vector3 controller_input = input;
 	controller->set_movement_input(controller_input);
 	controller->update(p_delta);
@@ -1350,7 +1407,7 @@ void HBAgentLedgeGrabbedStateNew::physics_process(float p_delta) {
 		}
 	}
 
-	animator.process(animator_options, p_delta * 1.0f);
+	animator.process(animator_options, p_delta);
 
 	AgentProceduralAnimator::AgentProceduralPose pose;
 	animator.get_output_pose(pose);
@@ -1375,7 +1432,7 @@ void HBAgentLedgeGrabbedStateNew::physics_process(float p_delta) {
 			AgentProceduralAnimator::AgentLimb limb = static_cast<AgentProceduralAnimator::AgentLimb>(i);
 			animator_options.starting_limb_transforms[limb] = animator_options.target_limb_transforms[limb];
 		}
-		animator_options.playback_direction = SIGN(input.x);
+		animator_options.playback_direction = -SIGN(input.x);
 	}
 	// Input handling
 
@@ -1392,6 +1449,10 @@ void HBAgentLedgeGrabbedStateNew::physics_process(float p_delta) {
 
 	if (get_agent()->get_movement_input().dot(Vector3(0.0f, 0.0f, -1.0f)) > 0.95f) {
 		if (_handle_getup()) {
+			return;
+		}
+	} else if (get_agent()->get_movement_input().dot(Vector3(0.0f, 0.0f, -1.0f)) < -0.95f) {
+		if (_handle_drop_to_parkour_point()) {
 			return;
 		}
 	}
@@ -1461,6 +1522,15 @@ void HBAgentLedgeGrabbedStateNew::physics_process(float p_delta) {
 			}
 		}
 	}
+
+	for(int i = 0; i < AgentProceduralAnimator::LIMB_MAX; i++) {
+		debug_draw_sphere(limbs[i].ik_node->get_magnet_position());
+		debug_draw_sphere(limbs[i].ik_node->get_target_transform().origin, 0.05f, Color("GREEN"));
+	}
+
+	Vector3 cpos = controller->get_global_position();
+
+	debug_draw_line(cpos, pose.skeleton_trf.xform(Vector3(0.0f, 0.0f, -1.0f)));
 }
 
 bool HBAgentLedgeGrabbedStateNew::_handle_getup() {
@@ -1482,7 +1552,7 @@ bool HBAgentLedgeGrabbedStateNew::_handle_getup() {
 	PhysicsDirectSpaceState3D::RayParameters ray_params;
 	PhysicsDirectSpaceState3D::RayResult ray_result;
 	ray_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
-	ray_params.from = ledge_position + gn->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -0.01f));
+	ray_params.from = ledge_position + gn->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -agent->get_radius()));
 	ray_params.from.y += 0.5f;
 	ray_params.to = ray_params.from;
 	ray_params.to.y -= 1.0f;
@@ -1501,7 +1571,7 @@ bool HBAgentLedgeGrabbedStateNew::_handle_getup() {
 		return false;
 	}
 
-	// We cast the agent shape down at the hit position to get the correct, as we might not fit otherwise
+	// We cast the agent shape down at the hit position to get the correct position, as we might not fit otherwise
 	PhysicsDirectSpaceState3D::ShapeParameters shape_params;
 	PhysicsDirectSpaceState3D::ShapeResult shape_result;
 
@@ -1532,6 +1602,7 @@ bool HBAgentLedgeGrabbedStateNew::_handle_getup() {
 
 	warp_points[StringName("Ledge")] = temp_trf;
 	temp_trf.origin = safe_pos;
+
 	warp_points[StringName("GetUpTarget")] = temp_trf;
 
 	Dictionary args;
@@ -1579,7 +1650,14 @@ void HBAgentLedgeGrabbedStateNew::_update_animator() {
 		// Targets only start changing when the animation for the limb isn't done
 		// we also change them when the animation is completely done
 		if ((animator.get_playback_position() < 1.0f && t <= 1.0f) || animator.get_playback_position() == 1.0f) {
-			animator_options.target_limb_transforms[limb] = controller->get_limb_transform_predicted(limb);
+			bool use_predicted = (limb == AgentProceduralAnimator::LIMB_RIGHT_HAND || limb == AgentProceduralAnimator::LIMB_RIGHT_FOOT) && animator_options.playback_direction == 1.0f;
+			use_predicted = use_predicted || ((limb == AgentProceduralAnimator::LIMB_LEFT_HAND || limb == AgentProceduralAnimator::LIMB_LEFT_FOOT) && animator_options.playback_direction == -1.0f);
+			if (use_predicted) {
+				animator_options.target_limb_transforms[limb] = controller->get_limb_transform_predicted(limb);
+			} else {
+				animator_options.target_limb_transforms[limb] = controller->get_limb_transform(limb);
+			}
+			animator_options.target_limb_transforms[limb] = controller->get_limb_transform(limb);
 		}
 
 		if (i <= AgentProceduralAnimator::LIMB_RIGHT_HAND) {
@@ -1630,6 +1708,24 @@ void HBAgentLedgeGrabbedStateNew::_update_animator() {
 	animator_options.starting_skeleton_transform.basis = controller->get_graphics_rotation();
 }
 
+void HBAgentLedgeGrabbedStateNew::_init_limbs() {
+	limbs[AgentProceduralAnimator::LIMB_LEFT_HAND].ik_node = get_epas_controller()->get_epas_node("LeftHandIK");
+	limbs[AgentProceduralAnimator::LIMB_RIGHT_HAND].ik_node = get_epas_controller()->get_epas_node("RightHandIK");
+	limbs[AgentProceduralAnimator::LIMB_LEFT_FOOT].ik_node = get_epas_controller()->get_epas_node("LeftFootIK");
+	limbs[AgentProceduralAnimator::LIMB_RIGHT_FOOT].ik_node = get_epas_controller()->get_epas_node("RightFootIK");
+
+	limbs[AgentProceduralAnimator::LIMB_LEFT_HAND].bone_name = "hand.L";
+	limbs[AgentProceduralAnimator::LIMB_RIGHT_HAND].bone_name = "hand.R";
+	limbs[AgentProceduralAnimator::LIMB_LEFT_FOOT].bone_name = "foot.L";
+	limbs[AgentProceduralAnimator::LIMB_RIGHT_FOOT].bone_name = "foot.R";
+
+	limbs[AgentProceduralAnimator::LIMB_LEFT_HAND].magnet_name = "IK.Magnet.hand.L";
+	limbs[AgentProceduralAnimator::LIMB_RIGHT_HAND].magnet_name = "IK.Magnet.hand.R";
+	limbs[AgentProceduralAnimator::LIMB_LEFT_FOOT].magnet_name = "IK.Magnet.foot.L";
+	limbs[AgentProceduralAnimator::LIMB_RIGHT_FOOT].magnet_name = "IK.Magnet.foot.R";
+	are_limbs_init = true;
+}
+
 // Modifies the output pose with updated values to be used with IK
 void HBAgentLedgeGrabbedStateNew::_update_ik_transforms(AgentProceduralAnimator::AgentProceduralPose &p_pose) {
 	Vector3 skeleton_position_offset = p_pose.skeleton_position_offset;
@@ -1648,31 +1744,40 @@ void HBAgentLedgeGrabbedStateNew::_update_ik_transforms(AgentProceduralAnimator:
 		skel_pos.y -= HEIGHT * 0.30f;
 	}
 
-	Vector3 out_agent_position = p_pose.skeleton_trf.origin + Vector3(0.0, -get_agent()->get_height() * 0.5f, 0.0f);
-	Basis out_graphics_rotation = p_pose.skeleton_trf.basis;
-
-	p_pose.skeleton_trf.origin = out_agent_position;
-	p_pose.skeleton_trf.basis = out_graphics_rotation;
-
-	Ref<EPASAnimationNode> anim_node = get_epas_controller()->get_epas_node("WallGrabbed");
+	Ref<EPASAnimationNode> anim_node = get_epas_controller()->get_epas_node(ASN()->wall_parkour_cat_animation_node);
 	Ref<EPASPose> ref_pose = anim_node->get_animation()->get_keyframe(0)->get_pose();
 
-	AgentProceduralAnimator::AgentProceduralPose pose;
-	animator.get_output_pose(pose);
+	Transform3D wp_trf = anim_node->get_animation()->get_warp_point(anim_node->get_animation()->find_warp_point("ParkourPoint"))->get_transform();
+	Vector3 local_offset = wp_trf.xform_inv(ref_pose->get_bone_position("root", get_epas_controller()->get_base_pose()));
+
+	Transform3D new_skel_trf = p_pose.skeleton_trf;
+	Transform3D ledge_trf = new_skel_trf;
+	ledge_trf.basis = Basis::looking_at(new_skel_trf.basis.xform(Vector3(0.0f, 0.0f, 1.0f)));
+
+	Vector3 ledge_skel_pos = ledge_trf.origin;
+	ledge_skel_pos += ledge_trf.basis.xform(local_offset);
+	
+	p_pose.skeleton_trf = new_skel_trf;
+	p_pose.skeleton_trf.origin = ledge_skel_pos;
+
 	for (int i = 0; i < AgentProceduralAnimator::LIMB_MAX; i++) {
 		Transform3D bone_skel_trf = ref_pose->calculate_bone_global_transform(limbs[i].bone_name, get_skeleton(), get_epas_controller()->get_base_pose());
 		Quaternion bone_skel_rot = bone_skel_trf.basis.get_rotation_quaternion();
-		Vector3 controller_forward = pose.ik_targets[i].basis.get_rotation_quaternion().xform(Vector3(0.0f, 0.0f, -1.0f));
+		Vector3 controller_forward = p_pose.ik_targets[i].basis.get_rotation_quaternion().xform(Vector3(0.0f, 0.0f, -1.0f));
 		Vector3 our_forward = Vector3(0.0f, 0.0f, 1.0f);
-		Transform3D trf = pose.ik_targets[i];
+		Transform3D trf = p_pose.ik_targets[i];
 		trf.basis = Quaternion(our_forward, controller_forward) * bone_skel_rot;
 		// NOTE: Our reference wall is 0.35 meters forward of the character in the animation data, this allows us to figure out an offset for it
 		Vector3 foot_offset = controller_forward * (bone_skel_trf.origin.z - 0.35f);
 		trf.origin += foot_offset;
 
 		Vector3 magnet_pos = ref_pose->get_bone_position(limbs[i].magnet_name);
+		//p_pose.ik_magnet_positions[i] = get_agent()->get_global_position() + p_pose.skeleton_trf.basis.get_rotation_quaternion().xform(magnet_pos);
 		p_pose.ik_magnet_positions[i] = get_agent()->get_global_position() + Quaternion(our_forward, p_pose.skeleton_trf.basis.get_rotation_quaternion().xform(Vector3(0.0f, 0.0f, -1.0f))).normalized().xform(magnet_pos);
+
 		p_pose.ik_targets[i] = trf;
+
+		debug_draw_sphere(p_pose.ik_magnet_positions[i], 0.05f, Color("GREEN"));
 	}
 }
 
@@ -1688,8 +1793,9 @@ void HBAgentLedgeGrabbedStateNew::_apply_ik_transforms(AgentProceduralAnimator::
 		get_agent()->set_global_position(p_pose.skeleton_trf.origin + p_pose.skeleton_position_offset);
 		get_agent()->set_graphics_rotation(p_pose.skeleton_trf.basis.get_rotation_quaternion());
 
-		debug_draw_sphere(p_pose.skeleton_trf.origin, 0.05f, Color("GREEN"));
-		debug_draw_sphere(controller->get_global_position(), 0.05f, Color("RED"));
+		debug_draw_sphere(p_pose.skeleton_trf.origin);
+		debug_draw_sphere(p_pose.skeleton_trf.origin + p_pose.skeleton_position_offset, 0.05f, Color("BLUE"));
+
 	}
 }
 
@@ -1702,6 +1808,8 @@ HBAgentLedgeGrabbedStateNew::HBAgentLedgeGrabbedStateNew() {
 	sphere->set_radius(0.25f);
 	cs->set_shape(sphere);
 	animator.seek(1.0f);
+	add_child(controller);
+	controller->set_as_top_level(true);
 }
 HBAgentLedgeGrabbedStateNew::~HBAgentLedgeGrabbedStateNew() {
 	if (!is_inside_tree()) {
@@ -1734,813 +1842,6 @@ void HBAgentFallState::physics_process(float p_delta) {
 	if (agent->is_on_floor()) {
 		state_machine->transition_to(ASN()->move_state);
 	}
-}
-
-/**********************
-	Wall Parkour State
-***********************/
-
-Transform3D HBAgentWallParkourState::_calculate_limb_target_transform(const Quaternion &p_target_graphics_rot, const Transform3D &p_target_point_trf, const Transform3D &p_bone_base_trf, Vector3 p_visual_offset) {
-	Vector3 base_position = p_target_point_trf.origin;
-	Vector3 forward = p_target_point_trf.basis.xform(Vector3(0.0f, 0.0f, 1.0f));
-
-	Transform3D trf;
-	trf.origin = base_position;
-	if (p_visual_offset.length_squared() > 0) {
-		Quaternion rot = Quaternion(Vector3(0.0f, 0.0f, -1.0f), forward);
-
-		Vector3 visual_offset = p_visual_offset;
-		if (rot.get_axis().is_normalized()) {
-			visual_offset = rot.xform(p_visual_offset);
-		}
-		trf.origin += visual_offset;
-	}
-
-	Basis target_skel_global_basis = p_target_graphics_rot * (get_graphics_node()->get_global_transform().basis.inverse() * get_skeleton()->get_global_transform().basis);
-
-	trf.basis = target_skel_global_basis * p_bone_base_trf.basis;
-
-	return trf;
-}
-
-Vector3 HBAgentWallParkourState::_calculate_limb_current_position(const WallParkourLimb &p_limb, bool p_use_visual_offset) {
-	Vector3 base_position = p_limb.get_current_transform().origin;
-	Vector3 forward;
-
-	switch (p_limb.current.type) {
-		case WallParkourTargetType::TARGET_PARKOUR_NODE: {
-			HBAgentParkourPoint *point = p_limb.current.parkour_node;
-			forward = point->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, 1.0f));
-		} break;
-		case WallParkourTargetType::TARGET_LOCATION: {
-			forward = get_graphics_node()->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
-		} break;
-	}
-	Quaternion rot = Quaternion(Vector3(0.0f, 0.0f, -1.0f), forward);
-
-	Vector3 pos = base_position;
-	if (p_use_visual_offset) {
-		Vector3 visual_offset = p_limb.visual_offset;
-
-		if (rot.get_axis().is_normalized()) {
-			visual_offset = rot.xform(visual_offset);
-		}
-		pos += visual_offset;
-	}
-
-	return pos;
-}
-
-Quaternion HBAgentWallParkourState::_calculate_target_graphics_node_rotation(const Transform3D &left_hand_target_transform, const Transform3D &right_hand_target_transform) const {
-	Vector3 left_hand_forward = left_hand_target_transform.basis.xform(Vector3(0.0f, 0.0f, -1.0f));
-	Vector3 right_hand_forward = right_hand_target_transform.basis.xform(Vector3(0.0f, 0.0f, -1.0f));
-
-	Vector3 average_parkour_point_normal = (left_hand_forward + right_hand_forward) * 0.5f;
-	average_parkour_point_normal.y = 0.0f;
-	average_parkour_point_normal.normalize();
-
-	Basis out_basis;
-	if (average_parkour_point_normal.is_normalized()) {
-		out_basis = Quaternion(Vector3(0.0f, 0.0f, -1.0f), -average_parkour_point_normal);
-	} else {
-		// In some cases the average normal might be 0ed out, so we just use nothing as a fallback
-		ERR_FAIL_V(Basis());
-	}
-
-	return out_basis;
-}
-
-void HBAgentWallParkourState::_handle_horizontal_parkour_movement(const Vector3 &p_movement_input) {
-	HBAgent *agent = get_agent();
-	Vector3 movement_input = p_movement_input;
-
-	int limb_side_to_move = SIGN(p_movement_input.x);
-
-	HBAgentParkourPoint *target_point = nullptr;
-
-	if (parkour_limbs[AgentIKLimbType::HAND_RIGHT].target.parkour_node != parkour_limbs[AgentIKLimbType::HAND_LEFT].target.parkour_node) {
-		// When the parkour node of one limb != the one used by the other limb it means we have to find a new point to grab onto
-		limb_side_to_move *= -1;
-		int target_i = SIGN(movement_input.x) == 1 ? AgentIKLimbType::HAND_RIGHT : AgentIKLimbType::HAND_LEFT;
-		target_point = parkour_limbs[target_i].target.parkour_node;
-	}
-
-	AgentIKLimbType limb_arm_i = limb_side_to_move == 1 ? AgentIKLimbType::HAND_RIGHT : AgentIKLimbType::HAND_LEFT;
-	AgentIKLimbType limb_foot_i = limb_side_to_move == 1 ? AgentIKLimbType::FOOT_RIGHT : AgentIKLimbType::FOOT_LEFT;
-	WallParkourLimb *limb_arm = &parkour_limbs[limb_arm_i];
-	WallParkourLimb *limb_foot = &parkour_limbs[limb_foot_i];
-	WallParkourLimb *limb_arm_opposite = &parkour_limbs[limb_side_to_move == -1 ? AgentIKLimbType::HAND_RIGHT : AgentIKLimbType::HAND_LEFT];
-	WallParkourLimb *limb_foot_opposite = &parkour_limbs[limb_side_to_move == -1 ? AgentIKLimbType::FOOT_RIGHT : AgentIKLimbType::FOOT_LEFT];
-
-	limb_arm->animation_start = 0.15f;
-	limb_arm->animation_end = 1.0f;
-	limb_foot->animation_start = 0.0f;
-	limb_foot->animation_end = 0.75f;
-
-	if (parkour_limbs[AgentIKLimbType::HAND_RIGHT].target.parkour_node != parkour_limbs[AgentIKLimbType::HAND_LEFT].target.parkour_node) {
-		// When closing in, we should move the arm first
-		limb_arm->animation_start = 0.0f;
-		limb_arm->animation_end = 0.5f;
-		limb_foot->animation_start = 0.5f;
-		limb_foot->animation_end = 1.0f;
-	}
-
-	// Setup spring for lateral movement, which should be fast
-	limb_foot->position_spring_halflife = 0.05f;
-	limb_arm->position_spring_halflife = 0.05f;
-
-	// When moving horizontally it's very important to make the other foot reach
-	// its target if its moving quickly, otherwise it looks weird
-	limb_foot_opposite->position_spring_halflife = 0.025f;
-
-	limb_arm_opposite->animation_start = -1.0f;
-	limb_arm_opposite->animation_end = -1.0f;
-	limb_foot_opposite->animation_start = -1.0f;
-	limb_foot_opposite->animation_end = -1.0f;
-
-	Vector3 movement_input_trf = limb_arm->current.parkour_node->get_global_transform().basis.xform(movement_input * Vector3(-1.0f, 1.0f, 1.0f));
-
-	Transform3D shape_trf;
-	shape_trf.origin = limb_arm->current.parkour_node->get_global_position() + movement_input_trf.normalized() * dir_check_mesh->get_height() * 0.5f;
-	shape_trf.basis = Quaternion(Vector3(0.0f, 1.0f, 0.0f), movement_input_trf.normalized());
-
-	if (!target_point) {
-		PhysicsDirectSpaceState3D *dss = agent->get_world_3d()->get_direct_space_state();
-		PhysicsDirectSpaceState3D::ShapeParameters shape_params;
-		shape_params.collision_mask = HBPhysicsLayers::LAYER_PARKOUR_NODES;
-		shape_params.exclude.insert(limb_arm->current.parkour_node->get_rid());
-		shape_params.shape_rid = dir_check_mesh->get_rid();
-		shape_params.transform = shape_trf;
-		const int MAX_RESULTS = 16;
-		PhysicsDirectSpaceState3D::ShapeResult shape_results[MAX_RESULTS];
-		debug_draw_cast_motion(dir_check_mesh, shape_params);
-		int result_count = dss->intersect_shape(shape_params, shape_results, MAX_RESULTS);
-		if (result_count > 0) {
-			float closest_node_distance = 0.0f;
-			target_point = Object::cast_to<HBAgentParkourPoint>(shape_results[0].collider);
-			ERR_FAIL_COND(!target_point);
-			closest_node_distance = target_point->get_global_position().distance_to(limb_arm->target.parkour_node->get_global_position());
-			for (int i = 0; i < result_count; i++) {
-				HBAgentParkourPoint *candidate = Object::cast_to<HBAgentParkourPoint>(shape_results[i].collider);
-				if (!candidate) {
-					continue;
-				}
-				float candidate_node_distance = candidate->get_global_position().distance_to(limb_arm->target.parkour_node->get_global_position());
-				if (candidate_node_distance < closest_node_distance) {
-					target_point = candidate;
-					closest_node_distance = candidate_node_distance;
-				}
-			}
-		}
-	}
-
-	if (!target_point) {
-		return;
-	}
-
-	parkour_limbs[limb_arm_i].target.parkour_node = target_point;
-	PhysicsDirectSpaceState3D::RayParameters ray_params;
-	ray_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
-
-	Node3D *gn = get_graphics_node();
-	ERR_FAIL_COND(!gn);
-	Transform3D target_gn_trf;
-	target_gn_trf.origin = agent_position_target;
-	target_gn_trf.basis = graphics_rotation_spring_target;
-
-	Vector3 from = target_gn_trf.xform(parkour_limbs[limb_foot_i].fallback_location_raycast_start);
-	Vector3 to = target_gn_trf.xform(parkour_limbs[limb_foot_i].fallback_location_raycast_end);
-	from.y = target_point->get_global_position().y - target_leg_height_from_node;
-	to.y = target_point->get_global_position().y - target_leg_height_from_node;
-
-	ray_params.from = from;
-	ray_params.to = to;
-
-	PhysicsDirectSpaceState3D *dss = agent->get_world_3d()->get_direct_space_state();
-
-	PhysicsDirectSpaceState3D::RayResult ray_result;
-
-	if (!dss->intersect_ray(ray_params, ray_result)) {
-		parkour_limbs[limb_foot_i].target.transform.basis = Quaternion(Vector3(0.0f, 0.0f, -1.0f), ray_result.normal);
-		parkour_limbs[limb_foot_i].target.transform.origin = ray_result.position;
-	} else {
-		parkour_limbs[limb_foot_i].target.transform.origin = target_point->get_global_position() + Vector3(0.0f, -target_leg_height_from_node, 0.0f);
-		parkour_limbs[limb_foot_i].target.transform.basis = limb_arm->get_target_transform().basis;
-	}
-
-	Quaternion graphics_node_target_rot = _calculate_target_graphics_node_rotation(parkour_limbs[HAND_LEFT].get_target_transform(), parkour_limbs[HAND_RIGHT].get_target_transform());
-	limb_arm->target_ik_transform = _calculate_limb_target_transform(graphics_node_target_rot, limb_arm->get_target_transform(), limb_arm->bone_base_trf, limb_arm->visual_offset);
-	limb_foot->target_ik_transform = _calculate_limb_target_transform(graphics_node_target_rot, limb_foot->get_target_transform(), limb_foot->bone_base_trf, limb_foot->visual_offset);
-
-	animation_time = 0.0f;
-}
-
-bool HBAgentWallParkourState::_handle_vertical_parkour_movement(const Vector3 &p_movement_input) {
-	int vertical_dir = SIGN(p_movement_input.y);
-
-	const int LEFT = -1;
-	const int RIGHT = 1;
-	const int UP = 1;
-	int side_to_move = RIGHT;
-
-	HBAgentParkourPoint *parkour_node_hand_l = parkour_limbs[AgentIKLimbType::HAND_LEFT].target.parkour_node;
-	HBAgentParkourPoint *parkour_node_hand_r = parkour_limbs[AgentIKLimbType::HAND_RIGHT].target.parkour_node;
-	ERR_FAIL_COND_V(!parkour_node_hand_l, false);
-	ERR_FAIL_COND_V(!parkour_node_hand_r, false);
-
-	// This is what we use to check if both hands are at the same height.
-	const float SAME_HEIGHT_EPS = 0.1f;
-	if (parkour_node_hand_l != parkour_node_hand_r && Math::abs(parkour_node_hand_l->get_global_position().y - parkour_node_hand_r->get_global_position().y) > SAME_HEIGHT_EPS) {
-		// When going up, the lowest side is the one that's moved
-		// When going down, the highest side is the one that gets moved
-		side_to_move = parkour_node_hand_l->get_global_position().y > parkour_node_hand_r->get_global_position().y ? RIGHT : LEFT;
-		side_to_move *= vertical_dir == UP ? 1 : -1;
-	}
-
-	// For vertical climbing we fire the collision cast from the center of both hands
-	Vector3 hands_center = parkour_node_hand_l->get_global_position() + parkour_node_hand_r->get_global_position();
-	hands_center *= 0.5f;
-
-	HBAgent *agent = get_agent();
-	ERR_FAIL_COND_V(!agent, false);
-
-	PhysicsDirectSpaceState3D *dss = agent->get_world_3d()->get_direct_space_state();
-	PhysicsDirectSpaceState3D::ShapeParameters params;
-	const int MAX_RESULTS = 16;
-	PhysicsDirectSpaceState3D::ShapeResult results[MAX_RESULTS];
-
-	params.shape_rid = dir_check_mesh->get_rid();
-	params.transform.origin = hands_center + Vector3(0.0f, dir_check_mesh->get_height() * 0.5f * vertical_dir, 0.0f);
-	params.collision_mask = HBPhysicsLayers::LAYER_PARKOUR_NODES;
-
-	debug_draw_cast_motion(dir_check_mesh, params);
-	int result_count = dss->intersect_shape(params, results, MAX_RESULTS);
-
-	WallParkourLimb *hand_to_move = &parkour_limbs[side_to_move == 1 ? AgentIKLimbType::HAND_RIGHT : AgentIKLimbType::HAND_LEFT];
-	WallParkourLimb *foot_to_move = &parkour_limbs[side_to_move == 1 ? AgentIKLimbType::FOOT_RIGHT : AgentIKLimbType::FOOT_LEFT];
-	WallParkourLimb *hand_to_stay = &parkour_limbs[side_to_move == -1 ? AgentIKLimbType::HAND_RIGHT : AgentIKLimbType::HAND_LEFT];
-	WallParkourLimb *foot_to_stay = &parkour_limbs[side_to_move == -1 ? AgentIKLimbType::FOOT_RIGHT : AgentIKLimbType::FOOT_LEFT];
-
-	hand_to_stay->animation_start = -1.0f;
-	hand_to_stay->animation_end = -1.0f;
-	foot_to_stay->animation_start = -1.0f;
-	foot_to_stay->animation_end = -1.0f;
-
-	HBAgentParkourPoint *node_to_move_to = nullptr;
-	if (result_count > 0) {
-		// Find the closest node to us that isn't the other hand's
-		float node_to_move_to_dist = 0.0f;
-
-		for (int i = 0; i < result_count; i++) {
-			HBAgentParkourPoint *node = Object::cast_to<HBAgentParkourPoint>(results[i].collider);
-			ERR_FAIL_COND_V(!node, false);
-			// We try not to use the other hand's node, at least not at first
-			if (node == hand_to_stay->target.parkour_node) {
-				continue;
-			}
-			float height_diff = node->get_global_position().y - hand_to_stay->target.parkour_node->get_global_position().y;
-			// Make sure the node is somewhat below or above us, depending on the direction of travel
-			if (SIGN(height_diff) != vertical_dir || Math::abs(height_diff) < SAME_HEIGHT_EPS) {
-				continue;
-			}
-			float candidate_node_dist = node->get_global_position().distance_to(hand_to_move->target.parkour_node->get_global_position());
-			if (!node_to_move_to || candidate_node_dist < node_to_move_to_dist) {
-				node_to_move_to = node;
-				node_to_move_to_dist = candidate_node_dist;
-			}
-		}
-	}
-	// We didn't a find a node to move towards, so we will try to reach a ledge
-	if (!node_to_move_to && vertical_dir == UP) {
-		if (_try_reach_ledge(hand_to_move, foot_to_move)) {
-			return true;
-		}
-	}
-
-	// Since we can't reach a ledge, let's just put both hands on the same spot.
-	if (!node_to_move_to) {
-		node_to_move_to = hand_to_stay->target.parkour_node;
-	}
-
-	if (node_to_move_to == hand_to_move->target.parkour_node) {
-		// Can't move, abort
-		return false;
-	}
-
-	// If both hands are on the same node, we should use whichever hand is on the side of the node
-	if (parkour_node_hand_l == parkour_node_hand_r) {
-		int new_dir = SIGN(get_graphics_node()->get_global_transform().xform_inv(node_to_move_to->get_global_position()).x);
-		if (new_dir != 0 && new_dir != side_to_move) {
-			SWAP(hand_to_move, hand_to_stay);
-			SWAP(foot_to_move, foot_to_stay);
-		}
-	}
-
-	// Now we should just animate all of this
-	if (vertical_dir == UP) {
-		// When going up, it makes sense that both the foot and the hand move simultaneously
-		// however, the hand should let go first, this is because
-		// you would usually use your legs to give you an impulse and then grab onto the next point
-		hand_to_move->animation_start = 0.0f;
-		hand_to_move->animation_end = 0.8f;
-		foot_to_move->animation_start = 0.15f;
-		foot_to_move->animation_end = 1.0f;
-	} else {
-		// For going down just invert it
-		hand_to_move->animation_start = 0.0f;
-		hand_to_move->animation_end = 0.8f;
-		foot_to_move->animation_start = 0.0f;
-		foot_to_move->animation_end = 1.0f;
-	}
-
-	// Setup spring for vertical movement, which should be slower than normal to
-	// prevent overstretching on the legs
-	foot_to_move->position_spring_halflife = 0.09f;
-	hand_to_move->position_spring_halflife = 0.1f;
-
-	hand_to_move->target.parkour_node = node_to_move_to;
-	// TODO: Make legs try to find a point to support themselves
-	foot_to_move->target.transform.origin = node_to_move_to->get_global_position() - Vector3(0.0f, target_leg_height_from_node, 0.0f);
-	// TODO: replace this too with the correct orientation
-	foot_to_move->target.transform.basis = hand_to_move->get_target_transform().basis;
-	Quaternion graphics_node_target_rot = _calculate_target_graphics_node_rotation(parkour_limbs[HAND_LEFT].get_target_transform(), parkour_limbs[HAND_RIGHT].get_target_transform());
-	foot_to_move->target_ik_transform = _calculate_limb_target_transform(graphics_node_target_rot, foot_to_move->get_target_transform(), foot_to_move->bone_base_trf, foot_to_move->visual_offset);
-	hand_to_move->target_ik_transform = _calculate_limb_target_transform(graphics_node_target_rot, hand_to_move->get_target_transform(), hand_to_move->bone_base_trf, hand_to_move->visual_offset);
-
-	animation_time = 0.0f;
-
-	return false;
-}
-
-// Will try to start the ledge reaching animation, will return true if successful.
-bool HBAgentWallParkourState::_try_reach_ledge(WallParkourLimb *p_hand_to_move, WallParkourLimb *p_foot_to_move) {
-	HBAgent *agent = get_agent();
-	Ref<BoxShape3D> box_shape;
-	box_shape.instantiate();
-	float box_shape_height = get_agent()->get_height() * 1.5;
-	box_shape->set_size(Vector3(agent->get_radius()*2, box_shape_height, agent->get_radius()*2));
-	PhysicsDirectSpaceState3D::ShapeParameters shape_params;
-	shape_params.collision_mask = HBPhysicsLayers::LAYER_PARKOUR_NODES;
-	shape_params.transform.origin = agent->get_global_position();
-	shape_params.transform.origin.y += box_shape_height;
-	shape_params.transform.origin += agent->get_graphics_rotation().xform(Vector3(0.0, 0.0f, -1.0f) * agent->get_radius());
-	shape_params.collide_with_areas = true;
-	shape_params.collide_with_bodies = false;
-	shape_params.shape_rid = box_shape->get_rid();
-
-	PhysicsDirectSpaceState3D *dss = agent->get_world_3d()->get_direct_space_state();
-
-	constexpr static int MAX_RESULTS = 10;
-
-	Vector<PhysicsDirectSpaceState3D::ShapeResult> results;
-	results.resize(MAX_RESULTS);
-
-	int result_count = dss->intersect_shape(shape_params, results.ptrw(), MAX_RESULTS);
-	debug_draw_shape(box_shape, shape_params.transform.origin);
-	for (int i = 0; i < result_count; i++) {
-		HBAgentParkourLedge *ledge = Object::cast_to<HBAgentParkourLedge>(results[i].collider);
-		if (!ledge) {
-			continue;
-		}
-
-		Dictionary arg;
-		arg[HBAgentLedgeGrabbedStateNew::PARAM_LEDGE] = ledge;
-		state_machine->transition_to(ASN()->ledge_grabbed_state, arg);
-		return true;		
-	}
-
-
-
-	return false;
-	/*
-	HBAgent *agent = get_agent();
-	ERR_FAIL_COND_V(!agent, false);
-
-	PhysicsDirectSpaceState3D::RayParameters ray_params;
-	Node3D *gn = get_graphics_node();
-	Vector3 agent_normal = gn->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
-	Vector3 ledge_raycast_start_pos = gn->get_global_position();
-
-	ray_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
-	PhysicsDirectSpaceState3D::RayResult ray_result;
-
-	// Find right ledge grab point
-	Vector3 from = ledge_raycast_start_pos - agent_normal * 0.5f;
-	Vector3 to = ledge_raycast_start_pos + agent_normal * 0.5f;
-	Transform3D ledge_transform;
-
-	if (!find_lege_wall_sweep(from, to, Vector3(0.0f, 1.0f, 0.0f), ledge_transform)) {
-		return false;
-	}
-
-	for (int i = 0; i < AgentIKLimbType::LIMB_TYPE_MAX; i++) {
-		parkour_limbs[i].target.type = WallParkourTargetType::TARGET_LOCATION;
-		if (i == FOOT_LEFT || i == FOOT_RIGHT) {
-			parkour_limbs[i].position_spring_halflife = 0.09f;
-		} else {
-			parkour_limbs[i].position_spring_halflife = 0.1f;
-		}
-	}
-
-	// Prepare this transforms already for TO_LEDGE_2
-	HBAgentLedgeGrabbedState *wall_grabbed_state = Object::cast_to<HBAgentLedgeGrabbedState>(state_machine->get_state(ASN()->ledge_grabbed_state));
-	ERR_FAIL_COND_V(!wall_grabbed_state, false);
-
-	HBAgentLedgeGrabbedState::LedgeAgentIKPose initial_pose;
-	HBAgentLedgeGrabbedState::WallGrabbedStateInitialPoseParams pose_params;
-	pose_params.ledge_transform = ledge_transform;
-
-	if (!wall_grabbed_state->find_initial_pose(initial_pose, pose_params)) {
-		return false;
-	}
-
-	target_ledge_trf = ledge_transform;
-	ledge_transition_agent_target = initial_pose.pose.actor_transform;
-	for (int i = 0; i < AgentIKLimbType::LIMB_TYPE_MAX; i++) {
-		parkour_limbs[i].local_magnet_pos = initial_pose.pose.magnet_positions[i];
-		parkour_limbs[i].target.transform = initial_pose.ledge_transforms[i];
-		parkour_limbs[i].current_ik_transform = parkour_limbs[i].target_ik_transform;
-		parkour_limbs[i].target_ik_transform = initial_pose.pose.target_transforms[i];
-	}
-
-	p_hand_to_move->animation_start = 0.0f;
-	p_hand_to_move->animation_end = 0.8f;
-	p_foot_to_move->animation_start = 0.0f;
-	p_foot_to_move->animation_end = 1.0f;
-	animation_time = 0.0f;
-	parkour_stage = ParkourStage::TO_LEDGE_1;
-
-	return true;
-	*/
-	// TODO: Fix this
-}
-
-void HBAgentWallParkourState::enter(const Dictionary &p_args) {
-	ERR_FAIL_COND(!p_args.has(PARAM_TARGET_PARKOUR_NODE));
-	HBAgentParkourPoint *starting_parkour_node = Object::cast_to<HBAgentParkourPoint>(p_args.get(PARAM_TARGET_PARKOUR_NODE, Variant()));
-	ERR_FAIL_COND(!starting_parkour_node);
-	EPASController *epas_controller = get_epas_controller();
-	ERR_FAIL_COND(!epas_controller);
-
-	Ref<EPASTransitionNode> movement_transition = get_movement_transition_node();
-	ERR_FAIL_COND(!movement_transition.is_valid());
-
-	Skeleton3D *skel = get_skeleton();
-	ERR_FAIL_COND(!skel);
-
-	Ref<EPASAnimationNode> animation_node = epas_controller->get_epas_node("WallParkourCat");
-	ERR_FAIL_COND(!animation_node.is_valid());
-	Ref<EPASPose> reference_pose = animation_node->get_animation()->get_keyframe(0)->get_pose();
-	back_straightness_blend_node = epas_controller->get_epas_node("WallParkourCatBlend");
-	ERR_FAIL_COND(!back_straightness_blend_node.is_valid());
-
-	Ref<EPASLookatNode> lookat = get_epas_controller()->get_epas_node("HeadLookAt");
-	lookat->set_influence(0.0f);
-	
-	lookat = get_epas_controller()->get_epas_node("TorsoLookAt");
-	lookat->set_influence(0.0f);
-
-	if (!limbs_init) {
-		// Initialize limb structures
-		limbs_init = true;
-
-		StringName ik_node_names[LIMB_TYPE_MAX] = {
-			"LeftHandIK",
-			"RightHandIK",
-			"LeftFootIK",
-			"RightFootIK"
-		};
-		StringName ik_magnet_node_names[LIMB_TYPE_MAX] = {
-			"IK.Magnet.hand.L",
-			"IK.Magnet.hand.R",
-			"IK.Magnet.foot.L",
-			"IK.Magnet.foot.R"
-		};
-
-		for (int i = 0; i < LIMB_TYPE_MAX; i++) {
-			parkour_limbs[i].ik_node = epas_controller->get_epas_node(ik_node_names[i]);
-			ERR_FAIL_COND(!parkour_limbs[i].ik_node.is_valid());
-			parkour_limbs[i].bone_name = parkour_limbs[i].ik_node->get_ik_end();
-
-			StringName a_bone_name = parkour_limbs[i].ik_node->get_ik_end();
-			int b_bone_idx = skel->get_bone_parent(skel->find_bone(parkour_limbs[i].bone_name));
-			StringName b_bone_name = skel->get_bone_name(b_bone_idx);
-			StringName c_bone_name = skel->get_bone_name(skel->get_bone_parent(b_bone_idx));
-
-			Ref<EPASPose> base_pose = animation_node->get_animation()->get_keyframe(0)->get_pose();
-
-			Transform3D a_bone_trf = base_pose->calculate_bone_global_transform(a_bone_name, skel, epas_controller->get_base_pose());
-
-			// Again, in skeleton space z=+1.0 is forward
-			Quaternion rot = Quaternion(Vector3(0.0f, 0.0f, 1.0f), Vector3(0.0f, 0.0f, -1.0f));
-			parkour_limbs[i].fallback_location_raycast_start = rot.xform(a_bone_trf.origin);
-			parkour_limbs[i].fallback_location_raycast_start.z = 0.75f;
-			parkour_limbs[i].fallback_location_raycast_end = parkour_limbs[i].fallback_location_raycast_start;
-			parkour_limbs[i].fallback_location_raycast_end.z = -0.75f * 2;
-
-			// Magnet is already in global space, so this should be fine, assuming root is at 0,0 that is...
-			parkour_limbs[i].local_magnet_pos = base_pose->get_bone_position(ik_magnet_node_names[i]);
-			parkour_limbs[i].default_magnet_pos = parkour_limbs[i].local_magnet_pos;
-		}
-	}
-
-	parkour_limbs[AgentIKLimbType::HAND_LEFT].target.type = WallParkourTargetType::TARGET_PARKOUR_NODE;
-	parkour_limbs[AgentIKLimbType::HAND_LEFT].current.type = WallParkourTargetType::TARGET_PARKOUR_NODE;
-	parkour_limbs[AgentIKLimbType::HAND_LEFT].target.parkour_node = starting_parkour_node;
-	parkour_limbs[AgentIKLimbType::HAND_LEFT].current.parkour_node = starting_parkour_node;
-	parkour_limbs[AgentIKLimbType::HAND_LEFT].animating_peak_offset = Vector3(0.0, 0.0, -0.1f);
-	parkour_limbs[AgentIKLimbType::HAND_LEFT].visual_offset = Vector3(-0.05f, 0.05f, 0.125f);
-
-	parkour_limbs[AgentIKLimbType::HAND_RIGHT].target.type = WallParkourTargetType::TARGET_PARKOUR_NODE;
-	parkour_limbs[AgentIKLimbType::HAND_RIGHT].current.type = WallParkourTargetType::TARGET_PARKOUR_NODE;
-	parkour_limbs[AgentIKLimbType::HAND_RIGHT].target.parkour_node = starting_parkour_node;
-	parkour_limbs[AgentIKLimbType::HAND_RIGHT].current.parkour_node = starting_parkour_node;
-	parkour_limbs[AgentIKLimbType::HAND_RIGHT].animating_peak_offset = Vector3(0.0, 0.0, -0.1f);
-	parkour_limbs[AgentIKLimbType::HAND_RIGHT].visual_offset = Vector3(0.05f, 0.05f, 0.125f);
-
-	parkour_limbs[AgentIKLimbType::FOOT_LEFT].visual_offset = Vector3(-0.1f, 0.0f, 0.150f);
-	parkour_limbs[AgentIKLimbType::FOOT_RIGHT].visual_offset = Vector3(0.1f, 0.0f, 0.150f);
-	parkour_limbs[AgentIKLimbType::FOOT_LEFT].animating_peak_offset = Vector3(0.0, 0.0, -0.1f);
-	parkour_limbs[AgentIKLimbType::FOOT_RIGHT].animating_peak_offset = Vector3(0.0, 0.0, -0.1f);
-
-	HBAgent *agent = get_agent();
-	ERR_FAIL_COND(!agent);
-
-	Node3D *gn = get_graphics_node();
-	ERR_FAIL_COND(!gn);
-
-	graphics_rotation_spring_target = gn->get_global_transform().basis;
-
-	const float floor_max_angle = agent->get_floor_max_angle();
-	for (int i = 0; i < AgentIKLimbType::LIMB_TYPE_MAX; i++) {
-		if (parkour_limbs[i].target.type == TARGET_LOCATION) {
-			PhysicsDirectSpaceState3D *dss = agent->get_world_3d()->get_direct_space_state();
-
-			PhysicsDirectSpaceState3D::RayParameters ray_params;
-			PhysicsDirectSpaceState3D::RayResult ray_result;
-
-			ray_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
-			ray_params.from = starting_parkour_node->get_global_transform().xform(Vector3(0.0f, -target_leg_height_from_node, -0.75f));
-			ray_params.to = starting_parkour_node->get_global_transform().xform(Vector3(0.0f, -target_leg_height_from_node, 0.75f));
-
-			if (dss->intersect_ray(ray_params, ray_result)) {
-				ERR_FAIL_COND_MSG(!is_wall(ray_result.normal, floor_max_angle), "Failed to get wall for feet, check level geometry");
-				parkour_limbs[i].target.transform.origin = ray_result.position;
-				parkour_limbs[i].target.transform.basis = Quaternion(Vector3(0.0f, 0.0f, -1.0f), ray_result.normal);
-				parkour_limbs[i].current.transform = parkour_limbs[i].target.transform;
-				parkour_limbs[i].current.type = WallParkourTargetType::TARGET_LOCATION;
-			} else {
-				parkour_limbs[i].dangling = true;
-			}
-		}
-		// Setup magnet (common for both target types)
-		parkour_limbs[i].ik_node->set_use_magnet(true);
-		parkour_limbs[i].ik_node->set_ik_influence(1.0f);
-		parkour_limbs[i].local_magnet_pos = parkour_limbs[i].default_magnet_pos;
-		Vector3 magnet = skel->to_global(parkour_limbs[i].local_magnet_pos);
-		parkour_limbs[i].ik_node->set_magnet_position(magnet);
-		parkour_limbs[i].bone_base_trf = reference_pose->calculate_bone_global_transform(parkour_limbs[i].bone_name, skel, epas_controller->get_base_pose());
-		Transform3D target_trf = _calculate_limb_target_transform(graphics_rotation_spring_target, parkour_limbs[i].get_target_transform(), parkour_limbs[i].bone_base_trf, parkour_limbs[i].visual_offset);
-		parkour_limbs[i].ik_node->set_target_transform(target_trf);
-		parkour_limbs[i].target_ik_transform = target_trf;
-		parkour_limbs[i].current_ik_transform = target_trf;
-		parkour_limbs[i].ik_node->set_use_hinge(true);
-		parkour_limbs[i].position_spring_velocity = Vector3();
-	}
-
-	if (!dir_check_mesh.is_valid()) {
-		dir_check_mesh.instantiate();
-		dir_check_mesh->set_height(1.0f);
-		dir_check_mesh->set_radius(0.5f);
-	}
-
-	agent->set_movement_mode(HBAgent::MovementMode::MOVE_MANUAL);
-
-	Vector3 limb_center;
-
-	for (int i = 0; i < AgentIKLimbType::LIMB_TYPE_MAX; i++) {
-		limb_center += parkour_limbs[i].target_ik_transform.origin;
-	}
-
-	limb_center = limb_center / ((float)AgentIKLimbType::LIMB_TYPE_MAX);
-
-	Vector3 center = agent->get_global_position() - limb_center;
-	agent_offset_base = Vector3(-0, -0.60059, 0.212675) + agent_offset_adjustment;
-	agent_offset_target = agent_offset_base;
-	// Reset springs
-	agent_position_spring_velocity = Vector3();
-	graphics_rotation_spring_velocity = Vector3();
-	agent_position_target = agent->get_global_position();
-
-	movement_transition->transition_to(HBAgentConstants::MovementTransitionInputs::MOVEMENT_PARKOUR_CAT);
-
-	animation_time = -1.0f;
-	parkour_stage = ParkourStage::NORMAL;
-}
-
-void HBAgentWallParkourState::exit() {
-	for (int i = 0; i < AgentIKLimbType::LIMB_TYPE_MAX; i++) {
-		parkour_limbs[i].ik_node->set_ik_influence(0.0f);
-	}
-
-	Skeleton3D *skel = get_skeleton();
-	ERR_FAIL_COND(!skel);
-	skel->set_position(Vector3());
-}
-
-void HBAgentWallParkourState::physics_process(float p_delta) {
-	debug_draw_clear();
-	if (get_inertialization_node()->is_inertializing()) {
-		return;
-	}
-	HBAgent *agent = get_agent();
-
-	if (animation_time == -1.0f && agent->is_action_pressed(HBAgent::AgentInputAction::INPUT_ACTION_PARKOUR_DOWN)) {
-		state_machine->transition_to(StringName("Fall"));
-		return;
-	}
-
-	Vector3 movement_input = agent->get_movement_input();
-	movement_input.y = movement_input.z * -1.0f;
-	movement_input.z = 0.0f;
-
-	Node3D *gn = get_graphics_node();
-
-	Vector<float> weights;
-	weights.resize(AgentIKLimbType::LIMB_TYPE_MAX);
-	weights.fill(1.0f);
-	Vector<Transform3D> ik_targets;
-	ik_targets.resize(AgentIKLimbType::LIMB_TYPE_MAX);
-
-	float total_weight = AgentIKLimbType::LIMB_TYPE_MAX;
-
-	Skeleton3D *skel = get_skeleton();
-
-	if (animation_time >= 0.0f) {
-		animation_time = CLAMP(animation_time + p_delta * (1.0f / ANIMATION_DURATION), 0.0f, 1.0f);
-		total_weight = 0.0f;
-
-		for (int i = 0; i < AgentIKLimbType::LIMB_TYPE_MAX; i++) {
-			if (parkour_limbs[i].animation_start == -1.0f) {
-				ik_targets.write[i] = parkour_limbs[i].current_ik_transform;
-				total_weight += 1.0f;
-				weights.write[i] = 1.0f;
-				continue;
-			}
-
-			Transform3D target_trf;
-			float blend_t = Math::inverse_lerp(parkour_limbs[i].animation_start, parkour_limbs[i].animation_end, animation_time);
-			blend_t = CLAMP(blend_t, 0.0f, 1.0f);
-
-			weights.write[i] = 1.0f - sin(blend_t * Math_PI);
-
-			target_trf = parkour_limbs[i].current_ik_transform.interpolate_with(parkour_limbs[i].target_ik_transform, blend_t);
-			target_trf.origin += skel->get_global_transform().basis.xform(parkour_limbs[i].animating_peak_offset) * sin(blend_t * Math_PI);
-
-			ik_targets.write[i] = target_trf;
-			total_weight += weights[i];
-		}
-	} else {
-		for (int i = 0; i < AgentIKLimbType::LIMB_TYPE_MAX; i++) {
-			ik_targets.write[i] = parkour_limbs[i].current_ik_transform;
-		}
-	}
-
-	// Back eject is only possible when both feet aren't dangling
-	// TODO: reimplement back ejects
-
-	if (parkour_stage == ParkourStage::NORMAL && animation_time == -1.0f && movement_input.length_squared() != 0.0f) {
-		if (Math::abs(movement_input.y) > Math::abs(movement_input.x)) {
-			_handle_vertical_parkour_movement(movement_input);
-		} else {
-			_handle_horizontal_parkour_movement(movement_input);
-		}
-	}
-
-	Vector3 ik_position_weighted; // This is used as the center point for the body movement
-	for (int i = 0; i < AgentIKLimbType::LIMB_TYPE_MAX; i++) {
-		if (parkour_limbs[i].dangling && (i == AgentIKLimbType::FOOT_LEFT || i == AgentIKLimbType::FOOT_RIGHT)) {
-			AgentIKLimbType hand = i == AgentIKLimbType::FOOT_LEFT ? AgentIKLimbType::HAND_LEFT : AgentIKLimbType::HAND_RIGHT;
-			Vector3 target = ik_targets[hand].origin;
-			target.y -= parkour_limbs[hand].fallback_location_raycast_start.y;
-			ik_position_weighted += target * (weights[i] / total_weight);
-			parkour_limbs[i].target.transform.origin = target;
-			continue;
-		}
-		ik_position_weighted += ik_targets[i].origin * (weights[i] / total_weight);
-
-		Transform3D new_trf = parkour_limbs[i].ik_node->get_target_transform();
-		Vector3 target_origin = parkour_limbs[i].current_ik_transform.origin.lerp(ik_targets[i].origin, animation_time);
-		// Funny thing here, the movement of the agent is based on the target unsprung
-		// positions, however the limbs themselves are driven by springs, this is a crude
-		// way to add even more of a feel of inertia and weight transfer
-		HBSprings::critical_spring_damper_exact_vector3(
-				new_trf.origin,
-				parkour_limbs[i].position_spring_velocity,
-				target_origin,
-				parkour_limbs[i].position_spring_halflife, p_delta);
-		new_trf.basis = ik_targets[i].basis;
-		parkour_limbs[i].ik_node->set_target_transform(new_trf);
-	}
-
-	float curr_leg_height_difference = parkour_limbs[AgentIKLimbType::FOOT_LEFT].ik_node->get_target_transform().origin.y;
-	curr_leg_height_difference -= parkour_limbs[AgentIKLimbType::FOOT_RIGHT].ik_node->get_target_transform().origin.y;
-
-	float curr_hand_height_difference = parkour_limbs[AgentIKLimbType::HAND_LEFT].ik_node->get_target_transform().origin.y;
-	curr_hand_height_difference -= parkour_limbs[AgentIKLimbType::HAND_RIGHT].ik_node->get_target_transform().origin.y;
-
-	float diff = Math::abs(curr_hand_height_difference) / 0.5f;
-	diff = CLAMP(diff, 0.0f, 1.0f);
-	back_straightness_blend_node->set_blend_amount(diff);
-	// TODO: Make these constant
-	agent_offset_target.z = agent_offset_base.z - diff * 0.1f;
-	agent_offset_target.y = agent_offset_base.y + Math::abs(curr_hand_height_difference) - Math::abs(curr_leg_height_difference * 0.85f);
-
-	debug_draw_sphere(ik_position_weighted, 0.05f, Color("PURPLE"));
-
-	agent_position_target = ik_position_weighted + get_graphics_node()->get_global_transform().basis.xform(agent_offset_target);
-
-	if (parkour_stage == ParkourStage::TO_LEDGE_2) {
-		if (animation_time != -1.0f) {
-			agent_position_target = agent_position_target.lerp(ledge_transition_agent_target.origin, animation_time);
-		}
-		debug_draw_sphere(target_ledge_trf.origin, 0.05f, Color("Yellow"));
-	}
-
-	Vector3 new_pos = get_agent()->get_global_position();
-
-	HBSprings::spring_damper_exact_ratio_vector3(
-			new_pos,
-			agent_position_spring_velocity,
-			agent_position_target,
-			Vector3(), 0.7f, 0.2f, p_delta);
-
-	get_agent()->set_global_position(new_pos);
-
-	Transform3D new_gn_trf = gn->get_global_transform();
-	Quaternion new_rot = new_gn_trf.basis.get_rotation_quaternion();
-	graphics_rotation_spring_target = _calculate_target_graphics_node_rotation(parkour_limbs[AgentIKLimbType::HAND_LEFT].get_target_transform(), parkour_limbs[AgentIKLimbType::HAND_RIGHT].get_target_transform());
-
-	HBSprings::simple_spring_damper_exact_quat(new_rot, graphics_rotation_spring_velocity, graphics_rotation_spring_target, graphics_rotation_spring_halflife, p_delta);
-
-	new_gn_trf.basis = new_rot;
-	gn->set_global_transform(new_gn_trf);
-
-	for (int i = 0; i < AgentIKLimbType::LIMB_TYPE_MAX; i++) {
-		// Update magnet position
-		Vector3 magnet = skel->to_global(parkour_limbs[i].local_magnet_pos);
-		parkour_limbs[i].ik_node->set_magnet_position(magnet);
-
-		debug_draw_sphere(magnet);
-	}
-	if (animation_time >= 1.0f) {
-		animation_time = -1.0f;
-
-		for (int i = 0; i < AgentIKLimbType::LIMB_TYPE_MAX; i++) {
-			if (parkour_limbs[i].animation_start == -1.0 && parkour_limbs[i].animation_end == -1.0f) {
-				continue;
-			}
-			parkour_limbs[i].current_ik_transform = parkour_limbs[i].target_ik_transform;
-			parkour_limbs[i].current.type = parkour_limbs[i].target.type;
-			switch (parkour_limbs[i].target.type) {
-				case WallParkourTargetType::TARGET_PARKOUR_NODE: {
-					parkour_limbs[i].current.parkour_node = parkour_limbs[i].target.parkour_node;
-				} break;
-				case WallParkourTargetType::TARGET_LOCATION: {
-					parkour_limbs[i].current.transform = parkour_limbs[i].target.transform;
-				} break;
-			}
-		}
-
-		if (parkour_stage == ParkourStage::TO_LEDGE_1) {
-			// Use swap instead of hardcoding for consistency
-			SWAP(parkour_limbs[HAND_LEFT].animation_start, parkour_limbs[HAND_RIGHT].animation_start);
-			SWAP(parkour_limbs[HAND_LEFT].animation_end, parkour_limbs[HAND_RIGHT].animation_end);
-			SWAP(parkour_limbs[FOOT_LEFT].animation_start, parkour_limbs[FOOT_RIGHT].animation_start);
-			SWAP(parkour_limbs[FOOT_LEFT].animation_end, parkour_limbs[FOOT_RIGHT].animation_end);
-			animation_time = 0.0f;
-			parkour_stage = ParkourStage::TO_LEDGE_2;
-		} else if (parkour_stage == ParkourStage::TO_LEDGE_2) {
-			Dictionary args;
-			// TODO: Fix this
-			//args[HBAgentLedgeGrabbedState::PARAM_LEDGE_TRF] = target_ledge_trf;
-			state_machine->transition_to(ASN()->ledge_grabbed_state, args);
-		}
-	}
-}
-
-#ifdef DEBUG_ENABLED
-void HBAgentWallParkourState::debug_ui_draw() {
-	HBAgentState::debug_ui_draw();
-	ImGui::InputFloat3("Left leg magnet pos", (float *)&parkour_limbs[AgentIKLimbType::FOOT_LEFT].local_magnet_pos.coord);
-	ImGui::InputFloat3("Right leg magnet pos", (float *)&parkour_limbs[AgentIKLimbType::FOOT_RIGHT].local_magnet_pos.coord);
-}
-#endif
-
-void HBAgentWallParkourState::_notification(int p_what) {
-}
-
-HBAgentWallParkourState::HBAgentWallParkourState() {
 }
 
 void HBAgentParkourBeamWalk::enter(const Dictionary &p_args) {
@@ -2584,16 +1885,8 @@ void HBAgentParkourBeamWalk::physics_process(float p_delta) {
 	Vector3 movement_dir = movement_input.normalized();
 	bool movement_goes_through_beam = movement_dir.angle_to(forward) < Math::deg_to_rad(45.0f) || movement_dir.angle_to(-forward) < Math::deg_to_rad(45.0f);
 
-	if (get_agent()->is_action_pressed(HBAgent::INPUT_ACTION_RUN) && !movement_goes_through_beam) {
-		if (_handle_parkour_mid()) {
-			return;
-		}
-	}
-
-	if (get_agent()->is_action_pressed(HBAgent::INPUT_ACTION_PARKOUR_DOWN)) {
-		if (_handle_parkour_down()) {
-			return;
-		}
+	if (handle_parkour()) {
+		return;
 	}
 
 	if (movement_input.length_squared() > 0) {
@@ -2606,6 +1899,23 @@ void HBAgentParkourBeamWalk::physics_process(float p_delta) {
 	Ref<HBAgentConstants> agent_constants = get_agent()->get_agent_constants();
 
 	Vector3 desired_velocity = desired_movement_input * agent_constants->get_max_move_velocity();
+	// Kill velocity near edges
+	bool are_end_edges[2] = {
+		beam->is_point_edge(0),
+		beam->is_point_edge(beam->get_curve()->get_point_count()-1)
+	};
+
+	const int desired_velocity_dir = SIGN(desired_velocity.dot(forward));
+
+	if ((desired_velocity_dir == 1 && are_end_edges[1] > 0 && Math::is_equal_approx(curve_offset, beam->get_curve()->get_baked_length())) ||
+			(desired_velocity_dir == -1 && are_end_edges[0] && Math::is_zero_approx(curve_offset))) {
+		if (!velocity_spring_vel.is_zero_approx()) {
+			get_inertialization_node()->inertialize();
+		}
+		desired_velocity = Vector3();
+		velocity_spring_vel = Vector3();
+		velocity_spring_accel = Vector3();
+	}
 	HBSprings::velocity_spring_vector3(
 			velocity_spring_vel,
 			velocity_spring_accel,
@@ -2618,7 +1928,9 @@ void HBAgentParkourBeamWalk::physics_process(float p_delta) {
 	curve_offset += vel.length() * SIGN(vel.dot(forward)) * p_delta;
 
 	float clamped_offset = CLAMP(curve_offset, 0.0f, beam->get_curve()->get_baked_length());
-	if (curve_offset != clamped_offset) {
+	// We have to check if we are allowed to walk off this end of the beam
+	bool is_target_end_edge = clamped_offset > 0 ? are_end_edges[1] : are_end_edges[0];
+	if (curve_offset != clamped_offset && !is_target_end_edge) {
 		// When the offset goes beyond our clamped offset this means we've gone out of the beam
 		curve_offset = clamped_offset;
 		agent_global_position = beam->get_global_transform().xform(beam->get_curve()->sample_baked(curve_offset));
@@ -2628,6 +1940,7 @@ void HBAgentParkourBeamWalk::physics_process(float p_delta) {
 		get_agent()->reset_desired_input_velocity_to(get_agent()->get_linear_velocity());
 		return;
 	}
+	curve_offset = clamped_offset;
 
 	agent_global_position = beam->get_global_transform().xform(beam->get_curve()->sample_baked(curve_offset));
 
@@ -2846,7 +2159,6 @@ bool HBAgentLedgeGrabbedStateNew::_handle_parkour_mid() {
 	for (int i = 0; i < ITERS; i++) {
 		shape_params.motion = input * EJECT_REACH * ((i+1) / ((float)ITERS));
 		real_t closest_safe, closest_unsafe;
-		debug_draw_cast_motion(shape, shape_params, Color("RED"));
 		dss->cast_motion(shape_params, closest_safe, closest_unsafe);
 		bool first_hit = closest_safe != 1.0f && closest_unsafe != 1.0f;
 
@@ -2902,8 +2214,99 @@ bool HBAgentLedgeGrabbedStateNew::_handle_parkour_mid() {
 	return false;
 }
 
+bool HBAgentLedgeGrabbedStateNew::_handle_drop_to_parkour_point() {
+	PhysicsDirectSpaceState3D::ShapeParameters params;
+
+	HBAgent *agent = get_agent();
+
+	Ref<CylinderShape3D> shape;
+	shape.instantiate();
+	shape->set_radius(agent->get_radius());
+	shape->set_height(HBAgentWallParkourStateNew::SHORT_GRAB_REACH);
+
+	Transform3D ledge_transform = ledge->get_agent_ledge_transform_at_offset(controller->get_ledge_offset());
+
+	params.shape_rid = shape->get_rid();
+	params.collision_mask = HBPhysicsLayers::LAYER_PARKOUR_NODES;
+	params.transform.origin = ledge_transform.origin;
+	params.transform.origin.y -= shape->get_height() * 0.5f;
+
+	PhysicsDirectSpaceState3D *dss = get_agent()->get_world_3d()->get_direct_space_state();
+	const int MAX_RESULTS = 10;
+	PhysicsDirectSpaceState3D::ShapeResult results[MAX_RESULTS];
+	debug_draw_cast_motion(shape, params, Color("GREEN"));
+	int result_count = dss->intersect_shape(params, results, MAX_RESULTS);
+
+	bool is_long_jump = false;
+
+	if (result_count == 0) {
+		is_long_jump = true;
+		shape->set_height(HBAgentWallParkourStateNew::LONG_GRAB_REACH);
+		params.transform.origin = ledge_transform.origin;
+		params.transform.origin.y -= shape->get_height() * 0.5f;
+		result_count = dss->intersect_shape(params, results, MAX_RESULTS);
+	}
+
+	HBAgentParkourPoint *parkour_point = nullptr;
+
+	const Vector3 pp_forward = ledge_transform.basis.xform(Vector3(0.0f, 0.0f, 1.0f));
+
+	for (int i = 0; i < result_count; i++) {
+		HBAgentParkourPoint *pp_candidate = Object::cast_to<HBAgentParkourPoint>(results[i].collider);
+		if (!pp_candidate) {
+			continue;
+		}
+		Vector3 point_forward = pp_candidate->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
+
+		if (point_forward.dot(pp_forward) > 0.0f) {
+			parkour_point = pp_candidate;
+			break;
+		}
+	}
+
+	if (parkour_point && is_long_jump) {
+		Dictionary wp_points;
+		Transform3D wp_trf = parkour_point->get_global_transform();
+		wp_points[ASN()->wall_parkour_cat_point_wp_name] = wp_trf;
+
+		Dictionary args;
+		args[HBAgentRootMotionState::PARAM_TRANSITION_NODE_INDEX] = HBAgentConstants::MOVEMENT_WALLPARKOUR_DOWN_LONG_JUMP;
+		args[HBAgentRootMotionState::PARAM_ANIMATION_NODE_NAME] = ASN()->wallparkour_down_long_jump_animation_node;
+
+		Dictionary next_state_args;
+		next_state_args[HBAgentWallParkourStateNew::PARAM_PARKOUR_NODE] = parkour_point;
+
+		args[HBAgentRootMotionState::PARAM_NEXT_STATE_ARGS] = next_state_args;
+		args[HBAgentRootMotionState::PARAM_NEXT_STATE] = ASN()->wall_parkour_state;
+
+
+		args[HBAgentRootMotionState::PARAM_WARP_POINTS] = wp_points;
+		
+		state_machine->transition_to(ASN()->root_motion_state, args);
+		return true;
+	}
+
+	if (parkour_point) {
+		Dictionary state_args;
+		state_args[HBAgentWallTransitionState::PARAM_TRANSITION_MODE] = HBAgentWallTransitionState::TO_WALL;
+		state_args[HBAgentWallTransitionState::PARAM_PARKOUR_POINT] = parkour_point;
+		
+		HBAgentWallTransitionState *wall_transition_state = Object::cast_to<HBAgentWallTransitionState>(state_machine->get_state(ASN()->wall_parkour_transition_state));
+		AgentProceduralAnimator::AgentProceduralPose starting_pose;
+		animator.get_output_pose(starting_pose);
+		_update_ik_transforms(starting_pose);
+		wall_transition_state->set_starting_pose(starting_pose);
+
+		state_machine->transition_to(ASN()->wall_parkour_transition_state, state_args);
+
+		return true;
+	}
+
+	return false;
+}
+
 /**********************
-	WALL PARKOUR NEW
+	Wall Parkour State
 ***********************/
 void HBAgentWallParkourStateNew::apply_offsets(AgentProceduralAnimator::AgentProceduralPose &p_pose) const {
 	
@@ -2919,6 +2322,7 @@ void HBAgentWallParkourStateNew::apply_pose(AgentProceduralAnimator::AgentProced
 	calculate_magnet_for_limbs(p_pose);
 	for (int i = 0; i < AgentProceduralAnimator::AgentLimb::LIMB_MAX; i++) {
 		debug_draw_sphere(p_pose.ik_targets[i].origin, 0.06f, Color("BLUE"));
+		debug_draw_sphere(p_pose.ik_magnet_positions[i], 0.06f, Color("RED"));
 		ik_nodes[i]->set_ik_influence(1.0f);
 		ik_nodes[i]->set_magnet_position(p_pose.ik_magnet_positions[i]);
 		ik_nodes[i]->set_target_transform(p_pose.ik_targets[i]);
@@ -2928,6 +2332,9 @@ void HBAgentWallParkourStateNew::apply_pose(AgentProceduralAnimator::AgentProced
 
 	agent->set_global_position(p_pose.skeleton_trf.origin + p_pose.skeleton_position_offset);
 	agent->set_graphics_rotation(p_pose.skeleton_trf.basis);
+
+	debug_draw_sphere(p_pose.skeleton_trf.origin);
+	debug_draw_sphere(p_pose.skeleton_trf.origin + p_pose.skeleton_position_offset, 0.05f, Color("BLUE"));
 }
 
 
@@ -2942,6 +2349,7 @@ void HBAgentWallParkourStateNew::find_initial_pose(WallParkourInitialPose &p_pos
 	const Transform3D wp_trf = wp->get_transform();
 	Transform3D root_trf_local = wp_trf.affine_inverse() * reference_pose->get_bone_transform("root", get_epas_controller()->get_base_pose());
 	p_pose.pose.skeleton_trf = p_point->get_global_transform() * root_trf_local;
+	p_pose.pose.skeleton_trf.basis = Quaternion(Vector3(0.0, 0.0, -1.0f), p_pose.pose.skeleton_trf.basis.xform(Vector3(0.0, 0.0, 1.0f)));
 
 	for (int i = 0; i < AgentProceduralAnimator::LIMB_MAX; i++) {
 		StringName bone_name = AgentProceduralAnimator::limb_to_bone_name(static_cast<AgentProceduralAnimator::AgentLimb>(i));
@@ -2949,9 +2357,9 @@ void HBAgentWallParkourStateNew::find_initial_pose(WallParkourInitialPose &p_pos
 		hand_trf_local = wp_trf.affine_inverse() * hand_trf_local;
 		p_pose.pose.ik_targets[i] = p_point->get_global_transform() * hand_trf_local;
 		if (i <= AgentProceduralAnimator::LIMB_RIGHT_HAND) {
-			p_pose.pose.ik_magnet_positions[i] = Vector3(0.0f, -1.0f, 0.0f);
+			p_pose.pose.ik_magnet_positions[i] = get_agent()->get_global_position() + get_agent()->get_graphics_rotation().xform(Vector3(0.0f, -1.0f, 0.0f));
 		} else {
-			p_pose.pose.ik_magnet_positions[i] = Vector3(0.0f, -1.0f, 0.0f);
+			p_pose.pose.ik_magnet_positions[i] = get_agent()->get_global_position() + get_agent()->get_graphics_rotation().xform(Vector3(0.0f, -1.0f, 0.0f));
 		}
 		p_pose.parkour_points[i] = const_cast<HBAgentParkourPoint*>(p_point);
 	}
@@ -2976,11 +2384,10 @@ void HBAgentWallParkourStateNew::update_animator(const AgentProceduralAnimator::
 	}
 	animator_options.starting_skeleton_transform.origin = get_agent()->get_global_position();
 	animator_options.starting_skeleton_transform.basis = get_agent()->get_graphics_rotation();
-	animator_options.target_skeleton_transform.basis = Quaternion(Vector3(0.0, 0.0, -1.0f), target_pose.pose.skeleton_trf.basis.xform(Vector3(0.0, 0.0, 1.0f)));
-	animator_options.target_skeleton_transform.origin = target_pose.pose.skeleton_trf.origin;
+	animator_options.target_skeleton_transform = target_pose.pose.skeleton_trf;
 
 	animator_options.limb_animation_timings[p_limb_to_move][0] = 0.15f;
-	animator_options.limb_animation_timings[p_limb_to_move][1] = 1.0f;
+	animator_options.limb_animation_timings[p_limb_to_move][1] = 1.0f; 
 	const AgentProceduralAnimator::AgentLimb foot_to_move = p_limb_to_move == AgentProceduralAnimator::LIMB_LEFT_HAND ? AgentProceduralAnimator::LIMB_LEFT_FOOT : AgentProceduralAnimator::LIMB_RIGHT_FOOT;
 	
 	const AgentProceduralAnimator::AgentLimb hand_to_stay = p_limb_to_move == AgentProceduralAnimator::LIMB_LEFT_HAND ? AgentProceduralAnimator::LIMB_RIGHT_HAND : AgentProceduralAnimator::LIMB_LEFT_HAND;
@@ -3014,8 +2421,7 @@ void HBAgentWallParkourStateNew::update_animator_initial() {
 		animator_options.limb_animation_timings[i][1] = 0.0f;
 		animator_options.limb_dangle_status[i] = false;
 	}
-	animator_options.target_skeleton_transform.basis = Quaternion(Vector3(0.0, 0.0, -1.0f), target_pose.pose.skeleton_trf.basis.xform(Vector3(0.0, 0.0, 1.0f)));
-	animator_options.target_skeleton_transform.origin = target_pose.pose.skeleton_trf.origin;
+	animator_options.target_skeleton_transform = target_pose.pose.skeleton_trf;
 	animator_options.starting_skeleton_transform.origin = animator_options.target_skeleton_transform.origin;
 	animator_options.starting_skeleton_transform.basis = animator_options.target_skeleton_transform.basis;
 }
@@ -3046,11 +2452,10 @@ void HBAgentWallParkourStateNew::calculate_magnet_for_limbs(AgentProceduralAnima
 		if (i <= AgentProceduralAnimator::AgentLimb::LIMB_RIGHT_HAND) {
 			// Hands
 			p_pose.ik_magnet_positions[i] = p_pose.ik_targets[i].origin;
-			p_pose.ik_magnet_positions[i].y -= 3.0f;
+			p_pose.ik_magnet_positions[i].y -= 1.0f;
 		} else {
 			// Feet
-			p_pose.ik_magnet_positions[i] = p_pose.ik_targets[i].xform(Vector3(0.0f, 3.0f, 0.0f));
-			p_pose.ik_magnet_positions[i].y += 3.0f;
+			p_pose.ik_magnet_positions[i] = p_pose.ik_targets[i].origin + Vector3(0.0f, 1.0f, 0.0f);
 		}
 	}
 }
@@ -3062,7 +2467,6 @@ void HBAgentWallParkourStateNew::enter(const Dictionary &p_args) {
 	find_initial_pose(target_pose, starting_parkour_node);
 	get_movement_transition_node()->transition_to(HBAgentConstants::MOVEMENT_PARKOUR_CAT);
 	Transform3D new_graphics_trf = target_pose.pose.skeleton_trf;
-	new_graphics_trf.basis = Quaternion(Vector3(0.0, 0.0, -1.0f), new_graphics_trf.basis.xform(Vector3(0.0, 0.0, 1.0f)));
 	get_agent()->inertialize_graphics_transform(new_graphics_trf, 0.25f);
 	Ref<EPASLookatNode> lookat_node = get_epas_controller()->get_epas_node(ASN()->lookat_head_node_name);
 	lookat_node->set_influence(0.0f);
@@ -3072,9 +2476,9 @@ void HBAgentWallParkourStateNew::enter(const Dictionary &p_args) {
 	update_animator_initial();
 
 	for (int i = 0; i < AgentProceduralAnimator::AgentLimb::LIMB_MAX; i++) {
-		animator_options.limb_position_spring_halflifes[i] = 0.1f;
+		animator_options.limb_position_spring_halflifes[i] = 0.2f;
 	}
-	animator_options.skeleton_position_spring_halflife = 0.15f;
+	animator_options.skeleton_position_spring_halflife = 0.1f;
 	animator.set_animation_duration(0.4f);
 	animator.restart();
 	back_straightness_target = 0.0f;
@@ -3087,6 +2491,10 @@ void HBAgentWallParkourStateNew::enter(const Dictionary &p_args) {
 	AgentProceduralAnimator::AgentProceduralPose op;
 	animator.get_output_pose(op);
 	apply_pose(op);
+
+	straight_side_target = 0.0f;
+	straight_side_blend_node = 0.0f;
+	straight_side_blend_node = get_epas_controller()->get_epas_node("WallParkourCatStraight");
 }
 
 void HBAgentWallParkourStateNew::exit() {
@@ -3111,8 +2519,12 @@ void HBAgentWallParkourStateNew::physics_process(float p_delta) {
 	};
 
 	float back_straightness = back_straightness_blend_node->get_blend_amount();
-	HBSprings::critical_spring_damper_exact(&back_straightness, &back_straightness_velocity, back_straightness_target, 0.5f, p_delta);
+	HBSprings::critical_spring_damper_exact(&back_straightness, &back_straightness_velocity, back_straightness_target, 0.15f, p_delta);
 	back_straightness_blend_node->set_blend_amount(back_straightness);
+
+	float shoulder_side = straight_side_blend_node->get_blend_amount();
+	HBSprings::critical_spring_damper_exact(&shoulder_side, &straight_side_velocity, straight_side_target, 0.15f, p_delta);
+	straight_side_blend_node->set_blend_amount(shoulder_side);
 
 	debug_draw_clear();
 
@@ -3128,19 +2540,17 @@ void HBAgentWallParkourStateNew::physics_process(float p_delta) {
 	animator.get_output_pose(pose);
 	apply_pose(pose);
 
-	for(int i = 0; i < AgentProceduralAnimator::AgentLimb::LIMB_MAX; i++) {
-		debug_draw_sphere(pose.ik_magnet_positions[i], 0.05f, Color("RED"));
-	}
-
 	bool animator_just_finished = !animator_was_finished && animator.is_done();
 	bool are_hands_together = target_pose.parkour_points[AgentProceduralAnimator::LIMB_LEFT_HAND] == target_pose.parkour_points[AgentProceduralAnimator::LIMB_RIGHT_HAND];
 
 	int vertical_component = 0;
 	int horizontal_component = 0;
 
+	Vector3 snapped_untransformed_dir;
+
 	if (!input.is_zero_approx()){
 		const float snapped_angle = Math::snapped(input.signed_angle_to(Vector3(0.0, 1.0, 0.0), Vector3(0.0f, 0.0f, -1.0f)), Math::deg_to_rad(45.0f));
-		const Vector3 snapped_untransformed_dir = Vector3(0.0f, 1.0f, 0.0f).rotated(Vector3(0.0f, 0.0f, 1.0f), snapped_angle);
+		snapped_untransformed_dir = Vector3(0.0f, 1.0f, 0.0f).rotated(Vector3(0.0f, 0.0f, 1.0f), snapped_angle);
 		vertical_component = Math::is_zero_approx(snapped_untransformed_dir.y) ? 0 : SIGN(snapped_untransformed_dir.y);
 		horizontal_component = Math::is_zero_approx(snapped_untransformed_dir.x) ? 0 : SIGN(snapped_untransformed_dir.x);
 	}
@@ -3201,9 +2611,72 @@ void HBAgentWallParkourStateNew::physics_process(float p_delta) {
 		Vector3 snapped_dir = Vector3(0.0f, 1.0f, 0.0f).rotated(sampling_source_trf.basis.xform(Vector3(0.0f, 0.0f, -1.0f)), snapped_angle);
 		snapped_dir.normalize();
 
-		const float SHORT_GRAB_REACH = 0.5f;
+		if (vertical_component > 0) {
+			// Try to grab a ledge above
+			HBAgentParkourLedge *ledge = nullptr;
+			float offset;
+
+			if (find_reachable_parkour_ledge(sampling_source_limb, snapped_dir, SHORT_GRAB_REACH, &ledge, offset)) {
+				Dictionary args;
+				args[HBAgentWallTransitionState::PARAM_LEDGE] = ledge;
+				args[HBAgentWallTransitionState::PARAM_LEDGE_OFFSET] = offset;
+				args[HBAgentWallTransitionState::PARAM_TRANSITION_MODE] = HBAgentWallTransitionState::TransitionMode::TO_LEDGE;
+				args[HBAgentWallTransitionState::PARAM_FIRST_HAND] = AgentProceduralAnimator::AgentLimb::LIMB_RIGHT_HAND;
+
+				if (!are_hands_together) {
+					AgentProceduralAnimator::AgentLimb limb_to_move = sampling_source_limb;
+					limb_to_move = limb_to_move == AgentProceduralAnimator::LIMB_LEFT_HAND ? AgentProceduralAnimator::LIMB_RIGHT_HAND : AgentProceduralAnimator::LIMB_LEFT_HAND;
+					args[HBAgentWallTransitionState::PARAM_FIRST_HAND] = limb_to_move;
+				}
+
+
+				HBAgentWallTransitionState *new_state = Object::cast_to<HBAgentWallTransitionState>(state_machine->get_state(ASN()->wall_parkour_transition_state));
+				
+				AgentProceduralAnimator::AgentProceduralPose new_pose;
+				new_pose.skeleton_trf = animator_options.target_skeleton_transform;
+				for(int i = 0; i < AgentProceduralAnimator::LIMB_MAX; i++) {
+					new_pose.ik_targets[i] = animator_options.target_limb_transforms[i];
+					new_pose.ik_magnet_positions[i] = pose.ik_magnet_positions[i];
+				}
+				new_state->set_starting_pose(new_pose);
+
+				state_machine->transition_to(ASN()->wall_parkour_transition_state, args);
+				return;
+			}
+
+			if (find_reachable_parkour_ledge(sampling_source_limb, snapped_dir, LONG_GRAB_REACH, &ledge, offset)) {
+				StringName animation_node_name = ASN()->wallparkour_up_long_jump_animation_node;
+
+				Dictionary args;
+				args[HBAgentRootMotionState::PARAM_TRANSITION_NODE_INDEX] = HBAgentConstants::MOVEMENT_WALLPARKOUR_UP_LONG_JUMP;
+				args[HBAgentRootMotionState::PARAM_ANIMATION_NODE_NAME] = ASN()->wallparkour_up_long_jump_animation_node;
+
+				Dictionary state_args;
+				state_args[HBAgentLedgeGrabbedStateNew::PARAM_LEDGE] = ledge;
+				state_args["OFFSET_TEST"] = offset;
+
+				args[HBAgentRootMotionState::PARAM_NEXT_STATE_ARGS] = state_args;
+				args[HBAgentRootMotionState::PARAM_NEXT_STATE] = ASN()->ledge_grabbed_state;
+
+				Dictionary wp_points;
+				Transform3D ledge_trf = ledge->get_ledge_transform_at_offset(offset);
+				ledge_trf.basis = Basis::looking_at(ledge_trf.basis.xform(Vector3(0.0f, 0.0f, 1.0f)));
+				wp_points[ASN()->wall_parkour_cat_point_wp_name] = ledge_trf;
+
+				args[HBAgentRootMotionState::PARAM_WARP_POINTS] = wp_points;
+
+				state_machine->transition_to(ASN()->root_motion_state, args);
+				return;
+			}
+		}
 
 		HBAgentParkourPoint *point_to_reach = find_reachable_parkour_point(sampling_source_limb, snapped_dir, SHORT_GRAB_REACH);
+		
+		if (!point_to_reach) {
+			const Vector3 sampling_source_fwd = sampling_source_trf.basis.xform(Vector3(0.0f, 0.0f, 1.0f));
+			Vector3 rot_y = sampling_source_fwd.cross(snapped_dir).normalized();
+			point_to_reach = find_reachable_parkour_point(sampling_source_limb, snapped_dir.rotated(rot_y, Math::deg_to_rad(-45.0f)), SHORT_GRAB_REACH);
+		}
 
 		if (point_to_reach) {
 			debug_draw_sphere(point_to_reach->get_global_position(), 0.05f, Color("HOTPINK"));
@@ -3245,12 +2718,17 @@ void HBAgentWallParkourStateNew::physics_process(float p_delta) {
 			} else {
 				back_straightness_target = 0.0f;
 			}
+
+			if (limb_to_move == AgentProceduralAnimator::LIMB_LEFT_HAND) {
+				straight_side_target = 0.0f;
+			} else {
+				straight_side_target = 1.0f;
+			}
 			animator.reset();
 			current_parkour_point_target = point_to_reach;
 			current_limb = limb_to_move;
 		} else {
 			// Try if we can find a point to long jump to
-			const float LONG_GRAB_REACH = 1.5f;
 			HBAgentParkourPoint* long_grab_point = find_reachable_parkour_point(sampling_source_limb, snapped_dir, LONG_GRAB_REACH);
 
 			StringName animation_node_name = ASN()->wallparkour_up_long_jump_animation_node;
@@ -3297,6 +2775,10 @@ void HBAgentWallParkourStateNew::physics_process(float p_delta) {
 	}
 }
 bool HBAgentWallParkourStateNew::_handle_parkour_mid() {
+	if  (!get_agent()->is_action_pressed(HBAgent::AgentInputAction::INPUT_ACTION_RUN)) {
+		return false;
+	}
+
 	const Vector3 input = get_agent()->get_graphics_rotation().xform(Vector3(get_agent()->get_movement_input().x, 0.0f, 0.0f).normalized());
 	if (input.length_squared() == 0.0f) {
 		return false;
@@ -3363,6 +2845,7 @@ bool HBAgentWallParkourStateNew::_handle_parkour_mid() {
 			return true;
 		}
 
+
 		if (first_hit) {
 			break;
 		}
@@ -3396,6 +2879,8 @@ HBAgentParkourPoint* HBAgentWallParkourStateNew::find_reachable_parkour_point(co
 	int result_count = dss->intersect_shape(shape_params, results.ptrw(), MAX_RESULTS);
 	HBAgentParkourPoint *point_to_reach = nullptr;
 
+	const_cast<HBAgentWallParkourStateNew*>(this)->debug_draw_cast_motion(cyl_shape, shape_params);
+
 	// Now find the closest point
 	for (int i = 0; i < result_count; i++) {
 		HBAgentParkourPoint *pp = Object::cast_to<HBAgentParkourPoint>(results[i].collider);
@@ -3409,12 +2894,18 @@ HBAgentParkourPoint* HBAgentWallParkourStateNew::find_reachable_parkour_point(co
 				goto skip_iter;
 			}
 		}
+
+		if (p_direction.angle_to(sampling_source_trf.origin.direction_to(pp->get_global_position())) > Math::deg_to_rad(45.0f)) {
+			continue;
+		}
 		
 		if (point_to_reach) {
 			// Perhaps we should project the hit nodes onto the input direction to use as a distance...
 			const float distance_to_current_point = sampling_source_trf.origin.distance_to(point_to_reach->get_global_position());
 			const float distance_to_candidate_point = sampling_source_trf.origin.distance_to(pp->get_global_position());
-			if (distance_to_candidate_point > distance_to_current_point) {
+			const float angle_to_current_point = sampling_source_trf.origin.direction_to(point_to_reach->get_global_position()).angle_to(p_direction);
+			const float angle_to_candidate_point = sampling_source_trf.origin.direction_to(pp->get_global_position()).angle_to(p_direction);
+			if (distance_to_candidate_point > distance_to_current_point || angle_to_candidate_point > angle_to_current_point) {
 				continue;
 			}
 		}
@@ -3424,5 +2915,185 @@ HBAgentParkourPoint* HBAgentWallParkourStateNew::find_reachable_parkour_point(co
 	}
 	return point_to_reach;
 }
+bool HBAgentWallParkourStateNew::find_reachable_parkour_ledge(const AgentProceduralAnimator::AgentLimb p_sampling_limb, const Vector3 &p_direction, const float &p_reach, HBAgentParkourLedge **r_ledge, float &r_offset) {
+	HBAgent *agent = get_agent();
+
+	const Transform3D sampling_source_trf = target_pose.parkour_points[p_sampling_limb]->get_global_transform();
+
+	Ref<CylinderShape3D> cyl_shape;
+	cyl_shape.instantiate();
+
+	cyl_shape->set_height(p_reach);
+	cyl_shape->set_radius(agent->get_radius());
+	
+	PhysicsDirectSpaceState3D::ShapeParameters shape_params;
+	shape_params.transform.origin = sampling_source_trf.origin + p_direction * p_reach * 0.5f; 
+	shape_params.transform.basis = Quaternion(Vector3(0.0f, 1.0f, 0.0f), p_direction);
+	shape_params.shape_rid = cyl_shape->get_rid();
+	shape_params.collision_mask = HBPhysicsLayers::LAYER_PARKOUR_NODES;
+	shape_params.collide_with_bodies = false;
+	shape_params.collide_with_areas = true;
+
+	constexpr int static MAX_RESULTS = 10;
+	Vector<PhysicsDirectSpaceState3D::ShapeResult> results;
+	results.resize(MAX_RESULTS);
+
+	PhysicsDirectSpaceState3D *dss = agent->get_world_3d()->get_direct_space_state();
+	int result_count = dss->intersect_shape(shape_params, results.ptrw(), MAX_RESULTS);
+
+	const_cast<HBAgentWallParkourStateNew*>(this)->debug_draw_cast_motion(cyl_shape, shape_params);
+
+	// Now find the closest point
+	for (int i = 0; i < result_count; i++) {
+		HBAgentParkourLedge *pl = Object::cast_to<HBAgentParkourLedge>(results[i].collider);
+
+		if (!pl) {
+			continue;
+		}
+
+		*r_ledge = pl;
+		r_offset = pl->get_closest_offset(get_agent()->get_global_position());
+
+		return true;
+	}
+
+	return false;
+}
 HBAgentWallParkourStateNew::HBAgentWallParkourStateNew() {
+}
+
+void HBAgentWallTransitionState::set_starting_pose(const AgentProceduralAnimator::AgentProceduralPose &p_starting_pose) {
+	starting_pose = p_starting_pose;
+}
+
+void HBAgentWallTransitionState::apply_animator_pose(bool p_inertialize_transform) {
+	AgentProceduralAnimator::AgentProceduralPose out_pose;
+	animator.get_output_pose(out_pose);
+
+	calculate_magnet_for_limbs(out_pose);
+
+	Ref<EPASIKNode> ik_nodes[AgentProceduralAnimator::LIMB_MAX] = {
+		get_epas_controller()->get_epas_node(ASN()->left_hand_ik_node),
+		get_epas_controller()->get_epas_node(ASN()->right_hand_ik_node),
+		get_epas_controller()->get_epas_node(ASN()->left_foot_ik_node),
+		get_epas_controller()->get_epas_node(ASN()->right_foot_ik_node),
+	};
+	for (int i = 0; i < AgentProceduralAnimator::AgentLimb::LIMB_MAX; i++) {
+		ik_nodes[i]->set_ik_influence(1.0f);
+		ik_nodes[i]->set_magnet_position(out_pose.ik_magnet_positions[i]);
+		ik_nodes[i]->set_target_transform(out_pose.ik_targets[i]);
+	}
+
+	if (!p_inertialize_transform) {
+		get_agent()->set_global_position(out_pose.skeleton_trf.origin);
+		get_agent()->set_graphics_rotation(out_pose.skeleton_trf.basis);
+	} else {
+		Transform3D trf = out_pose.skeleton_trf;
+		get_agent()->inertialize_graphics_transform(trf, 0.1f);
+	}
+}
+
+void HBAgentWallTransitionState::calculate_magnet_for_limbs(AgentProceduralAnimator::AgentProceduralPose &p_pose) {
+	for (int i = 0; i < AgentProceduralAnimator::AgentLimb::LIMB_MAX; i++) {
+		if (i <= AgentProceduralAnimator::AgentLimb::LIMB_RIGHT_HAND) {
+			// Hands
+			p_pose.ik_magnet_positions[i] = p_pose.ik_targets[i].origin;
+			p_pose.ik_magnet_positions[i].y -= 3.0f;
+		} else {
+			// Feet
+			p_pose.ik_magnet_positions[i] = p_pose.ik_targets[i].origin + Vector3(0.0f, 3.0f, 0.0f);
+			p_pose.ik_magnet_positions[i] += get_agent()->get_graphics_rotation().xform(Vector3(0.0f, 0.0f, -3.0f));
+		}
+	}
+}
+
+void HBAgentWallTransitionState::enter(const Dictionary &p_args) {
+	DEV_ASSERT(p_args.has(PARAM_TRANSITION_MODE));
+	transition_mode = (TransitionMode)(int)p_args.get(PARAM_TRANSITION_MODE, Variant());
+	
+	AgentProceduralAnimator::AgentProceduralPose end_pose;
+
+	if (transition_mode == TO_LEDGE) {
+		ledge = Object::cast_to<HBAgentParkourLedge>(p_args.get(PARAM_LEDGE, Variant()));
+		DEV_ASSERT(ledge != nullptr);
+		DEV_ASSERT(p_args.has(PARAM_LEDGE_OFFSET));
+		ledge_offset = p_args.get(PARAM_LEDGE_OFFSET, 0.0f);
+		DEV_ASSERT(p_args.has(PARAM_FIRST_HAND));
+		first_hand = (AgentProceduralAnimator::AgentLimb)(int)p_args.get((int)PARAM_FIRST_HAND, Variant());
+		DEV_ASSERT(first_hand <= AgentProceduralAnimator::LIMB_RIGHT_HAND);
+		HBAgentLedgeGrabbedStateNew *ledge_state = Object::cast_to<HBAgentLedgeGrabbedStateNew>(state_machine->get_state(ASN()->ledge_grabbed_state));
+		ledge_state->get_initial_pose_for_edge(ledge, end_pose, ledge_offset);
+	} else if (transition_mode == TO_WALL) {
+		parkour_point = Object::cast_to<HBAgentParkourPoint>(p_args.get(HBAgentWallTransitionState::PARAM_PARKOUR_POINT, Variant()));
+		DEV_ASSERT(parkour_point);
+		HBAgentWallParkourStateNew *wall_parkour_state = Object::cast_to<HBAgentWallParkourStateNew>(state_machine->get_state(ASN()->wall_parkour_state));
+		HBAgentWallParkourStateNew::WallParkourInitialPose initial_pose;
+		wall_parkour_state->find_initial_pose(initial_pose, parkour_point);
+		end_pose = initial_pose.pose;
+		first_hand = AgentProceduralAnimator::LIMB_RIGHT_HAND;
+	}
+
+
+	for (int i = 0; i < AgentProceduralAnimator::LIMB_MAX; i++) {
+		animator_options.starting_limb_transforms[i] = starting_pose.ik_targets[i];
+		animator_options.target_limb_transforms[i] = end_pose.ik_targets[i];
+		relative_magnet_pos[i] = end_pose.ik_magnet_positions[i] - get_skeleton()->get_global_position();
+	}
+	animator_options.starting_skeleton_transform = starting_pose.skeleton_trf;
+	animator_options.target_skeleton_transform = end_pose.skeleton_trf;
+
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_LEFT_HAND][0] = 0.5f;
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_LEFT_HAND][1] = 0.9f;
+
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_RIGHT_HAND][0] = 0.0f;
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_RIGHT_HAND][1] = 0.4f;
+
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_LEFT_FOOT][0] = 0.6f;
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_LEFT_FOOT][1] = 1.0f;
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_RIGHT_FOOT][0] = 0.1f;
+	animator_options.limb_animation_timings[AgentProceduralAnimator::LIMB_RIGHT_FOOT][1] = 0.5f;
+
+	if (first_hand == AgentProceduralAnimator::LIMB_LEFT_HAND) {
+		for (int i = 0; i < 2; i++) {
+			AgentProceduralAnimator::AgentLimb hand = static_cast<AgentProceduralAnimator::AgentLimb>(i);
+			AgentProceduralAnimator::AgentLimb foot = static_cast<AgentProceduralAnimator::AgentLimb>(i+2);
+			for (int j = 0; j < 2; j++) {
+				SWAP(animator_options.limb_animation_timings[hand][j], animator_options.limb_animation_timings[hand+1][j]);
+				SWAP(animator_options.limb_animation_timings[foot][j], animator_options.limb_animation_timings[foot+1][j]);
+			}
+		}
+	}
+	
+	for (int i = 0; i < AgentProceduralAnimator::AgentLimb::LIMB_MAX; i++) {
+		animator_options.limb_position_spring_halflifes[i] = 0.05f;
+	}
+	animator_options.skeleton_position_spring_halflife = 0.0f;
+
+	animator.set_animation_duration(0.8f);
+	animator.restart();
+
+	//get_movement_transition_node()->transition_to(HBAgentConstants::MovementTransitionInputs::MOVEMENT_WALLGRABBED);
+	get_inertialization_node()->inertialize(0.25f);
+
+	animator.process(animator_options, 0.0f);
+	apply_animator_pose(true);
+}
+
+void HBAgentWallTransitionState::physics_process(float p_delta) {
+	animator.process(animator_options, p_delta);
+	apply_animator_pose();
+	if (animator.is_done() && animator.have_springs_converged()) {
+		if (transition_mode == TO_LEDGE) {
+			Dictionary args;
+			args[HBAgentLedgeGrabbedStateNew::PARAM_LEDGE] = ledge;
+			state_machine->transition_to(ASN()->ledge_grabbed_state, args);
+		} else {
+			Dictionary args;
+			args[HBAgentWallParkourStateNew::PARAM_PARKOUR_NODE] = parkour_point;
+			state_machine->transition_to(ASN()->wall_parkour_state, args);
+		}
+	}
+
+	for(int i = 0; i < 4; i++) {
+	}
 }

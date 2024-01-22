@@ -114,7 +114,7 @@ void EPASLookatNode::reset() {
 #include "modules/imgui/godot_imgui.h"
 
 void EPASLookatNode::_debug_node_draw() const {
-	ImGui::SliderFloat("Spring HalfLife", &(const_cast<EPASLookatNode *>(this)->spring_halflife), 0.01f, 4.0f);
+	//ImGui::SliderFloat("Spring HalfLife", &(const_cast<EPASLookatNode *>(this)->spring_halflife), 0.01f, 4.0f);
 }
 
 #endif

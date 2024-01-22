@@ -43,32 +43,36 @@ public:
 		Transform3D starting_skeleton_transform;
 		Transform3D target_skeleton_transform;
 
+		bool use_average_for_skeleton_trf = false;
+
 		float playback_direction = 1.0f;
 	};
+	struct AnimatorState {
+		// Unsprung transform, this is what's actually animated by us
+		Transform3D limb_transforms[LIMB_MAX] = {};
+		// (Potentially) sprung transform
+		Vector3 limb_position_spring_velocities[LIMB_MAX] = {};
+		Vector3 limb_rotation_spring_velocities[LIMB_MAX] = {};
+		Transform3D limb_output_transforms[LIMB_MAX] = {};
 
+		// Unsprung skeleton transform
+		Transform3D skeleton_transform;
+		Vector3 skeleton_position_offset;
+		Vector3 skeleton_position_offset_target;
+		Vector3 skeleton_position_spring_velocity;
+		Vector3 skeleton_position_offset_spring_velocity;
+		Vector3 skeleton_rotation_spring_velocity;
+		// Sprung skeleton transform
+		Transform3D skeleton_output_transform;
+		// This means we should reset the sprung positions next time around
+		bool restart_queued = true;
+	};
 private:
 	void _advance_animation(AgentProceduralAnimOptions &p_options, float p_delta);
 	void _process_springs(AgentProceduralAnimOptions &p_options, float p_delta);
 	float animation_time = 0.0f;
 	float animation_duration = 1.0f;
-	// Unsprung transform, this is what's actually animated by us
-	Transform3D limb_transforms[LIMB_MAX] = {};
-	// (Potentially) sprung transform
-	Vector3 limb_position_spring_velocities[LIMB_MAX] = {};
-	Vector3 limb_rotation_spring_velocities[LIMB_MAX] = {};
-	Transform3D limb_output_transforms[LIMB_MAX] = {};
-
-	// Unsprung skeleton transform
-	Transform3D skeleton_transform;
-	Vector3 skeleton_position_offset;
-	Vector3 skeleton_position_offset_target;
-	Vector3 skeleton_position_spring_velocity;
-	Vector3 skeleton_position_offset_spring_velocity;
-	Vector3 skeleton_rotation_spring_velocity;
-	// Sprung skeleton transform
-	Transform3D skeleton_output_transform;
-	// This means we should reset the sprung positions next time around
-	bool restart_queued = true;
+	AnimatorState animator_state;
 	static float get_limb_weight(float p_time) {
 		if (p_time <= 0.0f || p_time >= 1.0f) {
 			return 1.0f;
@@ -78,6 +82,7 @@ private:
 	}
 
 public:
+	bool have_springs_converged() const;
 	void process(AgentProceduralAnimOptions &p_options, float p_delta);
 	bool is_done() const;
 	void get_output_pose(AgentProceduralPose &p_pose) const;
@@ -85,9 +90,9 @@ public:
 	void set_pose(const AgentProceduralPose &p_pose);
 	float get_limb_time(const AgentProceduralAnimOptions &p_options, const AgentLimb &p_limb) const;
 	float get_playback_position() const;
-	// Restarts animation playback from 0
-	void restart();
 	// Restarts animation playback from 0 and resets all springs
+	void restart();
+	// Restarts animation playback from 0
 	void reset();
 	void seek(float p_playback_position);
 
@@ -115,6 +120,8 @@ public:
 
 	float get_animation_duration() const;
 	void set_animation_duration(float p_animation_duration);
+	AnimatorState get_animator_state();
+	void set_animator_state(const AnimatorState &p_animator_state);
 };
 
 #endif // AGENT_PROCEDURAL_ANIM_H

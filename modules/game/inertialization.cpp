@@ -1,5 +1,9 @@
 #include "inertialization.h"
 #include "animation_system/epas_animation.h"
+#include "core/error/error_macros.h"
+#include "core/math/quaternion.h"
+#include "core/string/print_string.h"
+#include "core/string/string_name.h"
 
 static String rot = "";
 
@@ -25,13 +29,26 @@ static float inertialize(float p_x0, float p_v0, float p_blend_time, float p_t) 
 void RotationInertializer::_bind_methods() {
 	ClassDB::bind_static_method("RotationInertializer", D_METHOD("create", "prev_prev", "prev", "target", "transition_time", "delta"), &RotationInertializer::create);
 	ClassDB::bind_method(D_METHOD("advance", "delta"), &RotationInertializer::advance);
+	ClassDB::bind_method(D_METHOD("advance_cock", "delta"), &RotationInertializer::advance_cock);
 	ClassDB::bind_method(D_METHOD("is_done"), &RotationInertializer::is_done);
 }
 
+static bool hack = false;
+
+Quaternion RotationInertializer::advance_cock(float p_delta) {
+	hack = true;
+	Quaternion cock = advance(p_delta);
+	hack = false;
+	
+	return cock;
+}
 Quaternion RotationInertializer::advance(float p_delta) {
 	current_transition_time += p_delta;
 	current_transition_time = MIN(current_transition_time, transition_duration);
+
 	float rot_x = inertialize(rotation_offset_angle, rotation_velocity, transition_duration, current_transition_time);
+	rot_x = MAX(rot_x, 0.0f);
+	DEV_ASSERT(rotation_offset_angle >= -0.001f);
 	Quaternion rot_off = Quaternion(rotation_offset_axis, rot_x);
 	return rot_off;
 }
@@ -61,6 +78,9 @@ void quat_to_angle_axis(Quaternion q, float &angle, Vector3 &axis, float eps = 1
 }
 
 Ref<RotationInertializer> RotationInertializer::create(const Quaternion &p_prev_prev, const Quaternion &p_prev, const Quaternion &p_target, float p_duration, float p_delta) {
+	if (p_prev.angle_to(p_target) < Math::deg_to_rad(1.0f)) {
+		return nullptr;
+	}
 	Ref<RotationInertializer> in;
 	in.instantiate();
 
@@ -146,10 +166,16 @@ bool EPASPoseInertializer::advance(Ref<EPASPose> p_target_pose, const Ref<EPASPo
 			done = !pos_inertializer->is_done() ? false : done;
 		}
 		if (transition_infos[i].rotation_inertializer.is_valid() && !transition_infos[i].rotation_inertializer->is_done()) {
+			if (transition_infos[i].bone_name == StringName("thigh.R")) {
+				hack = true;
+			}
 			Ref<RotationInertializer> rot_inertializer = transition_infos[i].rotation_inertializer;
 			Quaternion bone_rot = p_target_pose->get_bone_rotation(bone_name, p_base_pose) * rot_inertializer->advance(p_delta);
 			p_target_pose->set_bone_rotation(bone_name, bone_rot);
 			done = !rot_inertializer->is_done() ? false : done;
+			if (transition_infos[i].bone_name == StringName("thigh.R")) {
+				hack = false;
+			}
 		}
 	}
 	return done;

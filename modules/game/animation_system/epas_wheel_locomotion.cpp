@@ -58,7 +58,7 @@ void EPASWheelLocomotion::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPA
 
 	if (!foot_ik_init && use_foot_ik) {
 		debug_geo = memnew(HBDebugGeometry);
-		debug_geo->show();
+		debug_geo->hide();
 		get_skeleton()->add_child(debug_geo);
 		debug_geo->set_as_top_level(true);
 		debug_geo->set_global_transform(Transform3D());

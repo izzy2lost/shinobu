@@ -32,7 +32,7 @@ void EPASIKNode::_bind_methods() {
 
 #ifdef DEBUG_ENABLED
 void EPASIKNode::_debug_node_draw() const {
-	ImGui::SetNextItemWidth(100.0f);
+	ImGui::SetNextItemWidth(50.0f);
 	ImGui::SliderFloat("IK Influence", &const_cast<EPASIKNode *>(this)->ik_influence, 0.0f, 1.0f);
 }
 #endif

@@ -17,6 +17,7 @@ protected:
 
 public:
 	Quaternion advance(float p_delta);
+	Quaternion advance_cock(float p_delta);
 	bool is_done() const;
 	float get_offset_angle() const;
 	Vector3 get_offset_axis() const;

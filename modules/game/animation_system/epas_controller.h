@@ -64,6 +64,8 @@ private:
 	MeshInstance3D *debug_skeleton_vis = nullptr;
 	int _get_skeleton_line_count(Skeleton3D *p_skel);
 	void _debug_update_skeleton_vis();
+	void _arrange_nodes();
+	int get_nodes_by_depth(Ref<EPASNode> p_node, Vector<Vector<Ref<EPASNode>>> &r_nodes_by_depth, int p_current_depth = 0) const;
 #endif
 	TypedArray<StringName> ignored_bones;
 

@@ -1,4 +1,5 @@
 #include "epas_inertialization_node.h"
+#include "core/string/print_string.h"
 #include "epas_animation.h"
 #include "modules/game/animation_system/epas_animation_editor.h"
 
@@ -37,7 +38,7 @@ void EPASInertializationNode::start_inertialization(const Ref<EPASPose> &p_base_
 	poses.set(EPASPoseInertializer::InertializationPose::PREV_POSE, last_frame_pose);
 	poses.set(EPASPoseInertializer::InertializationPose::TARGET_POSE, p_target_pose);
 
-	/*Ref<EPASEditorAnimation> polla;
+	Ref<EPASEditorAnimation> polla;
 	polla.instantiate();
 	Ref<EPASKeyframe> kf1 = memnew(EPASKeyframe);
 	kf1->set_time(0.0f);
@@ -53,7 +54,7 @@ void EPASInertializationNode::start_inertialization(const Ref<EPASPose> &p_base_
 	polla->add_keyframe(kf2);
 	polla->add_keyframe(kf3);
 	ResourceSaver::save(polla, "res://inertialization_dumped.tres");
-	*/
+	
 	pose_inertializer = EPASPoseInertializer::create(poses.ptr(), p_base_pose, desired_blend_time, p_delta, bone_filter);
 }
 
@@ -62,6 +63,7 @@ void EPASInertializationNode::process_input_pose_inertialized(int p_input, const
 
 	if (pose_inertializer.is_valid()) {
 		if (pose_inertializer->advance(p_target_pose, p_base_pose, p_delta)) {
+			print_line("INERT DONE AFTER", pose_inertializer->get_current_transition_time());
 			pose_inertializer = Ref<EPASPoseInertializer>();
 		}
 	}

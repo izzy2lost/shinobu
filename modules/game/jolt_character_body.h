@@ -40,7 +40,7 @@ public:
 	float get_floor_max_angle() const;
 	bool is_on_floor() const;
 	JPH::CharacterVirtual::EGroundState get_ground_state() const;
-	void update(float p_delta);
+	virtual void update(float p_delta);
 	Vector3 get_walk_stairs_step_up() const;
 	JoltCharacterBody3D();
 	~JoltCharacterBody3D();

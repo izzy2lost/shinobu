@@ -1,4 +1,5 @@
 #include "player_agent.h"
+#include "scene/3d/node_3d.h"
 #include "scene/main/viewport.h"
 #ifdef DEBUG_ENABLED
 #include "modules/imgui/godot_imgui.h"
