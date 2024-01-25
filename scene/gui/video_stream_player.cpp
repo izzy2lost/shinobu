@@ -259,6 +259,7 @@ void VideoStreamPlayer::set_stream(const Ref<VideoStream> &p_stream) {
 	if (!playback.is_null()) {
 		playback->set_paused(paused);
 		texture = playback->get_texture();
+		print_line("TEXTURE", texture);
 
 		const int channels = playback->get_channels();
 
