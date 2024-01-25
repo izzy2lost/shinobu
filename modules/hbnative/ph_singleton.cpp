@@ -1,4 +1,5 @@
 #include "ph_singleton.h"
+#include "servers/rendering/renderer_rd/api_context_rd.h"
 #include "thirdparty/linalg.h"
 
 PHNative *PHNative::singleton = NULL;
@@ -136,10 +137,24 @@ Ref<AudioStreamOggVorbis> PHNative::load_ogg_from_buffer(const Vector<uint8_t> &
 	return ogg_vorbis_stream;
 }
 
+String PHNative::get_rendering_api_name() {
+	return OS::get_singleton()->get_current_rendering_driver_name();
+	RenderingDevice *rd = RenderingDevice::get_singleton();
+	if (rd) {
+		ApiContextRD *crd = rd->get_context();
+		if (crd) {
+			return crd->get_api_name();
+		}
+	}
+
+	return "Unknown";
+}
+
 void PHNative::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("create_process", "path", "arguments", "working_directory", "open_stdin"), &PHNative::create_process, DEFVAL(Vector<String>()), DEFVAL(""), DEFVAL(false));
 	ClassDB::bind_static_method("PHNative", D_METHOD("load_ogg_from_file", "path"), &PHNative::load_ogg_from_file);
 	ClassDB::bind_static_method("PHNative", D_METHOD("load_ogg_from_buffer", "buffer"), &PHNative::load_ogg_from_buffer);
+	ClassDB::bind_static_method("PHNative", D_METHOD("get_rendering_api_name"), &PHNative::get_rendering_api_name);
 }
 
 PHNative::PHNative() {

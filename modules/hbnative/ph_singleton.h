@@ -22,6 +22,7 @@ public:
 	void linalg_test();
 	static Ref<AudioStreamOggVorbis> load_ogg_from_file(const String &p_path);
 	static Ref<AudioStreamOggVorbis> load_ogg_from_buffer(const Vector<uint8_t> &p_buffer);
+	static String get_rendering_api_name();
 	PHNative();
 };
 
