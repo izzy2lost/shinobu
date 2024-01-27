@@ -31,6 +31,7 @@
 #ifndef JOYPAD_WINDOWS_H
 #define JOYPAD_WINDOWS_H
 
+#include "core/os/mutex.h"
 #include "os_windows.h"
 
 #define DIRECTINPUT_VERSION 0x0800
@@ -56,6 +57,36 @@ public:
 	~JoypadWindows();
 
 	void probe_joypads();
+	static void process_joypads_thread_func(void *p_user);
+	void process_joypads_thread_run();
+	Thread joypad_events_thread;
+	SafeFlag joypad_events_exit;
+
+	enum JoypadEventType {
+		AXIS,
+		BUTTON,
+		HAT
+	};
+
+	struct JoypadEvent {
+		int id;
+		JoypadEventType type;
+		uint64_t timestamp;
+
+		union {
+			JoyAxis axis;
+			JoyButton button;
+		};
+		BitField<HatMask> hat_mask;
+
+		union {
+			float axis_value;
+			bool pressed;
+		};
+	};
+
+	Vector<JoypadEvent> joypad_event_queue;
+	Mutex joypad_event_queue_lock;
 	void process_joypads();
 
 private:
@@ -127,13 +158,16 @@ private:
 	void load_xinput();
 	void unload_xinput();
 
-	void post_hat(int p_device, DWORD p_dpad);
+	void post_hat(int p_device, DWORD p_dpad, uint64_t p_timestamp);
 
 	bool have_device(const GUID &p_guid);
 	bool is_xinput_device(const GUID *p_guid);
 	bool setup_dinput_joypad(const DIDEVICEINSTANCE *instance);
 	void joypad_vibration_start_xinput(int p_device, float p_weak_magnitude, float p_strong_magnitude, float p_duration, uint64_t p_timestamp);
 	void joypad_vibration_stop_xinput(int p_device, uint64_t p_timestamp);
+	void push_joy_button_event(int p_device, JoyButton p_button, bool p_pressed, uint64_t p_timestamp);
+	void push_joy_axis_event(int p_device, JoyAxis p_axis, float p_value, uint64_t p_timestamp);
+	void push_joy_hat_event(int p_device, BitField<HatMask> p_hat_mask, uint64_t p_timestamp);
 
 	float axis_correct(int p_val, bool p_xinput = false, bool p_trigger = false, bool p_negate = false) const;
 	XInputGetState_t xinput_get_state;
