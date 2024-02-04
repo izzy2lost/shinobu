@@ -80,6 +80,7 @@ class JoypadSDL {
 		JoypadType device_type;
 		JoypadEventType type;
 		SDL_JoystickID sdl_joystick_instance_id;
+		uint64_t timestamp;
 		union {
 			JoyAxis axis;
 			JoyButton button;

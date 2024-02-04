@@ -37,6 +37,7 @@
 #endif
 
 #include "core/input/default_controller_mappings.h"
+#include "core/os/time.h"
 #include "thirdparty/sdl_headers/SDL.h"
 
 void JoypadSDL::process_inputs_thread_func(void *p_userdata) {
@@ -139,6 +140,7 @@ void JoypadSDL::process_inputs_run() {
 						continue;
 					}
 					JoypadEvent joypad_event;
+					joypad_event.timestamp = Time::get_singleton()->get_ticks_usec();
 					joypad_event.type = JoypadEventType::AXIS;
 					// Godot joy axis constants are already intentionally the same as SDL's
 					joypad_event.axis = static_cast<JoyAxis>(e.jaxis.axis);
@@ -158,6 +160,7 @@ void JoypadSDL::process_inputs_run() {
 						continue;
 					}
 					JoypadEvent joypad_event;
+					joypad_event.timestamp = Time::get_singleton()->get_ticks_usec();
 					joypad_event.type = JoypadEventType::BUTTON;
 					joypad_event.sdl_joystick_instance_id = e.jbutton.which;
 					joypad_event.pressed = e.jbutton.state == SDL_PRESSED;
@@ -174,6 +177,7 @@ void JoypadSDL::process_inputs_run() {
 					}
 					// Godot hat masks are identical to SDL hat masks, so we can just use them as-is.
 					JoypadEvent joypad_event;
+					joypad_event.timestamp = Time::get_singleton()->get_ticks_usec();
 					joypad_event.type = JoypadEventType::HAT;
 					joypad_event.hat_mask = e.jhat.value;
 					joypad_event.sdl_joystick_instance_id = e.jhat.which;
@@ -183,6 +187,7 @@ void JoypadSDL::process_inputs_run() {
 				} break;
 				case SDL_CONTROLLERAXISMOTION: {
 					JoypadEvent joypad_event;
+					joypad_event.timestamp = Time::get_singleton()->get_ticks_usec();
 					joypad_event.type = JoypadEventType::AXIS;
 					// Godot joy axis constants are already intentionally the same as SDL's
 					joypad_event.axis = static_cast<JoyAxis>(e.caxis.axis);
@@ -206,6 +211,7 @@ void JoypadSDL::process_inputs_run() {
 				case SDL_CONTROLLERBUTTONUP:
 				case SDL_CONTROLLERBUTTONDOWN: {
 					JoypadEvent joypad_event;
+					joypad_event.timestamp = Time::get_singleton()->get_ticks_usec();
 					joypad_event.type = JoypadEventType::BUTTON;
 					joypad_event.sdl_joystick_instance_id = e.cbutton.which;
 					joypad_event.pressed = e.cbutton.state == SDL_PRESSED;
@@ -343,7 +349,7 @@ void JoypadSDL::process_events() {
 			case AXIS: {
 				if (sdl_instance_id_to_joypad_id.has(event.sdl_joystick_instance_id)) {
 					int joy_id = sdl_instance_id_to_joypad_id.get(event.sdl_joystick_instance_id);
-					input->joy_axis(joy_id, event.axis, event.value);
+					input->joy_axis(joy_id, event.axis, event.value, event.timestamp);
 				}
 			} break;
 
@@ -351,14 +357,14 @@ void JoypadSDL::process_events() {
 				if (sdl_instance_id_to_joypad_id.has(event.sdl_joystick_instance_id)) {
 					int joy_id = sdl_instance_id_to_joypad_id.get(event.sdl_joystick_instance_id);
 
-					input->joy_button(joy_id, event.button, event.pressed);
+					input->joy_button(joy_id, event.button, event.pressed, event.timestamp);
 				}
 			} break;
 			case HAT: {
 				if (sdl_instance_id_to_joypad_id.has(event.sdl_joystick_instance_id)) {
 					int joy_id = sdl_instance_id_to_joypad_id.get(event.sdl_joystick_instance_id);
 
-					input->joy_hat(joy_id, event.hat_mask);
+					input->joy_hat(joy_id, event.hat_mask, event.timestamp);
 				}
 			} break;
 		}
