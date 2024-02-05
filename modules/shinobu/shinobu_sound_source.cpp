@@ -5,6 +5,7 @@
 
 void ShinobuSoundSource::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("instantiate", "group", "use_source_channel_count"), &ShinobuSoundSource::instantiate, DEFVAL(false));
+	ClassDB::bind_method(D_METHOD("get_channel_count"), &ShinobuSoundSource::get_channel_count);
 	ClassDB::bind_method(D_METHOD("ebur128_get_loudness"), &ShinobuSoundSource::ebur128_get_loudness);
 }
 
@@ -40,6 +41,16 @@ float ShinobuSoundSource::ebur128_get_loudness() {
 	ma_sound_uninit(&sound);
 	print_line("Normalization done, took", (OS::get_singleton()->get_ticks_usec() - start) * 0.001, "milliseconds");
 	return loudness_global;
+}
+
+uint32_t ShinobuSoundSource::get_channel_count() const {
+	uint32_t channel_count;
+	// data sources cannot be reused, so this is the best we can do
+	ma_resource_manager_data_source source;
+	ma_resource_manager_data_source_init(ma_engine_get_resource_manager(Shinobu::get_singleton()->get_engine()), name.utf8(), 0, nullptr, &source);
+	ma_resource_manager_data_source_get_data_format(&source, nullptr, &channel_count, nullptr, nullptr, 0);
+	ma_resource_manager_data_source_uninit(&source);
+	return channel_count;
 }
 
 const String ShinobuSoundSource::get_name() const {

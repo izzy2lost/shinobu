@@ -1,5 +1,6 @@
-#ifndef SHINOBU_SOUND_DATA_H
-#define SHINOBU_SOUND_DATA_H
+
+#ifndef SHINOBU_SOUND_SOURCE_H
+#define SHINOBU_SOUND_SOURCE_H
 
 #include "thirdparty/miniaudio/miniaudio.h"
 #include <cstring>
@@ -32,6 +33,7 @@ public:
 	ShinobuSoundSource(String m_name);
 
 	float ebur128_get_loudness();
+	uint32_t get_channel_count() const;
 	virtual Error instantiate_sound(Ref<ShinobuGroup> m_group, bool use_source_channel_count, ma_sound *p_sound) = 0;
 
 	virtual ~ShinobuSoundSource();
@@ -48,4 +50,4 @@ public:
 	friend class ShinobuSoundPlayer;
 };
 
-#endif
+#endif // SHINOBU_SOUND_SOURCE_H
