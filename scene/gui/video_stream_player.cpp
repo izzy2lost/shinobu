@@ -155,7 +155,7 @@ void VideoStreamPlayer::_notification(int p_notification) {
 				return;
 			}
 
-			playback->update(delta); // playback->is_playing() returns false in the last video frame
+			playback->update(delta * playback_speed); // playback->is_playing() returns false in the last video frame
 
 			if (!playback->is_playing()) {
 				if (loop) {
@@ -463,6 +463,14 @@ StringName VideoStreamPlayer::get_bus() const {
 	return SceneStringName(Master);
 }
 
+float VideoStreamPlayer::get_playback_speed() const {
+	return playback_speed;
+}
+
+void VideoStreamPlayer::set_playback_speed(float p_playback_speed) {
+	playback_speed = p_playback_speed;
+}
+
 void VideoStreamPlayer::_validate_property(PropertyInfo &p_property) const {
 	if (p_property.name == "bus") {
 		String options;
@@ -520,6 +528,9 @@ void VideoStreamPlayer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_bus", "bus"), &VideoStreamPlayer::set_bus);
 	ClassDB::bind_method(D_METHOD("get_bus"), &VideoStreamPlayer::get_bus);
 
+	ClassDB::bind_method(D_METHOD("set_playback_speed", "playback_speed"), &VideoStreamPlayer::set_playback_speed);
+	ClassDB::bind_method(D_METHOD("get_playback_speed"), &VideoStreamPlayer::get_playback_speed);
+
 	ClassDB::bind_method(D_METHOD("get_video_texture"), &VideoStreamPlayer::get_video_texture);
 
 	ADD_SIGNAL(MethodInfo("finished"));
@@ -534,6 +545,7 @@ void VideoStreamPlayer::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "loop"), "set_loop", "has_loop");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "buffering_msec", PROPERTY_HINT_RANGE, "10,1000,suffix:ms"), "set_buffering_msec", "get_buffering_msec");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "stream_position", PROPERTY_HINT_RANGE, "0,1280000,0.1", PROPERTY_USAGE_NONE), "set_stream_position", "get_stream_position");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "playback_speed", PROPERTY_HINT_RANGE, "0,2,0.1"), "set_playback_speed", "get_playback_speed");
 
 	ADD_PROPERTY(PropertyInfo(Variant::STRING_NAME, "bus", PROPERTY_HINT_ENUM, ""), "set_bus", "get_bus");
 }
