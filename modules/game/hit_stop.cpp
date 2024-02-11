@@ -1,0 +1,23 @@
+#include "hit_stop.h"
+
+void HitStopSolver::start(Vector3 p_direction, float p_duration) {
+    direction = p_direction;
+    duration = p_duration;
+    current_time = 0.0f;
+}
+
+void HitStopSolver::advance(float p_camera_distance, float p_delta) {
+    current_time += p_delta;
+    current_time = MIN(current_time, duration);
+
+    float amount = ((Math::randf() * 2.0f) - 1.0f) * (1.0f - current_time/duration) * shake_amount;
+    current_offset = direction * amount;
+}
+
+Vector3 HitStopSolver::get_offset() const {
+    return current_offset;
+}
+
+bool HitStopSolver::is_done() const {
+    return current_time == duration;
+}

@@ -15,6 +15,9 @@ AgentStringNames::AgentStringNames() :
 		beam_walk_state(StaticCString::create("BeamWalk")),
 		root_motion_state(StaticCString::create("RootMotion")),
 		wall_parkour_transition_state(StaticCString::create("WallParkourTransitionState")),
+		combat_move(StaticCString::create("CombatMove")),
+		combat_attack(StaticCString::create("CombatAttack")),
+		combat_hit(StaticCString::create("CombatHit")),
 		
 		right_hand_ik_node(StaticCString::create("RightHandIK")),
 		left_hand_ik_node(StaticCString::create("LeftHandIK")),

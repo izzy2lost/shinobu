@@ -213,9 +213,6 @@ Ref<EPASPoseInertializer> EPASPoseInertializer::create(const Ref<EPASPose> p_pos
 		Quaternion prev_prev_bone_rot = prev_prev_pose->get_bone_rotation(bone_name, p_base_pose);
 		Quaternion prev_bone_rot = prev_pose->get_bone_rotation(bone_name, p_base_pose);
 		Quaternion target_bone_rot = target_pose->get_bone_rotation(bone_name, p_base_pose);
-		if (bone_name == "thigh.L") {
-			print_line(Math::rad_to_deg(prev_prev_bone_rot.angle_to(prev_bone_rot)), Math::rad_to_deg(prev_bone_rot.angle_to(target_bone_rot)));
-		}
 		Ref<RotationInertializer> rot_inertializer = RotationInertializer::create(prev_prev_bone_rot, prev_bone_rot, target_bone_rot, p_transition_duration, p_delta);
 		ti.rotation_inertializer = rot_inertializer;
 

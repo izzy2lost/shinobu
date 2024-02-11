@@ -99,6 +99,8 @@ void EPASAnimation::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_get_animation_curves"), &EPASAnimation::_get_animation_curves);
 	ADD_PROPERTY(PropertyInfo(Variant::DICTIONARY, "animation_curves", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR | PROPERTY_USAGE_INTERNAL), "_set_animation_curves", "_get_animation_curves");
 
+	ClassDB::bind_method(D_METHOD("get_length"), &EPASAnimation::get_length);
+
 	BIND_ENUM_CONSTANT(STEP);
 	BIND_ENUM_CONSTANT(LINEAR);
 	BIND_ENUM_CONSTANT(BICUBIC_SPLINE);

@@ -58,6 +58,12 @@ void HBPlayerAgentController::_notification(int p_what) {
 	}
 #endif
 	switch (p_what) {
+		case NOTIFICATION_PARENTED: {
+			HBAgent *parent = Object::cast_to<HBAgent>(get_parent());
+			if (parent) {
+				parent->set_is_player_controlled(true);
+			}
+		} break;
 		case NOTIFICATION_PHYSICS_PROCESS: {
 			HBAgent *agent = _get_agent();
 			if (agent) {
@@ -67,6 +73,8 @@ void HBPlayerAgentController::_notification(int p_what) {
 				agent->set_input_action_state(HBAgent::AgentInputAction::INPUT_ACTION_RUN, input->is_action_pressed(SNAME("move_run")));
 				agent->set_input_action_state(HBAgent::AgentInputAction::INPUT_ACTION_PARKOUR_DOWN, input->is_action_pressed(SNAME("move_parkour_down")));
 				agent->set_input_action_state(HBAgent::AgentInputAction::INPUT_ACTION_PARKOUR_UP, input->is_action_pressed(SNAME("move_parkour_up")));
+				agent->set_input_action_state(HBAgent::AgentInputAction::INPUT_ACTION_TARGET, input->is_action_pressed(SNAME("target")));
+				agent->set_input_action_state(HBAgent::AgentInputAction::INPUT_ACTION_ATTACK, input->is_action_pressed(SNAME("attack")));
 
 				// Movement input
 				Vector2 movement_input = Input::get_singleton()->get_vector("move_left", "move_right", "move_forward", "move_backward");
@@ -138,6 +146,11 @@ void HBInfoPlayerStart::_editor_build(const EntityCompileInfo &p_info, const Has
 	HBPlayerAgent *player_agent_node = Object::cast_to<HBPlayerAgent>(player_node);
 	DEV_ASSERT(player_agent_node);
 
+
+	Basis basis = get_global_transform().basis;
+	set_global_basis(Basis());
 	add_child(player_agent_node);
+	player_agent_node->set_starting_heading(basis.get_euler().y);
 	player_agent_node->set_owner(get_owner());
+	player_agent_node->set_as_top_level(true);
 }

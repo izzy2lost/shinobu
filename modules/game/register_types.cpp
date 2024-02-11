@@ -15,9 +15,11 @@
 #include "modules/game/animation_system/epas_animation.h"
 #include "modules/game/animation_system/epas_ik_node.h"
 #include "modules/game/animation_system/epas_lookat_node.h"
+#include "modules/game/animation_system/epas_orientation_warp_node.h"
 #include "modules/game/level_preprocessor.h"
 #include "modules/game/map_compile_hooks.h"
-#include "modules/game/swansong_gltf_extension.h"
+#include "modules/game/npc_agent.h"
+#include "modules/game/npc_brains.h"
 #include "modules/gltf/gltf_document.h"
 #include "modules/tbloader/src/tb_loader_singleton.h"
 #include "player_agent.h"
@@ -51,19 +53,18 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
-	Ref<SwansongGLTFExtension> gltf_ext;
-	gltf_ext.instantiate();
-	GLTFDocument::register_gltf_document_extension(gltf_ext);
-
 	GLOBAL_DEF("game/mouse_sensitivity", 175.0f);
 	GLOBAL_DEF("game/player/graphics_rotation_speed", 45.0f);
 	// Agent stuff
 	GDREGISTER_CLASS(HBAgent);
+	GDREGISTER_CLASS(HBNPCAgent);
 	GDREGISTER_CLASS(HBAgentConstants);
 	GDREGISTER_CLASS(HBPlayerAgent);
 	GDREGISTER_CLASS(HBPlayerAgentController);
 	GDREGISTER_CLASS(HBAgentParkourPoint);
 	GDREGISTER_CLASS(HBAgentParkourBeam);
+	GDREGISTER_CLASS(HBAttackData);
+	GDREGISTER_CLASS(HBRoute);
 	// Agent states
 	GDREGISTER_ABSTRACT_CLASS(HBAgentState);
 	GDREGISTER_CLASS(HBAgentMoveState);
@@ -74,6 +75,10 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(HBAgentParkourBeamWalk);
 	GDREGISTER_CLASS(HBAgentRootMotionState);
 	GDREGISTER_CLASS(HBAgentWallTransitionState);
+	GDREGISTER_CLASS(HBAgentCombatMoveState);
+	GDREGISTER_CLASS(HBAgentCombatAttackState);
+	GDREGISTER_CLASS(HBAgentCombatHitState);
+	GDREGISTER_CLASS(NPCBrains);
 	// State machine stuff
 	GDREGISTER_CLASS(HBStateMachine);
 	GDREGISTER_ABSTRACT_CLASS(HBStateMachineState);
@@ -100,7 +105,9 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(EPASSoftnessNode);
 	GDREGISTER_CLASS(EPASLookatNode);
 	GDREGISTER_CLASS(EPASIKNode);
+	GDREGISTER_CLASS(EPASOrientationWarpNode);
 	GDREGISTER_CLASS(FABRIKSolver);
+
 	GDREGISTER_CLASS(HBDebugGeometry);
 	GDREGISTER_CLASS(HBInfoPlayerStart);
 
@@ -116,8 +123,8 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 	TBLoaderSingleton::register_entity_type<HBAgentParkourBeam>();
 	TBLoaderSingleton::register_entity_type<HBAgentParkourLedge>();
 	TBLoaderSingleton::register_entity_type<HBInfoPlayerStart>();
-	//gltf_ext->register_entity_type<HBInfoPlayerStart>();
-	//TBLoaderSingleton::register_compile_hook(memnew(MapCompileHooks));
+	TBLoaderSingleton::register_entity_type<HBRoute>();
+	
 #ifdef DEBUG_ENABLED
 	GDREGISTER_CLASS(EPASAnimationEditor);
 	GDREGISTER_CLASS(EPASEditorGrid);

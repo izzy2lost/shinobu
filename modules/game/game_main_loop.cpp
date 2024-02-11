@@ -32,6 +32,7 @@ HBGameMainLoop::HBGameMainLoop() {
 	if (Steamworks::get_singleton()->is_valid()) {
 		Steamworks::get_singleton()->get_input()->init();
 		HBSteamworksInputGlyphsSource::make_current();
+		print_line("MAKING SOURCE CURRENT!");
 	}
 	InputGlyphsSingleton::get_singleton()->init();
 #endif

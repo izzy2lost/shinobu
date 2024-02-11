@@ -29,7 +29,6 @@ public:
 	Ref<EPASNode> get_input(int p_input) const;
 #ifdef DEBUG_ENABLED
 	virtual void _debug_node_draw() const {};
-	virtual Control *_debug_node_create() { return nullptr; };
 #endif
 	virtual ~EPASNode(){};
 	friend class EPASController;

@@ -24,6 +24,9 @@ void EPASAnimationNode::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_looping_enabled"), &EPASAnimationNode::get_looping_enabled);
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "looping_enabled"), "set_looping_enabled", "get_looping_enabled");
 
+	ClassDB::bind_method(D_METHOD("seek", "time"), &EPASAnimationNode::seek);
+	ClassDB::bind_method(D_METHOD("get_time"), &EPASAnimationNode::get_time);
+
 	BIND_ENUM_CONSTANT(AUTOMATIC);
 	BIND_ENUM_CONSTANT(MANUAL);
 

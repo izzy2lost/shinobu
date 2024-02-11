@@ -53,9 +53,10 @@ public:
 
 	Transform3D get_root_motion_transform() const;
 	float get_speed_scale() const { return speed_scale; }
-	void set_speed_scale(float speed_scale_) { speed_scale = speed_scale_; }
+	void set_speed_scale(float p_speed_scale) { speed_scale = p_speed_scale; }
 	float get_end_time() const { return end_time; }
-	void set_end_time(float end_time_) { end_time = end_time_; }
+	void set_end_time(float p_end_time) { end_time = p_end_time; }
+	void seek(float p_time);
 	friend class EPASOneshotAnimationNodeDebug;
 };
 

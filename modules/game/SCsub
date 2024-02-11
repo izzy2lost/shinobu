@@ -19,7 +19,9 @@ sources = [
     Glob("*.cpp"),
     Glob("animation_system/*.cpp"),
     Glob("fabrik/*.cpp"),
+    Glob("thirdparty/goap/*.c"),
     Glob("thirdparty/clipper2/*.cpp"),
+    Glob("npc_brains/*.cpp"),
 ]
 
 if ARGUMENTS.get("game_shared", "no") == "yes":

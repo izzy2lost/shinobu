@@ -1663,7 +1663,10 @@ EPASAnimationEditor::EPASAnimationEditor() {
 		epas_controller->connect_node(epas_pose_node, epas_blend_node, "IK Blend", 1);
 
 		undo_redo = memnew(UndoRedo);
-		set_animation(memnew(EPASEditorAnimation));
+		Ref<EPASEditorAnimation> editor_animation;
+		editor_animation.instantiate();
+		editor_animation->set_editor_animation(memnew(EPASAnimation));
+		set_animation(editor_animation);
 		curves_editor.instantiate();
 	}
 }

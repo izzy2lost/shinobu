@@ -15,7 +15,6 @@ protected:
 public:
 #ifdef DEBUG_ENABLED
 	virtual void _debug_node_draw() const override;
-	virtual Control* _debug_node_create() override;
 #endif
 	virtual void process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) override;
 	void set_blend_amount(float p_blend_amount);

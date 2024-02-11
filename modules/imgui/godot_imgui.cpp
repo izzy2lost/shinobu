@@ -734,14 +734,14 @@ void GodotImGui::_init_imgui() {
 
 		RenderingDevice::ShaderStageSPIRVData vertex_shader;
 		vertex_shader.shader_stage = RenderingDevice::ShaderStage::SHADER_STAGE_VERTEX;
-		vertex_shader.spir_v.resize(sizeof(__glsl_shader_vert_spv));
-		memcpy(vertex_shader.spir_v.ptrw(), __glsl_shader_vert_spv, sizeof(__glsl_shader_vert_spv));
+		vertex_shader.spirv.resize(sizeof(__glsl_shader_vert_spv));
+		memcpy(vertex_shader.spirv.ptrw(), __glsl_shader_vert_spv, sizeof(__glsl_shader_vert_spv));
 		shader_stage_datas.push_back(vertex_shader);
 
 		RenderingDevice::ShaderStageSPIRVData fragment_shader;
 		fragment_shader.shader_stage = RenderingDevice::ShaderStage::SHADER_STAGE_FRAGMENT;
-		fragment_shader.spir_v.resize(sizeof(__glsl_shader_frag_spv));
-		memcpy(fragment_shader.spir_v.ptrw(), __glsl_shader_frag_spv, sizeof(__glsl_shader_frag_spv));
+		fragment_shader.spirv.resize(sizeof(__glsl_shader_frag_spv));
+		memcpy(fragment_shader.spirv.ptrw(), __glsl_shader_frag_spv, sizeof(__glsl_shader_frag_spv));
 		shader_stage_datas.push_back(fragment_shader);
 
 		shader = rd->shader_create_from_spirv(shader_stage_datas);

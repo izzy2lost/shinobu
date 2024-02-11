@@ -29,6 +29,7 @@ void EPASOneshotAnimationNode::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_warp_point_transform", "name", "transform"), &EPASOneshotAnimationNode::set_warp_point_transform);
 	ClassDB::bind_method(D_METHOD("play_with_warp_points", "warp_points"), &EPASOneshotAnimationNode::play_with_warp_points);
+	ClassDB::bind_method(D_METHOD("seek", "time"), &EPASOneshotAnimationNode::seek);
 
 	ADD_SIGNAL(MethodInfo("playback_finished"));
 }
@@ -142,4 +143,8 @@ void EPASOneshotAnimationNode::play_with_warp_points(const Dictionary &p_warp_po
 
 Transform3D EPASOneshotAnimationNode::get_root_motion_transform() const {
 	return playback_info.root_motion_trf;
+}
+
+void EPASOneshotAnimationNode::seek(float p_time) {
+	time = p_time;
 }

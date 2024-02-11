@@ -202,7 +202,8 @@ void ClipperOffset::AddPath(const Path64& path, JoinType jt_, EndType et_)
 void ClipperOffset::AddPaths(const Paths64 &paths, JoinType jt_, EndType et_)
 {
 	if (paths.size() == 0) return;
-	groups_.push_back(Group(paths, jt_, et_));
+	Group gr = Group(paths, jt_, et_);
+	groups_.push_back(gr);
 }
 
 void ClipperOffset::BuildNormals(const Path64& path)

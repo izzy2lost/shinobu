@@ -13,6 +13,7 @@
 #include "debug_geometry.h"
 #include "ledge_traversal_controller.h"
 #include "modules/game/agent_parkour.h"
+#include "modules/game/hit_stop.h"
 #include "scene/animation/tween.h"
 #include "scene/resources/cylinder_shape_3d.h"
 #include "state_machine.h"
@@ -66,6 +67,12 @@ protected:
 	bool whisker_reach_check(const Vector3 &p_from, const Vector3 &p_target, const float p_height_start, const float p_height_end);
 	static void _bind_methods();
 
+
+	void handle_player_specific_inputs();
+
+	virtual void _on_attack_received(HBAgent *p_attacker, Ref<HBAttackData> p_attack_data);
+	void setup_attack_reception();
+	void remove_attack_reception();
 public:
 	HBAgent *get_agent() const;
 	EPASController *get_epas_controller() const;
@@ -75,6 +82,7 @@ public:
 	Node3D *get_graphics_node() const;
 	Ref<EPASSoftnessNode> get_softness_node() const;
 	Ref<EPASWheelLocomotion> get_wheel_locomotion_node() const;
+	HBAgent *get_highlighted_agent() const;
 #ifdef DEBUG_ENABLED
 	virtual void debug_ui_draw() override;
 #endif
@@ -100,9 +108,12 @@ class HBAgentMoveState : public HBAgentGroundStateBase {
 
 public:
 	enum MoveStateParams {
-		PARAM_TRANSITION_DURATION
+		PARAM_TRANSITION_DURATION,
+		PARAM_WAIT_FOR_TRANSITION
 	};
 	Vector3 velocity_spring_acceleration;
+
+	bool wait_for_transition = false;
 
 protected:
 	virtual void enter(const Dictionary &p_args) override;
@@ -275,6 +286,7 @@ private:
 	Vector3 prev_prev_pos;
 	Vector3 starting_velocity;
 	bool inertialization_init = false;
+	bool collisions_enabled = false;
 
 public:
 	enum RootMotionParams {
@@ -284,7 +296,9 @@ public:
 		PARAM_TRANSITION_NODE_INDEX,
 		PARAM_NEXT_STATE,
 		PARAM_NEXT_STATE_ARGS,
-		PARAM_VELOCITY_MODE
+		PARAM_VELOCITY_MODE,
+		PARAM_COLLIDE,
+		PARAM_MAX
 	};
 	bool hack = false;
 	virtual void enter(const Dictionary &p_args) override;
@@ -331,6 +345,71 @@ private:
 public:
 	void set_starting_pose(const AgentProceduralAnimator::AgentProceduralPose &p_starting_pose);
 	virtual void enter(const Dictionary &p_args) override;
+	virtual void physics_process(float p_delta) override;
+};
+
+class HBAgentCombatMoveState : public HBAgentState {
+	GDCLASS(HBAgentCombatMoveState, HBAgentState);
+	Quaternion agent_rotation_target;
+	Vector3 agent_rotation_velocity;
+
+	float agent_rotation_halflife = 0.1f;
+
+	HBAgent *target = nullptr;
+	Vector3 desired_velocity_spring_acceleration;
+	Vector3 desired_velocity_ws;
+	void calculate_desired_movement_velocity(float p_delta);
+	void rotate_towards_target(float p_delta);
+	void update_orientation_warp();
+	bool handle_attack();
+	void reset();
+public:
+	enum CombatMoveParams {
+		PARAM_TARGET
+	};
+	virtual void enter(const Dictionary &p_args) override;
+	virtual void physics_process(float p_delta) override;
+};
+
+class HBAgentCombatAttackState : public HBAgentRootMotionState {
+	GDCLASS(HBAgentCombatAttackState, HBAgentRootMotionState);
+	HBAgent *target = nullptr;
+	Ref<HBAttackData> attack;
+	MeshInstance3D *attack_mesh_instance = nullptr;
+	Ref<EPASOneshotAnimationNode> animation_node;
+	float prev_playback_position = 0.0f;
+	Ref<HitStopSolver> hit_stop_solver;
+	// When attacking cancelling requires you to repress the attack button while the attack is happening
+	bool was_attack_repressed = false;
+private:
+	bool handle_attack();
+	void handle_hitstop(float p_delta);
+	void handle_sending_attack_to_target();
+public:
+	enum CombatAttackParams {
+		PARAM_ATTACK_NAME = HBAgentRootMotionState::PARAM_MAX + 1,
+		PARAM_TARGET
+	};
+	virtual void enter(const Dictionary &p_args) override;
+	virtual void exit() override;
+	virtual void physics_process(float p_delta) override;
+};
+
+class HBAgentCombatHitState : public HBAgentRootMotionState {
+	GDCLASS(HBAgentCombatHitState, HBAgentRootMotionState);
+	Ref<HBAttackData> attack;
+	HBAgent *attacker;
+	Ref<HitStopSolver> hit_stop_solver;
+public:
+	enum CombatHitStateParams {
+		PARAM_ATTACK,
+		PARAM_ATTACKER,
+	};
+	void look_towards_attacker();
+	void setup_animation();
+public:
+	virtual void enter(const Dictionary &p_args) override;
+	virtual void exit() override;
 	virtual void physics_process(float p_delta) override;
 };
 

@@ -21,6 +21,10 @@ HBAgent::HBAgent() :
 		set_process_internal(true);
 		agent_constants.instantiate();
 	}
+	String outline_material_path = GLOBAL_DEF(PropertyInfo(Variant::STRING, "game/agent/outline_material", PROPERTY_HINT_FILE, "*.tres,*.res,*.theme"), "");
+	if (!outline_material_path.is_empty() && !Engine::get_singleton()->is_editor_hint()) {
+		outline_material = ResourceLoader::load(outline_material_path);
+	}
 #ifdef DEBUG_ENABLED
 	velocity_plot_lines_y.resize_zeroed(VELOCITY_PLOT_SIZE);
 	velocity_plot_lines_x.resize_zeroed(VELOCITY_PLOT_SIZE);
@@ -31,11 +35,102 @@ HBAgent::HBAgent() :
 HBAgent::~HBAgent() {
 }
 
+bool HBAgent::get_is_player_controlled() const {
+	return is_player_controlled;
+}
+
+void HBAgent::set_is_player_controlled(bool p_is_player_controlled) {
+	is_player_controlled = p_is_player_controlled;
+}
+
+HBAgent *HBAgent::get_target() const {
+	return target;
+}
+
+void HBAgent::set_target(HBAgent *p_target) {
+	target = p_target;
+}
+
+Ref<HBAttackData> HBAgent::get_attack_data(const StringName &p_name) {
+	ERR_FAIL_COND_V_MSG(!attack_datas.has(p_name), Ref<HBAttackData>(), vformat("Attack %s did not exist", p_name));
+	return attack_datas[p_name];
+}
+
+void HBAgent::receive_attack(HBAgent *p_attacker, Ref<HBAttackData> p_attack_data) {
+	emit_signal("attack_received", p_attacker, p_attack_data);
+}
+
+void HBAgent::set_outline_mode(AgentOutlineMode p_outline_mode) {
+	Skeleton3D *skel = get_skeleton_node();
+
+	Color color;
+	switch (p_outline_mode) {
+		case SOFT_TARGET: {
+			color = Color(1.0f, 0.64f, 0.0f);
+		} break;
+		case TARGET_ASSASSINATE: {
+			color = Color(1.0f, 0.0f, 0.0f);
+		} break;
+		case TARGET_COMBAT: {
+			color = Color(1.0f, 1.0f, 1.0f);
+		} break;
+		default:;
+	}
+
+	for (int i = 0; i < skel->get_child_count(); i++) {
+		MeshInstance3D *mi = Object::cast_to<MeshInstance3D>(skel->get_child(i));
+		if (!mi) {
+			continue;
+		}
+
+		if (p_outline_mode == AgentOutlineMode::DISABLED) {
+			mi->set_material_overlay(Ref<Material>());
+			continue;
+		}
+
+		mi->set_material_overlay(outline_material);
+		outline_material->set_shader_parameter("fresnel_color", color);
+	}
+}
+
 Quaternion HBAgent::get_graphics_rotation() const { return graphics_rotation; }
 
 void HBAgent::set_graphics_rotation(const Quaternion &p_graphics_rotation) { graphics_rotation = p_graphics_rotation; }
 
+Vector<HBAgent*> HBAgent::find_nearby_agents(float p_radius) const {
+	Ref<SphereShape3D> sphere;
+	sphere.instantiate();
+	sphere->set_radius(p_radius);
+
+	PhysicsDirectSpaceState3D *dss = get_world_3d()->get_direct_space_state();
+	PhysicsDirectSpaceState3D::ShapeParameters params;
+	params.shape_rid = sphere->get_rid();
+	params.transform.origin = get_global_position();
+	params.collision_mask = HBPhysicsLayers::LAYER_PLAYER;
+	params.exclude.insert(get_rid());
+
+	const int RESULT_COUNT = 5;
+	PhysicsDirectSpaceState3D::ShapeResult results[RESULT_COUNT];
+	int result_count = dss->intersect_shape(params, results, RESULT_COUNT);
+
+	Vector<HBAgent*> agents;
+
+	for (int i = 0; i < result_count; i++) {
+		HBAgent *agent = Object::cast_to<HBAgent>(results[i].collider);
+		if (agent) {
+			agents.push_back(agent);
+		}
+	}
+
+	return agents;
+}
+
 void HBAgent::set_ledge_detector_node(const NodePath &ledge_detector_path_) { ledge_detector_path = ledge_detector_path_; }
+
+void HBAgent::add_attack(const Ref<HBAttackData> &p_attack_data) {
+	ERR_FAIL_COND(attack_datas.has(p_attack_data->get_name()));
+	attack_datas.insert(p_attack_data->get_name(), p_attack_data);
+}
 
 NodePath HBAgent::get_ledge_detector_node() const { return ledge_detector_path; }
 
@@ -47,7 +142,7 @@ void HBAgent::set_agent_constants(const Ref<HBAgentConstants> &p_agent_constants
 	agent_constants = p_agent_constants;
 }
 
-void HBAgent::apply_root_motion(const Ref<EPASOneshotAnimationNode> &p_animation_node, float p_delta) {
+void HBAgent::apply_root_motion(const Ref<EPASOneshotAnimationNode> &p_animation_node, bool p_collide, float p_delta) {
 	ERR_FAIL_COND(!p_animation_node.is_valid());
 	// os_node.root_motion_starting_transform * os_node.get_root_motion_transform()
 	Transform3D root_trf = p_animation_node->get_root_motion_starting_transform() * p_animation_node->get_root_motion_transform();
@@ -60,7 +155,12 @@ void HBAgent::apply_root_motion(const Ref<EPASOneshotAnimationNode> &p_animation
 		trf.origin = get_global_position() + graphics_position_intertializer->advance(p_delta);
 	}
 	graphics_rotation = trf.basis.get_rotation_quaternion();
-	set_global_position(root_trf.origin);
+
+	if (p_collide) {
+		set_velocity((root_trf.origin - get_global_position()) / p_delta);
+	} else {
+		set_global_position(root_trf.origin);
+	}
 }
 
 float HBAgent::get_height() const {
@@ -120,20 +220,20 @@ Ref<Shape3D> HBAgent::get_collision_shape() {
 }
 
 void HBAgent::_bind_methods() {
+	NODE_CACHE_BIND(attack_trail, MeshInstance3D, HBAgent);
+
 	ClassDB::bind_method(D_METHOD("set_graphics_node", "path"), &HBAgent::set_graphics_node);
 	ClassDB::bind_method(D_METHOD("get_graphics_node"), &HBAgent::get_graphics_node);
 	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "graphics_node", PROPERTY_HINT_NODE_PATH_VALID_TYPES, "Node3D"), "set_graphics_node", "get_graphics_node");
-	ClassDB::bind_method(D_METHOD("set_tilt_node", "path"), &HBAgent::set_tilt_node);
-	ClassDB::bind_method(D_METHOD("get_tilt_node"), &HBAgent::get_tilt_node);
-	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "tilt_node", PROPERTY_HINT_NODE_PATH_VALID_TYPES, "Node3D"), "set_tilt_node", "get_tilt_node");
+	
+	NODE_CACHE_BIND(tilt_node, Node3D, HBAgent);
 
 	ClassDB::bind_method(D_METHOD("get_agent_constants"), &HBAgent::get_agent_constants);
 	ClassDB::bind_method(D_METHOD("set_agent_constants", "agent_constants"), &HBAgent::set_agent_constants);
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "agent_constants", PROPERTY_HINT_RESOURCE_TYPE, "HBAgentConstants"), "set_agent_constants", "get_agent_constants");
 
-	ClassDB::bind_method(D_METHOD("set_epas_controller_node", "epas_controller_node"), &HBAgent::set_epas_controller_node);
-	ClassDB::bind_method(D_METHOD("get_epas_controller_node"), &HBAgent::get_epas_controller_node);
-	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "epas_controller_node", PROPERTY_HINT_NODE_PATH_VALID_TYPES, "EPASController"), "set_epas_controller_node", "get_epas_controller_node");
+	NODE_CACHE_BIND(epas_controller, EPASController, HBAgent);
+	NODE_CACHE_BIND(skeleton, Skeleton3D, HBAgent);
 
 	ClassDB::bind_method(D_METHOD("set_input_action_state", "event", "state"), &HBAgent::set_input_action_state);
 
@@ -148,6 +248,11 @@ void HBAgent::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("flush_inputs"), &HBAgent::flush_inputs);
 
 	ADD_SIGNAL(MethodInfo("stopped_at_edge"));
+	ADD_SIGNAL(MethodInfo(
+		"attack_received",
+		PropertyInfo(Variant::OBJECT, "attacker", PROPERTY_HINT_NODE_TYPE, "HBAgent"),
+		PropertyInfo(Variant::OBJECT, "attack_data", PROPERTY_HINT_RESOURCE_TYPE, "HBAttackData")
+	));
 
 	BIND_ENUM_CONSTANT(INPUT_ACTION_RUN);
 	BIND_ENUM_CONSTANT(INPUT_ACTION_PARKOUR_DOWN);
@@ -157,6 +262,12 @@ void HBAgent::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_ledge_detector_node", "path"), &HBAgent::set_ledge_detector_node);
 	ClassDB::bind_method(D_METHOD("get_ledge_detector_node"), &HBAgent::get_ledge_detector_node);
 	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "ledge_detector_node", PROPERTY_HINT_NODE_PATH_VALID_TYPES, "Area3D"), "set_ledge_detector_node", "get_ledge_detector_node");
+
+	ClassDB::bind_method(D_METHOD("set_starting_heading", "path"), &HBAgent::set_starting_heading);
+	ClassDB::bind_method(D_METHOD("get_starting_heading"), &HBAgent::get_starting_heading);
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "starting_heading"), "set_starting_heading", "get_starting_heading");
+
+	ClassDB::bind_method(D_METHOD("add_attack", "attack"), &HBAgent::add_attack);
 }
 
 void HBAgent::_rotate_towards_velocity(float p_delta) {
@@ -182,7 +293,7 @@ void HBAgent::_rotate_towards_velocity(float p_delta) {
 static Vector3 prev_velocities[2];
 
 void HBAgent::_tilt_towards_acceleration(float p_delta) {
-	Node3D *tn = _get_tilt_node();
+	Node3D *tn = get_tilt_node_node();
 
 
 
@@ -248,14 +359,6 @@ void HBAgent::_physics_process(float p_delta) {
 			tilt_spring_velocity = Vector3();
 		} break;
 	}
-	PhysicsDirectSpaceState3D *dss = get_world_3d()->get_direct_space_state();
-
-	PhysicsDirectSpaceState3D::ShapeParameters shape_params;
-	Ref<Shape3D> col_shape = get_collision_shape();
-	shape_params.shape_rid = col_shape->get_rid();
-	PhysicsDirectSpaceState3D::ShapeRestInfo rest_info;
-
-	shape_params.transform.origin = get_global_transform().origin + Vector3(0.0, get_height(), 0.0);
 
 	Vector3 pos_offset = process_graphics_position_inertialization(p_delta);
 	Quaternion rot_offset = process_graphics_rotation_inertialization(p_delta);
@@ -335,36 +438,6 @@ void HBAgent::_update_graphics_node_cache() {
 	}
 }
 
-void HBAgent::_update_tilt_node_cache() {
-	tilt_node_cache = ObjectID();
-
-	if (has_node(tilt_node)) {
-		Node *node = get_node(tilt_node);
-		ERR_FAIL_COND_MSG(!node, "Cannot update actor tilt node cache: Node cannot be found!");
-
-		// Ensure its a Node3D
-		Node3D *nd = Object::cast_to<Node3D>(node);
-		ERR_FAIL_COND_MSG(!nd, "Cannot update actor tilt node cache: Node3D Nodepath does not point to a Node3D node!");
-
-		tilt_node_cache = nd->get_instance_id();
-	}
-}
-
-void HBAgent::_update_epas_controller_cache() {
-	epas_controller_cache = ObjectID();
-
-	if (has_node(epas_controller_node)) {
-		Node *node = get_node(epas_controller_node);
-		ERR_FAIL_COND_MSG(!node, "Cannot update actor tilt node cache: Node cannot be found!");
-
-		// Ensure its an EPASController node
-		EPASController *nd = Object::cast_to<EPASController>(node);
-		ERR_FAIL_COND_MSG(!nd, "Cannot update actor tilt node cache: Nodepath does not point to a EPASController node!");
-
-		epas_controller_cache = nd->get_instance_id();
-	}
-}
-
 void HBAgent::set_graphics_node(NodePath p_path) {
 	graphics_node = p_path;
 	_update_graphics_node_cache();
@@ -372,15 +445,6 @@ void HBAgent::set_graphics_node(NodePath p_path) {
 
 NodePath HBAgent::get_graphics_node() const {
 	return graphics_node;
-}
-
-NodePath HBAgent::get_tilt_node() const {
-	return tilt_node;
-}
-
-void HBAgent::set_tilt_node(NodePath p_path) {
-	tilt_node = p_path;
-	_update_tilt_node_cache();
 }
 
 Node3D *HBAgent::_get_graphics_node() {
@@ -396,37 +460,11 @@ Node3D *HBAgent::_get_graphics_node() {
 	return nullptr;
 }
 
-Node3D *HBAgent::_get_tilt_node() {
-	if (tilt_node_cache.is_valid()) {
-		return Object::cast_to<Node3D>(ObjectDB::get_instance(tilt_node_cache));
-	} else {
-		_update_tilt_node_cache();
-		if (tilt_node_cache.is_valid()) {
-			return Object::cast_to<Node3D>(ObjectDB::get_instance(tilt_node_cache));
-		}
-	}
-
-	return nullptr;
-}
-
-EPASController *HBAgent::_get_epas_controller() {
-	if (epas_controller_cache.is_valid()) {
-		return Object::cast_to<EPASController>(ObjectDB::get_instance(epas_controller_cache));
-	} else {
-		_update_epas_controller_cache();
-		if (epas_controller_cache.is_valid()) {
-			return Object::cast_to<EPASController>(ObjectDB::get_instance(epas_controller_cache));
-		}
-	}
-
-	return nullptr;
-}
-
 void HBAgent::set_movement_mode(MovementMode p_movement_mode) {
 	if (p_movement_mode == MovementMode::MOVE_MANUAL) {
-		if (_get_tilt_node()) {
+		if (get_tilt_node_node()) {
 			// HACK-ish, should probably inertialize this
-			_get_tilt_node()->set_transform(Transform3D());
+			get_tilt_node_node()->set_transform(Transform3D());
 		}
 		rotation_spring_velocity = Vector3();
 	}
@@ -435,15 +473,6 @@ void HBAgent::set_movement_mode(MovementMode p_movement_mode) {
 
 HBAgent::MovementMode HBAgent::get_movement_mode() const {
 	return movement_mode;
-}
-
-NodePath HBAgent::get_epas_controller_node() const {
-	return epas_controller_node;
-}
-
-void HBAgent::set_epas_controller_node(const NodePath &p_epas_controller_node) {
-	epas_controller_node = p_epas_controller_node;
-	_update_epas_controller_cache();
 }
 
 Vector3 HBAgent::get_previous_position() const {
@@ -458,7 +487,11 @@ void HBAgent::_notification(int p_what) {
 #endif
 	switch (p_what) {
 		case NOTIFICATION_READY: {
+			if (Engine::get_singleton()->is_editor_hint()) {
+				return;
+			}
 			Node3D *gn = _get_graphics_node();
+			set_graphics_rotation(Basis::from_euler(Vector3(0.0f, starting_heading, 0.0f)));
 			if (gn) {
 				current_rotation = gn->get_global_transform().basis.get_rotation_quaternion();
 				last_last_rotation = current_rotation;
@@ -561,3 +594,45 @@ Vector3 HBAgent::get_desired_movement_input_transformed() const {
 	float movement_mul = is_action_pressed(AgentInputAction::INPUT_ACTION_RUN) ? 1.0f : 0.5f;
 	return current_input_state.movement_input_rotation.xform(current_input_state.movement * movement_mul);
 }
+
+void HBAttackData::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("get_name"), &HBAttackData::get_name);
+	ClassDB::bind_method(D_METHOD("set_name", "name"), &HBAttackData::set_name);
+	ADD_PROPERTY(PropertyInfo(Variant::STRING_NAME, "name"), "set_name", "get_name");
+
+	ClassDB::bind_method(D_METHOD("get_animation"), &HBAttackData::get_animation);
+	ClassDB::bind_method(D_METHOD("set_animation", "animation"), &HBAttackData::set_animation);
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "animation", PROPERTY_HINT_RESOURCE_TYPE, "EPASAnimation"), "set_animation", "get_animation");
+
+	ClassDB::bind_method(D_METHOD("get_mesh"), &HBAttackData::get_mesh);
+	ClassDB::bind_method(D_METHOD("set_mesh", "mesh"), &HBAttackData::set_mesh);
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "mesh", PROPERTY_HINT_RESOURCE_TYPE, "Mesh"), "set_mesh", "get_mesh");
+
+	ClassDB::bind_method(D_METHOD("get_transition_index"), &HBAttackData::get_transition_index);
+	ClassDB::bind_method(D_METHOD("set_transition_index", "transition_index"), &HBAttackData::set_transition_index);
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "transition_index"), "set_transition_index", "get_transition_index");
+
+	ClassDB::bind_method(D_METHOD("get_hit_time"), &HBAttackData::get_hit_time);
+	ClassDB::bind_method(D_METHOD("set_hit_time", "hit_time"), &HBAttackData::set_hit_time);
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "hit_time"), "set_hit_time", "get_hit_time");
+	
+	ClassDB::bind_method(D_METHOD("get_hitstop_duration"), &HBAttackData::get_hitstop_duration);
+	ClassDB::bind_method(D_METHOD("set_hitstop_duration", "hit_stop_duration"), &HBAttackData::set_hitstop_duration);
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "hitstop_duration"), "set_hitstop_duration", "get_hitstop_duration");
+
+	ClassDB::bind_method(D_METHOD("get_attack_direction"), &HBAttackData::get_attack_direction);
+	ClassDB::bind_method(D_METHOD("set_attack_direction", "attack_direction"), &HBAttackData::set_attack_direction);
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "attack_direction", PROPERTY_HINT_ENUM, "Right"), "set_attack_direction", "get_attack_direction");
+
+	ClassDB::bind_method(D_METHOD("get_cancel_time"), &HBAttackData::get_cancel_time);
+	ClassDB::bind_method(D_METHOD("set_cancel_time", "cancel_time"), &HBAttackData::set_cancel_time);
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "cancel_time"), "set_cancel_time", "get_cancel_time");
+
+	ClassDB::bind_method(D_METHOD("get_next_attack"), &HBAttackData::get_next_attack);
+	ClassDB::bind_method(D_METHOD("set_next_attack", "next_attack"), &HBAttackData::set_next_attack);
+	ADD_PROPERTY(PropertyInfo(Variant::STRING_NAME, "next_attack"), "set_next_attack", "get_next_attack");
+}
+
+float HBAttackData::get_cancel_time() const { return cancel_time; }
+
+void HBAttackData::set_cancel_time(float p_cancel_time) { cancel_time = p_cancel_time; }

@@ -2,6 +2,7 @@
 #include "agent_parkour.h"
 #include "animation_system/epas_animation_node.h"
 #include "modules/game/animation_system/epas_lookat_node.h"
+#include "modules/game/animation_system/epas_orientation_warp_node.h"
 
 #ifdef DEBUG_ENABLED
 #include "implot.h"
@@ -182,6 +183,36 @@ void HBAgentState::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("whisker_reach_check", "from", "to", "height_start", "height_end"), &HBAgentState::whisker_reach_check);
 }
 
+void HBAgentState::handle_player_specific_inputs() {
+	HBAgent *agent = get_agent();
+	if (!agent->get_is_player_controlled()) {
+		return;
+	}
+	if (agent->is_action_just_pressed(HBAgent::INPUT_ACTION_TARGET)) {
+		HBAgent *highlighted_agent = get_highlighted_agent();
+		if (!highlighted_agent) {
+			return;
+		}
+		agent->set_target(highlighted_agent);
+		highlighted_agent->set_outline_mode(HBAgent::AgentOutlineMode::TARGET_COMBAT);
+	}
+}
+
+void HBAgentState::_on_attack_received(HBAgent *p_attacker, Ref<HBAttackData> p_attack_data) {
+	Dictionary state_args;
+	state_args[HBAgentCombatHitState::PARAM_ATTACKER] = p_attacker;
+	state_args[HBAgentCombatHitState::PARAM_ATTACK] = p_attack_data;
+	state_machine->transition_to(ASN()->combat_hit, state_args);
+}
+
+void HBAgentState::setup_attack_reception() {
+	get_agent()->connect("attack_received", callable_mp(this, &HBAgentState::_on_attack_received));
+}
+
+void HBAgentState::remove_attack_reception() {
+	get_agent()->disconnect("attack_received", callable_mp(this, &HBAgentState::_on_attack_received));
+}
+
 HBAgent *HBAgentState::get_agent() const {
 	Node *actor = get_actor();
 	ERR_FAIL_COND_V_MSG(!actor, nullptr, "Error getting the agent node: Couldn't be found");
@@ -192,7 +223,7 @@ HBAgent *HBAgentState::get_agent() const {
 
 EPASController *HBAgentState::get_epas_controller() const {
 	ERR_FAIL_COND_V(get_agent() == nullptr, nullptr);
-	return get_agent()->_get_epas_controller();
+	return get_agent()->get_epas_controller_node();
 }
 
 Ref<EPASTransitionNode> HBAgentState::get_movement_transition_node() const {
@@ -225,6 +256,51 @@ Ref<EPASSoftnessNode> HBAgentState::get_softness_node() const {
 Ref<EPASWheelLocomotion> HBAgentState::get_wheel_locomotion_node() const {
 	ERR_FAIL_COND_V(get_epas_controller() == nullptr, Ref<EPASWheelLocomotion>());
 	return get_epas_controller()->get_epas_node(SNAME("MovementWheel"));
+}
+
+HBAgent *HBAgentState::get_highlighted_agent() const {
+	HBAgent *agent = get_agent();
+	Vector<HBAgent*> candidate_agents = agent->find_nearby_agents(40.0f);
+
+	struct AgentTarget {
+		HBAgent* agent;
+		float distance_to_screen_center;
+	};
+
+	struct TargetComparator {
+		_FORCE_INLINE_ bool operator()(const AgentTarget &a, const AgentTarget &b) const {
+			return a.distance_to_screen_center < b.distance_to_screen_center;
+		}
+	};
+
+	Vector<AgentTarget> targeteable_agents;
+	agent->get_world_3d()->get_cameras();
+	Camera3D *camera = get_viewport()->get_camera_3d();
+	const Vector2 viewport_size = get_viewport()->get_visible_rect().size;
+	const Vector2 viewport_center_normalized = Vector2(0.5f, 0.5f);
+	// First we discard agents we cannot target
+	for (int i = 0; i < candidate_agents.size(); i++) {
+		// Agent must be in frustrum
+		const Vector3 agent_position = candidate_agents[i]->get_global_position();
+		if (!camera->is_position_in_frustum(agent_position)) {
+			continue;
+		}
+		AgentTarget target;
+		target.agent = candidate_agents[i];
+		// While we are here, let's calculate how close we are to the center of the screen
+		target.distance_to_screen_center = viewport_center_normalized.distance_to(camera->unproject_position(agent_position) / viewport_size);
+
+		targeteable_agents.push_back(target);
+	}
+
+	if (targeteable_agents.size() == 0) {
+		return nullptr;
+	}
+
+	// Sort them by closest to the center of the screen
+	targeteable_agents.sort_custom<TargetComparator>();
+	
+	return targeteable_agents[0].agent;
 }
 
 #ifdef DEBUG_ENABLED
@@ -277,11 +353,16 @@ void HBAgentMoveState::enter(const Dictionary &p_args) {
 	Ref<EPASIKNode> left_foot_ik_node = get_epas_controller()->get_epas_node(ASN()->left_foot_ik_node);
 	Ref<EPASIKNode> right_foot_ik_node = get_epas_controller()->get_epas_node(ASN()->right_foot_ik_node);
 
+	wait_for_transition = p_args.get(PARAM_WAIT_FOR_TRANSITION, false);
+
 	left_foot_ik_node->set_ik_influence(1.0f);
 	right_foot_ik_node->set_ik_influence(1.0f);
+
+	setup_attack_reception();
 }
 
 void HBAgentMoveState::exit() {
+	remove_attack_reception();
 	Ref<EPASIKNode> left_foot_ik_node = get_epas_controller()->get_epas_node(ASN()->left_foot_ik_node);
 	Ref<EPASIKNode> right_foot_ik_node = get_epas_controller()->get_epas_node(ASN()->right_foot_ik_node);
 	left_foot_ik_node->set_ik_influence(0.0f);
@@ -296,7 +377,26 @@ void HBAgentMoveState::exit() {
 
 void HBAgentMoveState::physics_process(float p_delta) {
 	ZoneScopedN("HBAgentMoveState physics process");
+
+	handle_player_specific_inputs();
+
 	HBAgent *agent = get_agent();
+	if (HBAgent *target = agent->get_target(); target) {
+		if (agent->is_action_just_pressed(HBAgent::INPUT_ACTION_ATTACK)) {
+			Dictionary args;
+			args[HBAgentCombatMoveState::PARAM_TARGET] = target;
+			state_machine->transition_to(ASN()->combat_move, args);
+			return;
+		}
+	}
+
+	if (wait_for_transition) {
+		if (get_inertialization_node()->is_inertializing()) {
+			return;
+		}
+		wait_for_transition = false;
+	}
+
 
 	Vector3 input_vector = agent->get_desired_movement_input_transformed();
 	Vector3 target_desired_velocity = input_vector * agent->get_agent_constants()->get_max_move_velocity();
@@ -338,7 +438,7 @@ void HBAgentMoveState::physics_process(float p_delta) {
 	Node3D *gn = get_graphics_node();
 	Vector3 movement_input = agent->get_desired_movement_input_transformed();
 
-	Ref<EPASLookatNode> torso_lookat_node = get_epas_controller()->get_epas_node("TorsoLookAt");
+	/*Ref<EPASLookatNode> torso_lookat_node = get_epas_controller()->get_epas_node("TorsoLookAt");
 	Ref<EPASLookatNode> head_lookat_node = get_epas_controller()->get_epas_node("HeadLookAt");
 
 	if (movement_input.length() > 0.0) {
@@ -357,16 +457,45 @@ void HBAgentMoveState::physics_process(float p_delta) {
 			head_lookat_node->set_influence(0.0f);
 			get_inertialization_node()->inertialize();
 		}
-	}
+	}*/
 
 	{
+
+		// Initiate turn if needed
+		Ref<EPASOrientationWarpNode> orientation_warp_node = get_epas_controller()->get_epas_node("Orientation");
+
 		Vector3 facing_dir = agent->get_graphics_rotation().xform(Vector3(0.0f, 0.0f, -1.0f));
-		if (agent->get_linear_velocity().project(facing_dir).length() < 0.1f && agent->get_graphics_rotation().xform(Vector3(0.0f, 0.0f, -1.0f)).angle_to(movement_input) > Math::deg_to_rad(45.0f)) {
-			float rotation_angle = agent->get_graphics_rotation().xform(Vector3(0.0f, 0.0f, -1.0f)).signed_angle_to(movement_input, Vector3(0.0f, 1.0f, 0.0f));
+		float angle = agent->get_graphics_rotation().xform(Vector3(0.0f, 0.0f, -1.0f)).angle_to(movement_input);
+		float rotation_angle = agent->get_graphics_rotation().xform(Vector3(0.0f, 0.0f, -1.0f)).signed_angle_to(movement_input, Vector3(0.0f, 1.0f, 0.0f));
+		if (agent->get_linear_velocity().project(facing_dir).length() < 0.1f && angle > Math::deg_to_rad(45.0f)) {
 			Dictionary args;
 			args[HBAgentTurnState::PARAM_ANGLE] = Math::rad_to_deg(rotation_angle);
+			orientation_warp_node->set_orientation_angle(0.0f);
 			state_machine->transition_to(ASN()->turn_state, args);
 			return;
+		}
+
+		// Disable forward strafing when walking
+
+		if (!agent->is_action_pressed(HBAgent::AgentInputAction::INPUT_ACTION_RUN)) {
+			orientation_warp_node->set_orientation_angle(0.0f);
+			Vector3 dir = movement_input.normalized();
+			if (agent->is_action_just_released(HBAgent::INPUT_ACTION_RUN)) {
+				Transform3D graphics_trf = agent->get_global_transform();
+				agent->inertialize_graphics_transform(graphics_trf, 0.15f);
+			} else if (dir.is_normalized()) {
+				Basis basis = Basis::looking_at(dir);
+				agent->set_graphics_rotation(basis.get_rotation_quaternion());
+			}
+			if (angle > Math::deg_to_rad(45.0f)) {
+				if (dir.is_normalized()) {
+					Transform3D graphics_trf = Transform3D(Basis::looking_at(dir).get_rotation_quaternion(), get_agent()->get_global_position());
+					agent->inertialize_graphics_transform(graphics_trf, 0.25f);
+				}
+			}
+
+		} else {
+			orientation_warp_node->set_orientation_angle(Math::rad_to_deg(rotation_angle));
 		}
 	}
 
@@ -440,7 +569,7 @@ void HBAgentMoveState::physics_process(float p_delta) {
 	dir.y = 0.0f;
 	dir.normalize();
 	if (dir.is_normalized()) {
-		agent->set_graphics_rotation(Basis::looking_at(dir).get_rotation_quaternion());
+		//agent->set_graphics_rotation(Basis::looking_at(dir).get_rotation_quaternion());
 	}
 	Vector3 linear_vel_horizontal = agent->get_linear_velocity().project(dir);
 	if (!linear_vel_horizontal.is_finite()) {
@@ -816,6 +945,7 @@ bool HBAgentGroundStateBase::handle_parkour_mid() {
 					next_state_args[HBAgentParkourBeamWalk::PARAM_BEAM_NODE] = beam;
 				} else {
 					next_state = ASN()->move_state;
+					next_state_args[HBAgentMoveState::PARAM_WAIT_FOR_TRANSITION] = true;
 				}
 
 				_transition_to_short_hop(landing_point, next_state, next_state_args);
@@ -1274,7 +1404,7 @@ void HBAgentTurnState::enter(const Dictionary &p_args) {
 void HBAgentTurnState::physics_process(float p_delta) {
 	time += p_delta;
 	if (animation_node.is_valid()) {
-		get_agent()->apply_root_motion(animation_node, p_delta);
+		get_agent()->apply_root_motion(animation_node, false, p_delta);
 		if (!animation_node->is_playing()) {
 			animation_node.unref();
 			state_machine->transition_to(ASN()->move_state);
@@ -2087,6 +2217,7 @@ void HBAgentRootMotionState::enter(const Dictionary &p_args) {
 
 	next_state_args = p_args.get(RootMotionParams::PARAM_NEXT_STATE_ARGS, Dictionary());
 	next_state = p_args.get(RootMotionParams::PARAM_NEXT_STATE, "");
+	collisions_enabled = p_args.get(RootMotionParams::PARAM_COLLIDE, false);
 
 	Ref<EPASTransitionNode> transition_node = get_movement_transition_node();
 	transition_node->transition_to(p_args.get(PARAM_TRANSITION_NODE_INDEX, 0));
@@ -2109,7 +2240,11 @@ void HBAgentRootMotionState::physics_process(float p_delta) {
 		return;
 	}
 	debug_draw_sphere(animation_node->get_root_motion_starting_transform().origin, 0.05f, Color("GREEN"));
-	get_agent()->apply_root_motion(animation_node, p_delta);
+	get_agent()->apply_root_motion(animation_node, collisions_enabled, p_delta);
+
+	if (collisions_enabled) {
+		get_agent()->update(p_delta);
+	}
 	
 	if (!inertialization_init) {
 		Transform3D trf = get_agent()->get_global_transform();
@@ -2476,9 +2611,9 @@ void HBAgentWallParkourStateNew::enter(const Dictionary &p_args) {
 	update_animator_initial();
 
 	for (int i = 0; i < AgentProceduralAnimator::AgentLimb::LIMB_MAX; i++) {
-		animator_options.limb_position_spring_halflifes[i] = 0.2f;
+		animator_options.limb_position_spring_halflifes[i] = 0.0f;
 	}
-	animator_options.skeleton_position_spring_halflife = 0.4f;
+	animator_options.skeleton_position_spring_halflife = 0.0f;
 	animator.set_animation_duration(0.4f);
 	animator.restart();
 	back_straightness_target = 0.0f;
@@ -3094,6 +3229,320 @@ void HBAgentWallTransitionState::physics_process(float p_delta) {
 		}
 	}
 
-	for(int i = 0; i < 4; i++) {
+}
+
+void HBAgentCombatMoveState::calculate_desired_movement_velocity(float p_delta) {
+	HBAgent *agent = get_agent();
+	Vector3 input_vector = agent->get_desired_movement_input_transformed();
+	Vector3 target_desired_velocity = input_vector * agent->get_agent_constants()->get_max_move_velocity();
+	Vector3 current_desired_velocity = agent->get_desired_velocity();
+	HBSprings::velocity_spring_vector3(
+		current_desired_velocity,
+		desired_velocity_spring_acceleration,
+		target_desired_velocity,
+		agent->get_agent_constants()->get_velocity_spring_halflife(),
+		p_delta);
+	desired_velocity_ws = current_desired_velocity;
+}
+
+void HBAgentCombatMoveState::rotate_towards_target(float p_delta) {
+	HBAgent *agent = get_agent();
+	Vector3 aim_direction = agent->get_global_position().direction_to(target->get_global_position());
+	aim_direction.y = 0.0f;
+	aim_direction.normalize();
+	if (aim_direction.is_normalized()) {
+		agent_rotation_target = Basis::looking_at(aim_direction).get_rotation_quaternion();
+	}
+	Quaternion current_rot = get_agent()->get_graphics_rotation();
+	HBSprings::simple_spring_damper_exact_quat(
+		current_rot,
+		agent_rotation_velocity,
+		agent_rotation_target,
+		agent_rotation_halflife,
+		p_delta);
+	get_agent()->set_graphics_rotation(current_rot);
+}
+
+void HBAgentCombatMoveState::update_orientation_warp() {
+	HBAgent *agent = get_agent();
+	Ref<EPASOrientationWarpNode> orientation_warp = get_epas_controller()->get_epas_node("Orientation");
+	DEV_ASSERT(orientation_warp.is_valid());
+
+	float orientation_warp_angle = 0.0f;
+	if (desired_velocity_ws.length() > 0.1f) {
+		Vector3 forward_direction = agent->get_graphics_rotation().xform(Vector3(0.0f, 0.0f, -1.0f));
+		forward_direction.y = 0.0f;
+		forward_direction.normalize();
+		if (forward_direction.is_normalized()) {
+			orientation_warp_angle = Math::rad_to_deg(forward_direction.signed_angle_to(desired_velocity_ws.normalized(), Vector3(0.0f, 1.0f, 0.0f)));
+			float mul = MIN(1.0, agent->get_linear_velocity().length() / (agent->get_agent_constants()->get_max_move_velocity() * 0.5f));
+			orientation_warp_angle = CLAMP(orientation_warp_angle, -75.0, 75.0) * mul;
+		}
+	}
+
+	orientation_warp->set_orientation_angle(orientation_warp_angle);
+}
+
+bool HBAgentCombatMoveState::handle_attack() {
+	HBAgent *agent = get_agent();
+	if (agent->is_action_just_pressed(HBAgent::INPUT_ACTION_ATTACK)) {
+		Dictionary root_motion_args;
+
+		root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE] = ASN()->combat_move;
+		root_motion_args[HBAgentCombatAttackState::PARAM_ATTACK_NAME] = StringName("Attack1");
+		root_motion_args[HBAgentCombatAttackState::PARAM_TARGET] = target;
+
+		Dictionary next_state_args;
+		next_state_args[HBAgentCombatMoveState::PARAM_TARGET] = target;
+
+		root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE_ARGS] = next_state_args;
+		state_machine->transition_to(ASN()->combat_attack, root_motion_args);
+		return true;
+	}
+
+	return false;
+}
+
+void HBAgentCombatMoveState::reset() {
+	desired_velocity_spring_acceleration = Vector3();
+	desired_velocity_ws = Vector3();
+}
+
+void HBAgentCombatMoveState::enter(const Dictionary &p_args) {
+	target = Object::cast_to<HBAgent>(p_args.get(PARAM_TARGET, Variant()));
+	DEV_ASSERT(target);
+
+	reset();
+
+	HBAgent *agent = get_agent();
+
+	agent->set_movement_mode(HBAgent::MOVE_GROUNDED);
+	Transform3D initial_trf;
+	initial_trf.origin = agent->get_global_position();
+	Vector3 aim_direction = initial_trf.origin.direction_to(target->get_global_position());
+	aim_direction.y = 0.0f;
+	aim_direction.normalize();
+	if (!aim_direction.is_normalized()) {
+		aim_direction = Vector3(0.0f, 0.0f, -1.0f);
+	}
+	initial_trf.basis = Basis::looking_at(aim_direction);
+	get_movement_transition_node()->transition_to(HBAgentConstants::MOVEMENT_MOVE);
+	agent->inertialize_graphics_transform(initial_trf, 0.15f);
+	get_inertialization_node()->inertialize(0.5f);
+}
+
+void HBAgentCombatMoveState::physics_process(float p_delta) {
+	calculate_desired_movement_velocity(p_delta);
+	HBAgent *agent = get_agent();
+	agent->set_desired_velocity(desired_velocity_ws);
+	agent->handle_input(desired_velocity_ws.normalized(), 0.0f);
+	agent->update(p_delta);
+
+	rotate_towards_target(p_delta);
+
+	Vector3 linear_vel_horizontal = agent->get_linear_velocity();
+	linear_vel_horizontal.y = 0.0f;
+	get_wheel_locomotion_node()->set_linear_velocity(linear_vel_horizontal);
+	get_wheel_locomotion_node()->set_x_blend(CLAMP(linear_vel_horizontal.length() / agent->get_agent_constants()->get_max_move_velocity(), 0.0, 1.0));
+
+
+	update_orientation_warp();
+
+	if (handle_attack()) {
+		return;
+	}
+}
+
+bool HBAgentCombatAttackState::handle_attack() {
+	if (attack-> get_cancel_time() == -1.0f) {
+		return false;
+	}
+
+	if (String(attack->get_next_attack()).is_empty() || animation_node->get_playback_position() < attack->get_cancel_time() || !was_attack_repressed) {
+		return false;
+	}
+
+	HBAgent *agent = get_agent();
+
+	if (agent->is_action_pressed(HBAgent::INPUT_ACTION_ATTACK)) {
+		Dictionary root_motion_args;
+
+		root_motion_args[HBAgentCombatAttackState::PARAM_ATTACK_NAME] = attack->get_next_attack();
+		root_motion_args[HBAgentCombatAttackState::PARAM_TARGET] = target;
+		root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE] = ASN()->combat_move;
+
+		Dictionary next_state_args;
+		next_state_args[HBAgentCombatMoveState::PARAM_TARGET] = target;
+
+		root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE_ARGS] = next_state_args;
+		state_machine->transition_to(ASN()->combat_attack, root_motion_args);
+		return true;
+	}
+	return false;
+}
+
+void HBAgentCombatAttackState::handle_hitstop(float p_delta) {
+	if (prev_playback_position < attack->get_hit_time() && animation_node->get_playback_position() > attack->get_hit_time()) {
+		hit_stop_solver.instantiate();
+		Vector3 dir = get_graphics_node()->get_global_basis().xform(Vector3(0.0f, 0.0f, -1.0f));
+		hit_stop_solver->start(dir, attack->get_hitstop_duration()*0.5f);
+		animation_node->set_speed_scale(0.05f);
+	}
+
+	if (hit_stop_solver.is_valid()) {
+		if (hit_stop_solver->is_done()) {
+			animation_node->set_speed_scale(1.0f);
+			hit_stop_solver.unref();
+			return;
+		}
+		hit_stop_solver->advance(1.0f, p_delta);
+		Vector3 offset = hit_stop_solver->get_offset();
+		HBAgent *agent = get_agent();
+		//agent->set_global_position(agent->get_global_position() + offset);
+	}
+}
+
+void HBAgentCombatAttackState::handle_sending_attack_to_target() {
+	if (prev_playback_position < attack->get_hit_time() && animation_node->get_playback_position() > attack->get_hit_time()) {
+		target->receive_attack(get_agent(), attack);
+	}
+}
+
+void HBAgentCombatAttackState::enter(const Dictionary &p_args) {
+	HBAgent *agent = get_agent();
+	Ref<EPASTransitionNode> transition = get_epas_controller()->get_epas_node("AttackTransition");
+	DEV_ASSERT(transition.is_valid());
+
+	target = Object::cast_to<HBAgent>(p_args.get(PARAM_TARGET, Variant()));
+	DEV_ASSERT(target);
+
+	DEV_ASSERT(p_args.has(PARAM_ATTACK_NAME));
+	StringName attack_name = p_args.get(HBAgentCombatAttackState::PARAM_ATTACK_NAME, "");
+	attack = get_agent()->get_attack_data(attack_name);
+
+	DEV_ASSERT(attack.is_valid());
+
+	int transition_idx = attack->get_transition_index();
+
+	transition->transition_to(transition_idx);
+
+	Dictionary root_motion_args = p_args;
+	root_motion_args[HBAgentRootMotionState::PARAM_ANIMATION_NODE_NAME] = attack->get_name();
+	root_motion_args[HBAgentRootMotionState::PARAM_TRANSITION_NODE_INDEX] = HBAgentConstants::MOVEMENT_COMBAT_ATTACK;
+
+	if (!root_motion_args.has(HBAgentRootMotionState::PARAM_WARP_POINTS)) {
+		Dictionary warp_points;
+		Vector3 dir_from_target = target->get_global_position().direction_to(agent->get_global_position());
+		dir_from_target.y = 0.0f;
+		dir_from_target.normalize();
+		warp_points[StringName("agent")] = Transform3D(Basis::looking_at(dir_from_target), target->get_global_position());
+		root_motion_args[HBAgentRootMotionState::PARAM_WARP_POINTS] = warp_points;
+	}
+
+	HBAgentRootMotionState::enter(root_motion_args);
+	get_inertialization_node()->inertialize(0.10f);
+
+	attack_mesh_instance = agent->get_attack_trail_node();
+	attack_mesh_instance->show();
+	attack_mesh_instance->set_mesh(attack->get_mesh());
+	animation_node = get_epas_controller()->get_epas_node(attack->get_name());
+	attack_mesh_instance->set_instance_shader_parameter("scroll", 0.0f);
+
+	prev_playback_position = 0.0f;
+	was_attack_repressed = false;
+}
+
+void HBAgentCombatAttackState::exit() {
+	attack_mesh_instance->hide();
+	hit_stop_solver.unref();
+	animation_node->set_speed_scale(1.0f);
+}
+
+void HBAgentCombatAttackState::physics_process(float p_delta) {
+	HBAgentRootMotionState::physics_process(p_delta);
+	
+	if (get_agent()->is_action_just_released(HBAgent::AgentInputAction::INPUT_ACTION_ATTACK)) {
+		was_attack_repressed = true;
+	}
+
+	if (handle_attack()) {
+		return;
+	}
+	handle_sending_attack_to_target();
+	handle_hitstop(p_delta);
+	
+	const float animation_length = animation_node->get_animation()->get_length();
+	attack_mesh_instance->set_instance_shader_parameter("scroll", animation_node->get_playback_position() / animation_length);
+	prev_playback_position = animation_node->get_playback_position();
+}
+
+void HBAgentCombatHitState::look_towards_attacker() {
+	HBAgent *agent = get_agent();
+	Vector3 attacker_dir = agent->get_global_position().direction_to(attacker->get_global_position());
+	attacker_dir.y = 0.0f;
+	attacker_dir.normalize();
+	if (attacker_dir.is_normalized()) {
+		Basis new_rot = Basis::looking_at(attacker_dir);
+		agent->set_graphics_rotation(new_rot);
+		get_graphics_node()->set_global_basis(new_rot);
+	}
+}
+
+void HBAgentCombatHitState::setup_animation() {
+	HBAgentConstants::MovementTransitionInputs transition = HBAgentConstants::MOVEMENT_COMBAT_HIT_RIGHT;
+	StringName animation_node_name;
+
+	Dictionary root_motion_args;
+
+	switch (attack->get_attack_direction()) {
+		case HBAttackData::RIGHT:{
+			animation_node_name = StringName("HitRight");
+			transition = HBAgentConstants::MOVEMENT_COMBAT_HIT_RIGHT;
+		} break;
+	}
+
+	root_motion_args[HBAgentRootMotionState::PARAM_ANIMATION_NODE_NAME] = animation_node_name;
+	root_motion_args[HBAgentRootMotionState::PARAM_TRANSITION_NODE_INDEX] = transition;
+	root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE] = StringName("Move");
+	root_motion_args[HBAgentRootMotionState::PARAM_COLLIDE] = true;
+
+	get_inertialization_node()->inertialize(0.05f);
+
+	HBAgentRootMotionState::enter(root_motion_args);
+}
+
+void HBAgentCombatHitState::enter(const Dictionary &p_args) {
+	DEV_ASSERT(p_args.has(PARAM_ATTACK));
+	attack = p_args.get(PARAM_ATTACK, Variant());
+	DEV_ASSERT(attack.is_valid());
+
+	DEV_ASSERT(p_args.has(PARAM_ATTACKER));
+	attacker = Object::cast_to<HBAgent>(p_args[PARAM_ATTACKER]);
+	DEV_ASSERT(attacker);
+
+	hit_stop_solver.instantiate();
+	Vector3 forward = get_graphics_node()->get_global_basis().xform(Vector3(0.0f, 0.0f, -1.0f));
+	forward.y = 0.0f;
+	forward.normalize();
+	hit_stop_solver->start(forward, attack->get_hitstop_duration());
+
+	setup_attack_reception();
+	look_towards_attacker();
+	setup_animation();
+}
+
+void HBAgentCombatHitState::exit() {
+	remove_attack_reception();
+}
+
+void HBAgentCombatHitState::physics_process(float p_delta) {
+	HBAgentRootMotionState::physics_process(p_delta);
+
+	
+	if (!hit_stop_solver->is_done()) {
+		hit_stop_solver->advance(1.0f, p_delta);
+	
+		Vector3 new_pos = get_agent()->get_global_position() + hit_stop_solver->get_offset();
+		get_agent()->set_global_position(new_pos);
 	}
 }

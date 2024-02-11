@@ -13,6 +13,94 @@
 
 class HBAgentParkourLedge;
 
+class HBAttackData : public RefCounted {
+	GDCLASS(HBAttackData, RefCounted);
+public:
+	enum AttackDirection {
+		RIGHT
+	};
+private:
+	StringName name;
+	Ref<EPASAnimation> animation;
+	Ref<Mesh> mesh;
+	int transition_index;
+	float hit_time;
+	float hitstop_duration = 0.1f;
+	float cancel_time = -1.0f;
+	StringName next_attack;
+	AttackDirection attack_direction = AttackDirection::RIGHT;
+protected:
+	static void _bind_methods();
+public:
+	StringName get_name() const { return name; }
+	void set_name(const StringName &p_name) { name = p_name; }
+	Ref<EPASAnimation> get_animation() const { return animation; }
+	void set_animation(const Ref<EPASAnimation> &p_animation) { animation = p_animation; }
+	Ref<Mesh> get_mesh() const { return mesh; }
+	void set_mesh(const Ref<Mesh> &p_mesh) { mesh = p_mesh; }
+
+	int get_transition_index() const { return transition_index; }
+	void set_transition_index(int p_transition_index) { transition_index = p_transition_index; }
+
+	float get_hit_time() const { return hit_time; }
+	void set_hit_time(float p_hit_time) { hit_time = p_hit_time; }
+
+	float get_hitstop_duration() const { return hitstop_duration; }
+	void set_hitstop_duration(float p_hitstop_duration) { hitstop_duration = p_hitstop_duration; }
+
+	AttackDirection get_attack_direction() const { return attack_direction; }
+	void set_attack_direction(AttackDirection p_attack_direction) { attack_direction = p_attack_direction; }
+
+	float get_cancel_time() const;
+	void set_cancel_time(float p_cancel_time);
+
+	StringName get_next_attack() const { return next_attack; }
+	void set_next_attack(const StringName &next_attack_) { next_attack = next_attack_; }
+
+};
+
+VARIANT_ENUM_CAST(HBAttackData::AttackDirection);
+
+#define NODE_CACHE_IMPL(node_name, node_type)																				\
+private:\
+	ObjectID node_name##_cache;																									\
+	NodePath node_name;																										\
+	void _update_##node_name##_cache() { 																						\
+		node_name##_cache = ObjectID(); 																					\
+		if (has_node(node_name)) {																							\
+			Node *node = get_node(node_name);																				\
+			ERR_FAIL_COND_MSG(!node, vformat("Cannot update %s cache: Node cannot be found!", _STR(node_name)));			\
+			node_type *nd = Object::cast_to<node_type>(node);																	\
+			ERR_FAIL_COND_MSG(!nd, "Cannot update actor graphics cache: NodePath does not point to a correctly typed node!");\
+			node_name##_cache = nd->get_instance_id();																		\
+		}																														\
+	}																														\
+public:\
+	NodePath get_##node_name() const {																						\
+		return node_name;																									\
+	}																														\
+	node_type* get_##node_name##_node() 		{			\
+		if (node_name##_cache.is_valid()) {																					\
+			return Object::cast_to<node_type>(ObjectDB::get_instance(node_name##_cache)); 										\
+		} else {																												\
+			_update_##node_name##_cache();																						\
+				if (node_name##_cache.is_valid()) {																				\
+					return Object::cast_to<node_type>(ObjectDB::get_instance(node_name##_cache));								\
+				}																												\
+		}																														\
+		return nullptr; \
+	}																																\
+	void set_##node_name(NodePath p_path) {																					\
+		node_name = p_path;																									\
+		_update_##node_name##_cache();																						\
+	}																														\
+																																																											\
+
+#define NODE_CACHE_BIND(node_name, node_type, class_name)	\
+	ClassDB::bind_method(D_METHOD("set_" _STR(node_name), _STR(node_name) "_path"), &class_name::set_##node_name); \
+	ClassDB::bind_method(D_METHOD("get_" _STR(node_name)), &class_name::get_##node_name); \
+	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, _STR(node_name), PROPERTY_HINT_NODE_PATH_VALID_TYPES, _STR(node_type)), "set_" _STR(node_name), "get_" _STR(node_name));\
+
 class HBAgent : public JoltCharacterBody3D {
 	GDCLASS(HBAgent, JoltCharacterBody3D);
 
@@ -27,10 +115,20 @@ public:
 		INPUT_ACTION_RUN,
 		INPUT_ACTION_PARKOUR_DOWN,
 		INPUT_ACTION_PARKOUR_UP,
+		INPUT_ACTION_TARGET,
+		INPUT_ACTION_ATTACK,
 		INPUT_ACTION_MAX
 	};
 
+	enum AgentOutlineMode {
+		DISABLED,
+		SOFT_TARGET,
+		TARGET_ASSASSINATE,
+		TARGET_COMBAT
+	};
+
 private:
+	Ref<ShaderMaterial> outline_material;
 	NodePath ledge_detector_path;
 	struct InputState {
 		Vector3 movement;
@@ -49,6 +147,8 @@ private:
 	Vector3 smoothed_accel = Vector3(0.0, 0.0, 0.0);
 	Vector3 prev_position;
 
+	float starting_heading = 0.0f;
+
 	NavigationAgent3D *navigation_agent;
 	MovementMode movement_mode = MovementMode::MOVE_GROUNDED;
 
@@ -58,24 +158,15 @@ private:
 	Vector3 tilt_spring_velocity;
 
 	NodePath graphics_node;
-	NodePath tilt_node;
-	ObjectID tilt_node_cache;
 	Vector3 graphics_lookat_normal;
 	ObjectID graphics_node_cache;
 	Ref<HBAgentConstants> agent_constants;
-
-	NodePath epas_controller_node;
-	ObjectID epas_controller_cache;
 
 	Quaternion last_rotation;
 	Quaternion last_last_rotation;
 
 	void _update_graphics_node_cache();
-	void _update_tilt_node_cache();
-	void _update_epas_controller_cache();
 	Node3D *_get_graphics_node();
-	Node3D *_get_tilt_node();
-	EPASController *_get_epas_controller();
 	void _rotate_towards_velocity(float p_delta);
 	void _tilt_towards_acceleration(float p_delta);
 
@@ -86,6 +177,10 @@ private:
 	Quaternion graphics_rotation;
 	Quaternion prev_graphics_rotation;
 	Vector3 prev_graphics_position;
+	HBAgent *target = nullptr;
+	bool is_player_controlled = false;
+
+	HashMap<StringName, Ref<HBAttackData>> attack_datas;
 
 protected:
 	static void _bind_methods();
@@ -94,6 +189,11 @@ protected:
 	Vector3 _get_desired_velocity() const;
 
 	void _start_inertialize_graphics_position(const Vector3 &p_prev_prev, const Vector3 &p_prev, const Vector3 &p_target, float p_delta, float p_duration = 0.25f);
+
+	NODE_CACHE_IMPL(attack_trail, MeshInstance3D);
+	NODE_CACHE_IMPL(tilt_node, Node3D);
+	NODE_CACHE_IMPL(epas_controller, EPASController);
+	NODE_CACHE_IMPL(skeleton, Skeleton3D);
 
 public:
 	// Input handling
@@ -111,17 +211,13 @@ public:
 	Quaternion get_movement_input_rotation() const;
 	void set_graphics_node(NodePath p_path);
 	NodePath get_graphics_node() const;
-	void set_tilt_node(NodePath p_path);
-	NodePath get_tilt_node() const;
 	void set_movement_mode(MovementMode p_movement_mode);
 	MovementMode get_movement_mode() const;
-	NodePath get_epas_controller_node() const;
-	void set_epas_controller_node(const NodePath &p_epas_controller_node);
 	Vector3 get_previous_position() const;
 
 	Ref<HBAgentConstants> get_agent_constants() const;
 	void set_agent_constants(const Ref<HBAgentConstants> &p_agent_constants);
-	void apply_root_motion(const Ref<EPASOneshotAnimationNode> &p_animation_node, float p_delta);
+	void apply_root_motion(const Ref<EPASOneshotAnimationNode> &p_animation_node, bool p_collide, float p_delta);
 	float get_height() const;
 	float get_radius() const;
 	Vector3 process_graphics_position_inertialization(const float &p_delta);
@@ -139,6 +235,7 @@ public:
 
 	NodePath get_ledge_detector_node() const;
 	void set_ledge_detector_node(const NodePath &p_ledge_detector_node);
+	void add_attack(const Ref<HBAttackData> &p_attack_data);
 
 #ifdef DEBUG_ENABLED
 	const int VELOCITY_PLOT_SIZE = 90;
@@ -148,11 +245,26 @@ public:
 	Vector<float> desired_velocity_plot_lines_y;
 #endif
 
+	Quaternion get_graphics_rotation() const;
+	void set_graphics_rotation(const Quaternion &p_graphics_rotation);
+
+	float get_starting_heading() const { return starting_heading; }
+	void set_starting_heading(float p_starting_heading) { starting_heading = p_starting_heading; }
+	Vector<HBAgent*> find_nearby_agents(float p_radius) const;
+
 	HBAgent();
 	virtual ~HBAgent();
 
-	Quaternion get_graphics_rotation() const;
-	void set_graphics_rotation(const Quaternion &p_graphics_rotation);
+	bool get_is_player_controlled() const;
+	void set_is_player_controlled(bool p_is_player_controlled);
+
+	HBAgent *get_target() const;
+	void set_target(HBAgent *p_target);
+
+	Ref<HBAttackData> get_attack_data(const StringName &p_name);
+	void receive_attack(HBAgent *p_attacker, Ref<HBAttackData> p_attack_data);
+
+	void set_outline_mode(AgentOutlineMode p_outline_mode);
 
 	friend class HBAgentState;
 };
