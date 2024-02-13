@@ -1,0 +1,35 @@
+#ifndef CONSOLE_H
+#define CONSOLE_H
+
+#include "scene/gui/line_edit.h"
+#include "scene/gui/panel_container.h"
+#include "scene/gui/rich_text_label.h"
+
+class HBConsole : public PanelContainer {
+    RichTextLabel *label = nullptr;
+    LineEdit *text_input = nullptr;
+    PrintHandlerList phl;
+    ErrorHandlerList ehl;
+    static void _handle_print(void *p_this, const String &p_string, bool p_error, bool p_rich);
+    static void _handle_error(void *p_self, const char *p_func, const char *p_file, int p_line, const char *p_error, const char *p_errorexp, bool p_editor_notify, ErrorHandlerType p_type);
+
+    void _handle_print_impl(const String &p_string, bool p_error, bool p_rich);
+    void _handle_error_impl(const String &p_func, const String &p_file, int p_line, const String &p_error, const String &p_errorexp, ErrorHandlerType p_type);
+    void _on_text_changed(const String &p_text);
+    void _on_text_submitted(const String &p_text);
+    PopupMenu *autocomplete_menu = nullptr;
+    void _on_autocomplete_index_pressed(int p_idx);
+
+    static constexpr int HISTORY_MAX = 16;
+    LocalVector<String> history;
+    uint32_t history_index = 0;
+
+    bool set_text_from_history(int p_history_delta);
+public:
+    virtual void input(const Ref<InputEvent> &p_event) override;
+    virtual void gui_input(const Ref<InputEvent> &p_event) override;
+    HBConsole();
+    ~HBConsole();
+};
+
+#endif // CONSOLE_H

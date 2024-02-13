@@ -1,5 +1,6 @@
 #include "game_main_loop.h"
 
+#include "modules/game/console.h"
 #include "modules/imgui/register_types.h"
 
 #ifdef DEBUG_ENABLED
@@ -22,6 +23,8 @@
 
 #include "modules/input_glyphs/input_glyphs_singleton.h"
 #include "modules/input_glyphs/input_glyphs_source.h"
+HBConsole *console = nullptr;
+CCommand HBGameMainLoop::quit_command = CCommand("quit");
 
 HBGameMainLoop::HBGameMainLoop() {
 #ifdef DEBUG_ENABLED
@@ -65,6 +68,7 @@ bool HBGameMainLoop::physics_process(double p_time) {
 
 void HBGameMainLoop::finalize() {
 	SceneTree::finalize();
+	console = nullptr;
 }
 
 void HBGameMainLoop::enable_fp_exceptions() {
@@ -95,4 +99,8 @@ void HBGameMainLoop::initialize() {
 		};
 	}
 #endif
+
+	console = memnew(HBConsole);
+	get_root()->add_child(console);
+
 }
