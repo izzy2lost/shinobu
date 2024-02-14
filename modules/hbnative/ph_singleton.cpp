@@ -1,5 +1,4 @@
 #include "ph_singleton.h"
-#include "servers/rendering/renderer_rd/api_context_rd.h"
 #include "thirdparty/linalg.h"
 
 PHNative *PHNative::singleton = NULL;
@@ -141,10 +140,7 @@ String PHNative::get_rendering_api_name() {
 	return OS::get_singleton()->get_current_rendering_driver_name();
 	RenderingDevice *rd = RenderingDevice::get_singleton();
 	if (rd) {
-		ApiContextRD *crd = rd->get_context();
-		if (crd) {
-			return crd->get_api_name();
-		}
+		return rd->get_device_api_name();
 	}
 
 	return "Unknown";
