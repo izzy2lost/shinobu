@@ -57,6 +57,7 @@ private:
 		uint16_t type;
 		uint16_t code;
 		int32_t value;
+		uint64_t timestamp;
 	};
 
 	struct Joypad {

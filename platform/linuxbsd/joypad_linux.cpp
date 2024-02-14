@@ -507,6 +507,7 @@ void JoypadLinux::joypad_events_thread_run() {
 				joypad_event.type = event.type;
 				joypad_event.code = event.code;
 				joypad_event.value = event.value;
+				joypad_event.timestamp = OS::get_singleton()->get_ticks_usec();
 				joypad.events.push_back(joypad_event);
 			}
 			if (errno != EAGAIN) {
@@ -536,7 +537,7 @@ void JoypadLinux::process_joypads() {
 
 			switch (joypad_event.type) {
 				case EV_KEY:
-					input->joy_button(i, (JoyButton)joypad.key_map[joypad_event.code], joypad_event.value);
+					input->joy_button(i, (JoyButton)joypad.key_map[joypad_event.code], joypad_event.value, joypad_event.timestamp);
 					break;
 
 				case EV_ABS:
