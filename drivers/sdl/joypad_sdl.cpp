@@ -78,7 +78,8 @@ void JoypadSDL::process_inputs_run() {
 		}
 
 		SDL_Event e;
-		if (SDL_PollEvent(&e) != 0) {
+		int has_event = SDL_WaitEventTimeout(&e, 16);
+		if (has_event != 0) {
 			switch (e.type) {
 				case SDL_JOYDEVICEADDED: {
 					JoypadEvent joypad_event;
