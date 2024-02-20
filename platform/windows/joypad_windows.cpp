@@ -76,13 +76,9 @@ JoypadWindows::JoypadWindows(HWND *hwnd) {
 		// Ensure dinput is still a nullptr.
 		dinput = nullptr;
 	}
-
-	joypad_events_thread.start(process_joypads_thread_func, this);
 }
 
 JoypadWindows::~JoypadWindows() {
-	joypad_events_exit.set();
-	joypad_events_thread.wait_to_finish();
 	close_joypad();
 	if (dinput) {
 		dinput->Release();
@@ -348,18 +344,8 @@ void JoypadWindows::probe_joypads() {
 	}
 }
 
-void JoypadWindows::process_joypads_thread_func(void *p_user) {
-	if (p_user) {
-		JoypadWindows *joy = (JoypadWindows *)p_user;
-		while (!joy->joypad_events_exit.is_set()) {
-			joy->process_joypads_thread_run();
-		}
-	}
-}
-
-void JoypadWindows::process_joypads_thread_run() {
+void JoypadWindows::process_joypads() {
 	HRESULT hr;
-	uint64_t time_usec = OS::get_singleton()->get_ticks_usec();
 
 	for (int i = 0; i < XUSER_MAX_COUNT; i++) {
 		xinput_gamepad &joy = x_joypads[i];
@@ -372,16 +358,16 @@ void JoypadWindows::process_joypads_thread_run() {
 		if (joy.state.dwPacketNumber != joy.last_packet) {
 			int button_mask = XINPUT_GAMEPAD_DPAD_UP;
 			for (int j = 0; j <= 16; j++) {
-				push_joy_button_event(joy.id, (JoyButton)j, joy.state.Gamepad.wButtons & button_mask, time_usec);
+				input->joy_button(joy.id, (JoyButton)j, joy.state.Gamepad.wButtons & button_mask);
 				button_mask = button_mask * 2;
 			}
 
-			push_joy_axis_event(joy.id, JoyAxis::LEFT_X, axis_correct(joy.state.Gamepad.sThumbLX, true), time_usec);
-			push_joy_axis_event(joy.id, JoyAxis::LEFT_Y, axis_correct(joy.state.Gamepad.sThumbLY, true, false, true), time_usec);
-			push_joy_axis_event(joy.id, JoyAxis::RIGHT_X, axis_correct(joy.state.Gamepad.sThumbRX, true), time_usec);
-			push_joy_axis_event(joy.id, JoyAxis::RIGHT_Y, axis_correct(joy.state.Gamepad.sThumbRY, true, false, true), time_usec);
-			push_joy_axis_event(joy.id, JoyAxis::TRIGGER_LEFT, axis_correct(joy.state.Gamepad.bLeftTrigger, true, true), time_usec);
-			push_joy_axis_event(joy.id, JoyAxis::TRIGGER_RIGHT, axis_correct(joy.state.Gamepad.bRightTrigger, true, true), time_usec);
+			input->joy_axis(joy.id, JoyAxis::LEFT_X, axis_correct(joy.state.Gamepad.sThumbLX, true));
+			input->joy_axis(joy.id, JoyAxis::LEFT_Y, axis_correct(joy.state.Gamepad.sThumbLY, true, false, true));
+			input->joy_axis(joy.id, JoyAxis::RIGHT_X, axis_correct(joy.state.Gamepad.sThumbRX, true));
+			input->joy_axis(joy.id, JoyAxis::RIGHT_Y, axis_correct(joy.state.Gamepad.sThumbRY, true, false, true));
+			input->joy_axis(joy.id, JoyAxis::TRIGGER_LEFT, axis_correct(joy.state.Gamepad.bLeftTrigger, true, true));
+			input->joy_axis(joy.id, JoyAxis::TRIGGER_RIGHT, axis_correct(joy.state.Gamepad.bRightTrigger, true, true));
 			joy.last_packet = joy.state.dwPacketNumber;
 		}
 		uint64_t timestamp = input->get_joy_vibration_timestamp(joy.id);
@@ -420,17 +406,17 @@ void JoypadWindows::process_joypads_thread_run() {
 			continue;
 		}
 
-		post_hat(joy->id, js.rgdwPOV[0], time_usec);
+		post_hat(joy->id, js.rgdwPOV[0]);
 
 		for (int j = 0; j < 128; j++) {
 			if (js.rgbButtons[j] & 0x80) {
 				if (!joy->last_buttons[j]) {
-					push_joy_button_event(joy->id, (JoyButton)j, true, time_usec);
+					input->joy_button(joy->id, (JoyButton)j, true);
 					joy->last_buttons[j] = true;
 				}
 			} else {
 				if (joy->last_buttons[j]) {
-					push_joy_button_event(joy->id, (JoyButton)j, false, time_usec);
+					input->joy_button(joy->id, (JoyButton)j, false);
 					joy->last_buttons[j] = false;
 				}
 			}
@@ -444,7 +430,7 @@ void JoypadWindows::process_joypads_thread_run() {
 		for (uint32_t j = 0; j < joy->joy_axis.size(); j++) {
 			for (int k = 0; k < count; k++) {
 				if (joy->joy_axis[j] == axes[k]) {
-					push_joy_axis_event(joy->id, (JoyAxis)j, axis_correct(values[k]), time_usec);
+					input->joy_axis(joy->id, (JoyAxis)j, axis_correct(values[k]));
 					break;
 				}
 			}
@@ -453,7 +439,7 @@ void JoypadWindows::process_joypads_thread_run() {
 	return;
 }
 
-void JoypadWindows::post_hat(int p_device, DWORD p_dpad, uint64_t p_timestamp) {
+void JoypadWindows::post_hat(int p_device, DWORD p_dpad) {
 	BitField<HatMask> dpad_val;
 
 	// Should be -1 when centered, but according to docs:
@@ -492,7 +478,7 @@ void JoypadWindows::post_hat(int p_device, DWORD p_dpad, uint64_t p_timestamp) {
 		dpad_val.set_flag(HatMask::LEFT);
 		dpad_val.set_flag(HatMask::UP);
 	}
-	push_joy_hat_event(p_device, dpad_val, p_timestamp);
+	input->joy_hat(p_device, dpad_val);
 }
 
 float JoypadWindows::axis_correct(int p_val, bool p_xinput, bool p_trigger, bool p_negate) const {
@@ -542,59 +528,6 @@ void JoypadWindows::joypad_vibration_stop_xinput(int p_device, uint64_t p_timest
 			joy.ff_timestamp = p_timestamp;
 			joy.vibrating = false;
 		}
-	}
-}
-
-void JoypadWindows::push_joy_button_event(int p_device, JoyButton p_button, bool p_pressed, uint64_t p_timestamp) {
-	JoypadEvent event;
-	event.button = p_button;
-	event.type = JoypadEventType::BUTTON,
-	event.id = p_device;
-	event.pressed = p_pressed;
-	event.timestamp = p_timestamp;
-	MutexLock lock(joypad_event_queue_lock);
-	joypad_event_queue.push_back(event);
-}
-
-void JoypadWindows::push_joy_axis_event(int p_device, JoyAxis p_axis, float p_value, uint64_t p_timestamp) {
-	JoypadEvent event;
-	event.axis = p_axis;
-	event.type = JoypadEventType::AXIS,
-	event.id = p_device;
-	event.axis_value = p_value;
-	event.timestamp = p_timestamp;
-	MutexLock lock(joypad_event_queue_lock);
-	joypad_event_queue.push_back(event);
-}
-
-void JoypadWindows::push_joy_hat_event(int p_device, BitField<HatMask> p_hat_mask, uint64_t p_timestamp) {
-	JoypadEvent event;
-	event.type = JoypadEventType::HAT,
-	event.id = p_device;
-	event.hat_mask = p_hat_mask;
-	event.timestamp = p_timestamp;
-	MutexLock lock(joypad_event_queue_lock);
-	joypad_event_queue.push_back(event);
-}
-
-void JoypadWindows::process_joypads() {
-	Vector<JoypadEvent> events;
-	joypad_event_queue_lock.lock();
-	events = joypad_event_queue;
-	joypad_event_queue.clear();
-	joypad_event_queue_lock.unlock();
-	for (int i = 0; i < events.size(); i++) {
-		switch (events[i].type) {
-			case AXIS: {
-				input->joy_axis(events[i].id, events[i].axis, events[i].axis_value, events[i].timestamp);
-			} break;
-			case BUTTON: {
-				input->joy_button(events[i].id, events[i].button, events[i].pressed, events[i].timestamp);
-			} break;
-			case HAT: {
-				input->joy_hat(events[i].id, events[i].hat_mask, events[i].timestamp);
-			} break;
-		};
 	}
 }
 

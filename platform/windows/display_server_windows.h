@@ -350,6 +350,8 @@ typedef struct {
 	ICONDIRENTRY idEntries[1]; // An entry for each image (idCount of 'em)
 } ICONDIR, *LPICONDIR;
 
+class JoypadSDL;
+
 class DisplayServerWindows : public DisplayServer {
 	// No need to register with GDCLASS, it's platform-specific and nothing is added.
 
@@ -512,6 +514,7 @@ class DisplayServerWindows : public DisplayServer {
 	};
 
 	JoypadWindows *joypad = nullptr;
+	JoypadSDL *joypad_sdl = nullptr;
 	HHOOK mouse_monitor = nullptr;
 	List<WindowID> popup_list;
 	uint64_t time_since_popup = 0;

@@ -50,6 +50,10 @@
 #include "drivers/gles3/rasterizer_gles3.h"
 #endif
 
+#ifdef SDL_ENABLED
+#include "drivers/sdl/joypad_sdl.h"
+#endif
+
 #include <avrt.h>
 #include <dwmapi.h>
 #include <propkey.h>
@@ -3003,7 +3007,7 @@ String DisplayServerWindows::keyboard_get_layout_name(int p_index) const {
 void DisplayServerWindows::process_events() {
 	ERR_FAIL_COND(!Thread::is_main_thread());
 
-	if (!drop_events) {
+	if (!drop_events && joypad) {
 		joypad->process_joypads();
 	}
 
@@ -5037,7 +5041,9 @@ LRESULT DisplayServerWindows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 
 		} break;
 		case WM_DEVICECHANGE: {
-			joypad->probe_joypads();
+			if (joypad) {
+				joypad->probe_joypads();
+			}
 		} break;
 		case WM_DESTROY: {
 			Input::get_singleton()->flush_buffered_events();
@@ -6038,9 +6044,20 @@ DisplayServerWindows::DisplayServerWindows(const String &p_rendering_driver, Win
 
 	WindowID main_window = _create_window(p_mode, p_vsync_mode, p_flags, Rect2i(window_position, p_resolution));
 	ERR_FAIL_COND_MSG(main_window == INVALID_WINDOW_ID, "Failed to create main window.");
+#ifdef SDL_ENABLED
+	joypad_sdl = memnew(JoypadSDL(Input::get_singleton()));
+	if (joypad_sdl->initialize() != OK) {
+		// SDL init failed, fallback to the native driver
+		memdelete(joypad_sdl);
+		joypad_sdl = nullptr;
+	}
+	if (!joypad_sdl) {
+		joypad = new JoypadWindows(&windows[MAIN_WINDOW_ID].hWnd);
+	}
 
+#else
 	joypad = new JoypadWindows(&windows[MAIN_WINDOW_ID].hWnd);
-
+#endif
 	for (int i = 0; i < WINDOW_FLAG_MAX; i++) {
 		if (p_flags & (1 << i)) {
 			window_set_flag(WindowFlags(i), true, main_window);
@@ -6149,7 +6166,15 @@ void DisplayServerWindows::register_windows_driver() {
 }
 
 DisplayServerWindows::~DisplayServerWindows() {
-	delete joypad;
+#ifdef SDL_ENABLED
+	if (joypad_sdl) {
+		memdelete(joypad_sdl);
+	}
+#endif
+	if (joypad) {
+		delete joypad;
+	}
+
 	touch_state.clear();
 
 	cursors_cache.clear();
