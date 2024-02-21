@@ -3013,11 +3013,18 @@ void DisplayServerWindows::process_events() {
 
 	_THREAD_SAFE_LOCK_
 	MSG msg = {};
+
 	while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
 		TranslateMessage(&msg);
 		DispatchMessageW(&msg);
 	}
 	_THREAD_SAFE_UNLOCK_
+
+#ifdef SDL_ENABLED
+	if (!drop_events && joypad_sdl) {
+		joypad_sdl->process_events();
+	}
+#endif
 
 	if (!drop_events) {
 		_process_key_events();
