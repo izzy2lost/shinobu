@@ -55,10 +55,6 @@ static Vector<StringName> nodepath_get_subnames(const NodePath &p_nodepath) {
 	return snv;
 }
 
-static NodePath nodepath_subnames_only(const NodePath &p_nodepath) {
-	return nodepath_from_subnames(nodepath_get_subnames(p_nodepath));
-}
-
 Threen::interpolater Threen::interpolaters[Threen::TRANS_COUNT][Threen::EASE_COUNT] = {
 	{ &linear::in, &linear::in, &linear::in, &linear::in }, // Linear is the same for each easing.
 	{ &sine::in, &sine::out, &sine::in_out, &sine::out_in },
@@ -747,10 +743,10 @@ void Threen::_tween_process(float p_delta) {
 		bool repeats_finished = true;
 		for (List<InterpolateData>::Element *E = interpolates.front(); E; E = E->next()) {
 			// Get the data from it
-			InterpolateData &data = E->get();
+			InterpolateData &interp_data = E->get();
 
 			// Is not finished?
-			if (!data.finish) {
+			if (!interp_data.finish) {
 				// We aren't finished yet, no need to check the rest
 				repeats_finished = false;
 				break;
@@ -769,136 +765,136 @@ void Threen::_tween_process(float p_delta) {
 	// For each tween we wish to interpolate...
 	for (List<InterpolateData>::Element *E = interpolates.front(); E; E = E->next()) {
 		// Get the data from it
-		InterpolateData &data = E->get();
+		InterpolateData &interp_data = E->get();
 
 		// Track if we hit one that isn't finished yet
-		all_finished = all_finished && data.finish;
+		all_finished = all_finished && interp_data.finish;
 
 		// Is the data not active or already finished? No need to go any further
-		if (!data.active || data.finish) {
+		if (!interp_data.active || interp_data.finish) {
 			continue;
 		}
 
 		// Get the target object for this interpolation
-		Object *object = ObjectDB::get_instance(data.id);
+		Object *object = ObjectDB::get_instance(interp_data.id);
 		if (object == nullptr) {
 			continue;
 		}
 
 		// Are we still delaying this tween?
-		bool prev_delaying = data.elapsed <= data.delay;
-		data.elapsed += p_delta;
-		if (data.elapsed < data.delay) {
+		bool prev_delaying = interp_data.elapsed <= interp_data.delay;
+		interp_data.elapsed += p_delta;
+		if (interp_data.elapsed < interp_data.delay) {
 			continue;
 		} else if (prev_delaying) {
 			// We can apply the tween's value to the data and emit that the tween has started
-			_apply_tween_value(data, data.initial_val);
-			emit_signal("tween_started", object, nodepath_from_subnames(data.key));
+			_apply_tween_value(interp_data, interp_data.initial_val);
+			emit_signal("tween_started", object, nodepath_from_subnames(interp_data.key));
 		}
 
 		// Are we at the end of the tween?
-		if (data.elapsed > (data.delay + data.duration)) {
+		if (interp_data.elapsed > (interp_data.delay + interp_data.duration)) {
 			// Set the elapsed time to the end and mark this one as finished
-			data.elapsed = data.delay + data.duration;
-			data.finish = true;
+			interp_data.elapsed = interp_data.delay + interp_data.duration;
+			interp_data.finish = true;
 		}
 
 		// Are we interpolating a callback?
-		if (data.type == INTER_CALLBACK) {
+		if (interp_data.type == INTER_CALLBACK) {
 			// Is the tween completed?
-			if (data.finish) {
+			if (interp_data.finish) {
 				static_assert(VARIANT_ARG_MAX == 8, "This code needs to be updated if VARIANT_ARG_MAX != 8");
 
 				// Are we calling this callback deferred or immediately?
-				if (data.call_deferred) {
+				if (interp_data.call_deferred) {
 					// Run the deferred function callback, applying the correct number of arguments
-					switch (data.args) {
+					switch (interp_data.args) {
 						case 0:
-							object->call_deferred(data.key[0]);
+							object->call_deferred(interp_data.key[0]);
 							break;
 						case 1:
-							object->call_deferred(data.key[0], data.arg[0]);
+							object->call_deferred(interp_data.key[0], interp_data.arg[0]);
 							break;
 						case 2:
-							object->call_deferred(data.key[0], data.arg[0], data.arg[1]);
+							object->call_deferred(interp_data.key[0], interp_data.arg[0], interp_data.arg[1]);
 							break;
 						case 3:
-							object->call_deferred(data.key[0], data.arg[0], data.arg[1], data.arg[2]);
+							object->call_deferred(interp_data.key[0], interp_data.arg[0], interp_data.arg[1], interp_data.arg[2]);
 							break;
 						case 4:
-							object->call_deferred(data.key[0], data.arg[0], data.arg[1], data.arg[2], data.arg[3]);
+							object->call_deferred(interp_data.key[0], interp_data.arg[0], interp_data.arg[1], interp_data.arg[2], interp_data.arg[3]);
 							break;
 						case 5:
-							object->call_deferred(data.key[0], data.arg[0], data.arg[1], data.arg[2], data.arg[3], data.arg[4]);
+							object->call_deferred(interp_data.key[0], interp_data.arg[0], interp_data.arg[1], interp_data.arg[2], interp_data.arg[3], interp_data.arg[4]);
 							break;
 						case 6:
-							object->call_deferred(data.key[0], data.arg[0], data.arg[1], data.arg[2], data.arg[3], data.arg[4], data.arg[5]);
+							object->call_deferred(interp_data.key[0], interp_data.arg[0], interp_data.arg[1], interp_data.arg[2], interp_data.arg[3], interp_data.arg[4], interp_data.arg[5]);
 							break;
 						case 7:
-							object->call_deferred(data.key[0], data.arg[0], data.arg[1], data.arg[2], data.arg[3], data.arg[4], data.arg[5], data.arg[6]);
+							object->call_deferred(interp_data.key[0], interp_data.arg[0], interp_data.arg[1], interp_data.arg[2], interp_data.arg[3], interp_data.arg[4], interp_data.arg[5], interp_data.arg[6]);
 							break;
 						case 8:
-							object->call_deferred(data.key[0], data.arg[0], data.arg[1], data.arg[2], data.arg[3], data.arg[4], data.arg[5], data.arg[6], data.arg[7]);
+							object->call_deferred(interp_data.key[0], interp_data.arg[0], interp_data.arg[1], interp_data.arg[2], interp_data.arg[3], interp_data.arg[4], interp_data.arg[5], interp_data.arg[6], interp_data.arg[7]);
 							break;
 					}
 				} else {
 					// Call the function directly with the arguments
-					switch (data.args) {
+					switch (interp_data.args) {
 						case 0:
-							object->call(data.key[0]);
+							object->call(interp_data.key[0]);
 							break;
 						case 1:
-							object->call(data.key[0], data.arg[0]);
+							object->call(interp_data.key[0], interp_data.arg[0]);
 							break;
 						case 2:
-							object->call(data.key[0], data.arg[0], data.arg[1]);
+							object->call(interp_data.key[0], interp_data.arg[0], interp_data.arg[1]);
 							break;
 						case 3:
-							object->call(data.key[0], data.arg[0], data.arg[1], data.arg[2]);
+							object->call(interp_data.key[0], interp_data.arg[0], interp_data.arg[1], interp_data.arg[2]);
 							break;
 						case 4:
-							object->call(data.key[0], data.arg[0], data.arg[1], data.arg[2], data.arg[3]);
+							object->call(interp_data.key[0], interp_data.arg[0], interp_data.arg[1], interp_data.arg[2], interp_data.arg[3]);
 							break;
 						case 5:
-							object->call(data.key[0], data.arg[0], data.arg[1], data.arg[2], data.arg[3], data.arg[4]);
+							object->call(interp_data.key[0], interp_data.arg[0], interp_data.arg[1], interp_data.arg[2], interp_data.arg[3], interp_data.arg[4]);
 							break;
 						case 6:
-							object->call(data.key[0], data.arg[0], data.arg[1], data.arg[2], data.arg[3], data.arg[4], data.arg[5]);
+							object->call(interp_data.key[0], interp_data.arg[0], interp_data.arg[1], interp_data.arg[2], interp_data.arg[3], interp_data.arg[4], interp_data.arg[5]);
 							break;
 						case 7:
-							object->call(data.key[0], data.arg[0], data.arg[1], data.arg[2], data.arg[3], data.arg[4], data.arg[5], data.arg[6]);
+							object->call(interp_data.key[0], interp_data.arg[0], interp_data.arg[1], interp_data.arg[2], interp_data.arg[3], interp_data.arg[4], interp_data.arg[5], interp_data.arg[6]);
 							break;
 						case 8:
-							object->call(data.key[0], data.arg[0], data.arg[1], data.arg[2], data.arg[3], data.arg[4], data.arg[5], data.arg[6], data.arg[7]);
+							object->call(interp_data.key[0], interp_data.arg[0], interp_data.arg[1], interp_data.arg[2], interp_data.arg[3], interp_data.arg[4], interp_data.arg[5], interp_data.arg[6], interp_data.arg[7]);
 							break;
 					}
 				}
 			}
 		} else {
 			// We can apply the value directly
-			Variant result = _run_equation(data);
-			_apply_tween_value(data, result);
+			Variant result = _run_equation(interp_data);
+			_apply_tween_value(interp_data, result);
 
 			// Emit that the tween has taken a step
-			emit_signal("tween_step", object, nodepath_from_subnames(data.key), data.elapsed, result);
+			emit_signal("tween_step", object, nodepath_from_subnames(interp_data.key), interp_data.elapsed, result);
 		}
 
 		// Is the tween now finished?
-		if (data.finish) {
+		if (interp_data.finish) {
 			// Set it to the final value directly
-			Variant final_val = _get_final_val(data);
-			_apply_tween_value(data, final_val);
+			Variant final_val = _get_final_val(interp_data);
+			_apply_tween_value(interp_data, final_val);
 
 			// Emit the signal
-			emit_signal("tween_completed", object, nodepath_from_subnames(data.key));
+			emit_signal("tween_completed", object, nodepath_from_subnames(interp_data.key));
 
 			// If we are not repeating the tween, remove it
 			if (!repeat) {
-				call_deferred("_remove_by_uid", data.uid);
+				call_deferred("_remove_by_uid", interp_data.uid);
 			}
 		} else if (!repeat) {
 			// Check whether all tweens are finished
-			all_finished = all_finished && data.finish;
+			all_finished = all_finished && interp_data.finish;
 		}
 	}
 	// One less update left to go
@@ -968,8 +964,8 @@ bool Threen::start() {
 
 	pending_update++;
 	for (List<InterpolateData>::Element *E = interpolates.front(); E; E = E->next()) {
-		InterpolateData &data = E->get();
-		data.active = true;
+		InterpolateData &interp_data = E->get();
+		interp_data.active = true;
 	}
 	pending_update--;
 
@@ -990,21 +986,21 @@ bool Threen::reset(Object *p_object, StringName p_key) {
 	pending_update++;
 	for (List<InterpolateData>::Element *E = interpolates.front(); E; E = E->next()) {
 		// Get the target object
-		InterpolateData &data = E->get();
-		Object *object = ObjectDB::get_instance(data.id);
+		InterpolateData &interp_data = E->get();
+		Object *object = ObjectDB::get_instance(interp_data.id);
 		if (object == nullptr) {
 			continue;
 		}
 
 		// Do we have the correct object and key?
-		if (object == p_object && (data.concatenated_key == p_key || p_key == StringName())) {
+		if (object == p_object && (interp_data.concatenated_key == p_key || p_key == StringName())) {
 			// Reset the tween to the initial state
-			data.elapsed = 0;
-			data.finish = false;
+			interp_data.elapsed = 0;
+			interp_data.finish = false;
 
 			// Also apply the initial state if there isn't a delay
-			if (data.delay == 0) {
-				_apply_tween_value(data, data.initial_val);
+			if (interp_data.delay == 0) {
+				_apply_tween_value(interp_data, interp_data.initial_val);
 			}
 		}
 	}
@@ -1017,13 +1013,13 @@ bool Threen::reset_all() {
 	pending_update++;
 	for (List<InterpolateData>::Element *E = interpolates.front(); E; E = E->next()) {
 		// Get the target data and set it back to the initial state
-		InterpolateData &data = E->get();
-		data.elapsed = 0;
-		data.finish = false;
+		InterpolateData &interp_data = E->get();
+		interp_data.elapsed = 0;
+		interp_data.finish = false;
 
 		// If there isn't a delay, apply the value to the object
-		if (data.delay == 0) {
-			_apply_tween_value(data, data.initial_val);
+		if (interp_data.delay == 0) {
+			_apply_tween_value(interp_data, interp_data.initial_val);
 		}
 	}
 	pending_update--;
@@ -1035,16 +1031,16 @@ bool Threen::stop(Object *p_object, StringName p_key) {
 	pending_update++;
 	for (List<InterpolateData>::Element *E = interpolates.front(); E; E = E->next()) {
 		// Get the object the tween is targeting
-		InterpolateData &data = E->get();
-		Object *object = ObjectDB::get_instance(data.id);
+		InterpolateData &interp_data = E->get();
+		Object *object = ObjectDB::get_instance(interp_data.id);
 		if (object == nullptr) {
 			continue;
 		}
 
 		// Is this the correct object and does it have the given key?
-		if (object == p_object && (data.concatenated_key == p_key || p_key == StringName())) {
+		if (object == p_object && (interp_data.concatenated_key == p_key || p_key == StringName())) {
 			// Disable the tween
-			data.active = false;
+			interp_data.active = false;
 		}
 	}
 	pending_update--;
@@ -1060,8 +1056,8 @@ bool Threen::stop_all() {
 	pending_update++;
 	for (List<InterpolateData>::Element *E = interpolates.front(); E; E = E->next()) {
 		// Simply set it inactive
-		InterpolateData &data = E->get();
-		data.active = false;
+		InterpolateData &interp_data = E->get();
+		interp_data.active = false;
 	}
 	pending_update--;
 	return true;
@@ -1076,15 +1072,15 @@ bool Threen::resume(Object *p_object, StringName p_key) {
 	pending_update++;
 	for (List<InterpolateData>::Element *E = interpolates.front(); E; E = E->next()) {
 		// Grab the object
-		InterpolateData &data = E->get();
-		Object *object = ObjectDB::get_instance(data.id);
+		InterpolateData &interp_data = E->get();
+		Object *object = ObjectDB::get_instance(interp_data.id);
 		if (object == nullptr) {
 			continue;
 		}
 
 		// If the object and string key match, activate it
-		if (object == p_object && (data.concatenated_key == p_key || p_key == StringName())) {
-			data.active = true;
+		if (object == p_object && (interp_data.concatenated_key == p_key || p_key == StringName())) {
+			interp_data.active = true;
 		}
 	}
 	pending_update--;
@@ -1100,8 +1096,8 @@ bool Threen::resume_all() {
 	pending_update++;
 	for (List<InterpolateData>::Element *E = interpolates.front(); E; E = E->next()) {
 		// Simply grab it and set it to active
-		InterpolateData &data = E->get();
-		data.active = true;
+		InterpolateData &interp_data = E->get();
+		interp_data.active = true;
 	}
 	pending_update--;
 	return true;
@@ -1118,14 +1114,14 @@ bool Threen::remove(Object *p_object, StringName p_key) {
 	List<List<InterpolateData>::Element *> for_removal;
 	for (List<InterpolateData>::Element *E = interpolates.front(); E; E = E->next()) {
 		// Get the target object
-		InterpolateData &data = E->get();
-		Object *object = ObjectDB::get_instance(data.id);
+		InterpolateData &interp_data = E->get();
+		Object *object = ObjectDB::get_instance(interp_data.id);
 		if (object == nullptr) {
 			continue;
 		}
 
 		// If the target object and string key match, queue it for removal
-		if (object == p_object && (data.concatenated_key == p_key || p_key == StringName())) {
+		if (object == p_object && (interp_data.concatenated_key == p_key || p_key == StringName())) {
 			for_removal.push_back(E);
 		}
 	}
@@ -1138,16 +1134,16 @@ bool Threen::remove(Object *p_object, StringName p_key) {
 	return true;
 }
 
-void Threen::_remove_by_uid(int uid) {
+void Threen::_remove_by_uid(int p_uid) {
 	// If we are still updating, call this function again later
 	if (pending_update != 0) {
-		call_deferred("_remove_by_uid", uid);
+		call_deferred("_remove_by_uid", p_uid);
 		return;
 	}
 
 	// Find the interpolation that matches the given UID
 	for (List<InterpolateData>::Element *E = interpolates.front(); E; E = E->next()) {
-		if (uid == E->get().uid) {
+		if (p_uid == E->get().uid) {
 			// It matches, erase it and stop looking
 			E->erase();
 			break;
@@ -1186,33 +1182,33 @@ bool Threen::seek(real_t p_time) {
 	pending_update++;
 	for (List<InterpolateData>::Element *E = interpolates.front(); E; E = E->next()) {
 		// Get the target data
-		InterpolateData &data = E->get();
+		InterpolateData &interp_data = E->get();
 
 		// Update the elapsed data to be set to the target time
-		data.elapsed = p_time;
+		interp_data.elapsed = p_time;
 
 		// Are we at the end?
-		if (data.elapsed < data.delay) {
+		if (interp_data.elapsed < interp_data.delay) {
 			// There is still time left to go
-			data.finish = false;
+			interp_data.finish = false;
 			continue;
-		} else if (data.elapsed >= (data.delay + data.duration)) {
+		} else if (interp_data.elapsed >= (interp_data.delay + interp_data.duration)) {
 			// We are past the end of it, set the elapsed time to the end and mark as finished
-			data.elapsed = (data.delay + data.duration);
-			data.finish = true;
+			interp_data.elapsed = (interp_data.delay + interp_data.duration);
+			interp_data.finish = true;
 		} else {
 			// We are not finished with this interpolation yet
-			data.finish = false;
+			interp_data.finish = false;
 		}
 
 		// If we are a callback, do nothing special
-		if (data.type == INTER_CALLBACK) {
+		if (interp_data.type == INTER_CALLBACK) {
 			continue;
 		}
 
 		// Run the equation on the data and apply the value
-		Variant result = _run_equation(data);
-		_apply_tween_value(data, result);
+		Variant result = _run_equation(interp_data);
+		_apply_tween_value(interp_data, result);
 	}
 	pending_update--;
 	return true;
@@ -1226,10 +1222,10 @@ real_t Threen::tell() const {
 	// For each interpolation...
 	for (const List<InterpolateData>::Element *E = interpolates.front(); E; E = E->next()) {
 		// Get the data and figure out if it's position is further along than the previous ones
-		const InterpolateData &data = E->get();
-		if (data.elapsed > pos) {
+		const InterpolateData &interp_data = E->get();
+		if (interp_data.elapsed > pos) {
 			// Save it if so
-			pos = data.elapsed;
+			pos = interp_data.elapsed;
 		}
 	}
 	pending_update--;
@@ -1248,8 +1244,8 @@ real_t Threen::get_runtime() const {
 	real_t runtime = 0;
 	for (const List<InterpolateData>::Element *E = interpolates.front(); E; E = E->next()) {
 		// Get the tween data and see if it's runtime is greater than the previous tweens
-		const InterpolateData &data = E->get();
-		real_t t = data.delay + data.duration;
+		const InterpolateData &interp_data = E->get();
+		real_t t = interp_data.delay + interp_data.duration;
 		if (t > runtime) {
 			// This is the longest running tween
 			runtime = t;
@@ -1404,38 +1400,38 @@ bool Threen::_build_interpolation(InterpolateType p_interpolation_type, Object *
 	// TODO: Fix this method's organization to take advantage of the type
 
 	// Make a new interpolation data
-	InterpolateData data;
-	data.active = true;
-	data.type = p_interpolation_type;
-	data.finish = false;
-	data.elapsed = 0;
+	InterpolateData interp_data;
+	interp_data.active = true;
+	interp_data.type = p_interpolation_type;
+	interp_data.finish = false;
+	interp_data.elapsed = 0;
 
 	// Validate and apply interpolation data
 
 	// Give it the object
 	ERR_FAIL_COND_V_MSG(p_object == nullptr, false, "Invalid object provided to Threen.");
-	data.id = p_object->get_instance_id();
+	interp_data.id = p_object->get_instance_id();
 
 	// Validate the initial and final values
 	ERR_FAIL_COND_V_MSG(p_initial_val.get_type() != p_final_val.get_type(), false, "Initial value type '" + Variant::get_type_name(p_initial_val.get_type()) + "' does not match final value type '" + Variant::get_type_name(p_final_val.get_type()) + "'.");
-	data.initial_val = p_initial_val;
-	data.final_val = p_final_val;
+	interp_data.initial_val = p_initial_val;
+	interp_data.final_val = p_final_val;
 
 	// Check the Duration
 	ERR_FAIL_COND_V_MSG(p_duration < 0, false, "Only non-negative duration values allowed in Threens.");
-	data.duration = p_duration;
+	interp_data.duration = p_duration;
 
 	// Threen Delay
 	ERR_FAIL_COND_V_MSG(p_delay < 0, false, "Only non-negative delay values allowed in Threens.");
-	data.delay = p_delay;
+	interp_data.delay = p_delay;
 
 	// Transition type
 	ERR_FAIL_COND_V_MSG(p_trans_type < 0 || p_trans_type >= TRANS_COUNT, false, "Invalid transition type provided to Threen.");
-	data.trans_type = p_trans_type;
+	interp_data.trans_type = p_trans_type;
 
 	// Easing type
 	ERR_FAIL_COND_V_MSG(p_ease_type < 0 || p_ease_type >= EASE_COUNT, false, "Invalid easing type provided to Threen.");
-	data.ease_type = p_ease_type;
+	interp_data.ease_type = p_ease_type;
 
 	// Is the property defined?
 	if (p_property) {
@@ -1446,8 +1442,8 @@ bool Threen::_build_interpolation(InterpolateType p_interpolation_type, Object *
 		ERR_FAIL_COND_V_MSG(!prop_valid, false, "Threen target object has no property named: " + p_property->get_concatenated_subnames() + ".");
 		*/
 
-		data.key = nodepath_get_subnames(*p_property);
-		data.concatenated_key = p_property->get_concatenated_subnames();
+		interp_data.key = nodepath_get_subnames(*p_property);
+		interp_data.concatenated_key = p_property->get_concatenated_subnames();
 	}
 
 	// Is the method defined?
@@ -1455,17 +1451,17 @@ bool Threen::_build_interpolation(InterpolateType p_interpolation_type, Object *
 		// Does the object even have the requested method?
 		ERR_FAIL_COND_V_MSG(!p_object->has_method(*p_method), false, "Threen target object has no method named: " + *p_method + ".");
 
-		data.key.push_back(*p_method);
-		data.concatenated_key = *p_method;
+		interp_data.key.push_back(*p_method);
+		interp_data.concatenated_key = *p_method;
 	}
 
 	// Is there not a valid delta?
-	if (!_calc_delta_val(data.initial_val, data.final_val, data.delta_val)) {
+	if (!_calc_delta_val(interp_data.initial_val, interp_data.final_val, interp_data.delta_val)) {
 		return false;
 	}
 
 	// Add this interpolation to the total
-	_push_interpolate_data(data);
+	_push_interpolate_data(interp_data);
 	return true;
 }
 
@@ -1541,19 +1537,19 @@ bool Threen::interpolate_callback(Object *p_object, real_t p_duration, String p_
 	ERR_FAIL_COND_V_MSG(!p_object->has_method(p_callback), false, "Object has no callback named: " + p_callback + ".");
 
 	// Build a new InterpolationData
-	InterpolateData data;
-	data.active = true;
-	data.type = INTER_CALLBACK;
-	data.finish = false;
-	data.call_deferred = false;
-	data.elapsed = 0;
+	InterpolateData interp_data;
+	interp_data.active = true;
+	interp_data.type = INTER_CALLBACK;
+	interp_data.finish = false;
+	interp_data.call_deferred = false;
+	interp_data.elapsed = 0;
 
 	// Give the data it's configuration
-	data.id = p_object->get_instance_id();
-	data.key.push_back(p_callback);
-	data.concatenated_key = p_callback;
-	data.duration = p_duration;
-	data.delay = 0;
+	interp_data.id = p_object->get_instance_id();
+	interp_data.key.push_back(p_callback);
+	interp_data.concatenated_key = p_callback;
+	interp_data.duration = p_duration;
+	interp_data.delay = 0;
 
 	// Add arguments to the interpolation
 	int args = 0;
@@ -1571,15 +1567,15 @@ bool Threen::interpolate_callback(Object *p_object, real_t p_duration, String p_
 		args = 0;
 	}
 
-	data.args = args;
-	data.arg[0] = p_arg1;
-	data.arg[1] = p_arg2;
-	data.arg[2] = p_arg3;
-	data.arg[3] = p_arg4;
-	data.arg[4] = p_arg5;
+	interp_data.args = args;
+	interp_data.arg[0] = p_arg1;
+	interp_data.arg[1] = p_arg2;
+	interp_data.arg[2] = p_arg3;
+	interp_data.arg[3] = p_arg4;
+	interp_data.arg[4] = p_arg5;
 
 	// Add the new interpolation
-	_push_interpolate_data(data);
+	_push_interpolate_data(interp_data);
 	return true;
 }
 
@@ -1600,19 +1596,19 @@ bool Threen::interpolate_deferred_callback(Object *p_object, real_t p_duration, 
 	ERR_FAIL_COND_V_MSG(!p_object->has_method(p_callback), false, "Object has no callback named: " + p_callback + ".");
 
 	// Create a new InterpolateData for the callback
-	InterpolateData data;
-	data.active = true;
-	data.type = INTER_CALLBACK;
-	data.finish = false;
-	data.call_deferred = true;
-	data.elapsed = 0;
+	InterpolateData interp_data;
+	interp_data.active = true;
+	interp_data.type = INTER_CALLBACK;
+	interp_data.finish = false;
+	interp_data.call_deferred = true;
+	interp_data.elapsed = 0;
 
 	// Give the data it's configuration
-	data.id = p_object->get_instance_id();
-	data.key.push_back(p_callback);
-	data.concatenated_key = p_callback;
-	data.duration = p_duration;
-	data.delay = 0;
+	interp_data.id = p_object->get_instance_id();
+	interp_data.key.push_back(p_callback);
+	interp_data.concatenated_key = p_callback;
+	interp_data.duration = p_duration;
+	interp_data.delay = 0;
 
 	// Collect arguments for the callback
 	static_assert(VARIANT_ARG_MAX == 8, "This code needs to be updated if VARIANT_ARG_MAX != 8");
@@ -1637,18 +1633,18 @@ bool Threen::interpolate_deferred_callback(Object *p_object, real_t p_duration, 
 		args = 0;
 	}
 
-	data.args = args;
-	data.arg[0] = p_arg1;
-	data.arg[1] = p_arg2;
-	data.arg[2] = p_arg3;
-	data.arg[3] = p_arg4;
-	data.arg[4] = p_arg5;
-	data.arg[5] = p_arg6;
-	data.arg[6] = p_arg7;
-	data.arg[7] = p_arg8;
+	interp_data.args = args;
+	interp_data.arg[0] = p_arg1;
+	interp_data.arg[1] = p_arg2;
+	interp_data.arg[2] = p_arg3;
+	interp_data.arg[3] = p_arg4;
+	interp_data.arg[4] = p_arg5;
+	interp_data.arg[5] = p_arg6;
+	interp_data.arg[6] = p_arg7;
+	interp_data.arg[7] = p_arg8;
 
 	// Add the new interpolation
-	_push_interpolate_data(data);
+	_push_interpolate_data(interp_data);
 	return true;
 }
 
@@ -1709,26 +1705,26 @@ bool Threen::follow_property(Object *p_object, NodePath p_property, Variant p_in
 	ERR_FAIL_COND_V(target_val.get_type() != p_initial_val.get_type(), false);
 
 	// Create a new InterpolateData
-	InterpolateData data;
-	data.active = true;
-	data.type = FOLLOW_PROPERTY;
-	data.finish = false;
-	data.elapsed = 0;
+	InterpolateData interp_data;
+	interp_data.active = true;
+	interp_data.type = FOLLOW_PROPERTY;
+	interp_data.finish = false;
+	interp_data.elapsed = 0;
 
 	// Give the InterpolateData it's configuration
-	data.id = p_object->get_instance_id();
-	data.key = nodepath_get_subnames(p_property);
-	data.concatenated_key = p_property.get_concatenated_subnames();
-	data.initial_val = p_initial_val;
-	data.target_id = p_target->get_instance_id();
-	data.target_key = nodepath_get_subnames(p_target_property);
-	data.duration = p_duration;
-	data.trans_type = p_trans_type;
-	data.ease_type = p_ease_type;
-	data.delay = p_delay;
+	interp_data.id = p_object->get_instance_id();
+	interp_data.key = nodepath_get_subnames(p_property);
+	interp_data.concatenated_key = p_property.get_concatenated_subnames();
+	interp_data.initial_val = p_initial_val;
+	interp_data.target_id = p_target->get_instance_id();
+	interp_data.target_key = nodepath_get_subnames(p_target_property);
+	interp_data.duration = p_duration;
+	interp_data.trans_type = p_trans_type;
+	interp_data.ease_type = p_ease_type;
+	interp_data.delay = p_delay;
 
 	// Add the interpolation
-	_push_interpolate_data(data);
+	_push_interpolate_data(interp_data);
 	return true;
 }
 
@@ -1772,26 +1768,26 @@ bool Threen::follow_method(Object *p_object, StringName p_method, Variant p_init
 	ERR_FAIL_COND_V(target_val.get_type() != p_initial_val.get_type(), false);
 
 	// Make the new InterpolateData for the method follow
-	InterpolateData data;
-	data.active = true;
-	data.type = FOLLOW_METHOD;
-	data.finish = false;
-	data.elapsed = 0;
+	InterpolateData interp_data;
+	interp_data.active = true;
+	interp_data.type = FOLLOW_METHOD;
+	interp_data.finish = false;
+	interp_data.elapsed = 0;
 
 	// Give the data it's configuration
-	data.id = p_object->get_instance_id();
-	data.key.push_back(p_method);
-	data.concatenated_key = p_method;
-	data.initial_val = p_initial_val;
-	data.target_id = p_target->get_instance_id();
-	data.target_key.push_back(p_target_method);
-	data.duration = p_duration;
-	data.trans_type = p_trans_type;
-	data.ease_type = p_ease_type;
-	data.delay = p_delay;
+	interp_data.id = p_object->get_instance_id();
+	interp_data.key.push_back(p_method);
+	interp_data.concatenated_key = p_method;
+	interp_data.initial_val = p_initial_val;
+	interp_data.target_id = p_target->get_instance_id();
+	interp_data.target_key.push_back(p_target_method);
+	interp_data.duration = p_duration;
+	interp_data.trans_type = p_trans_type;
+	interp_data.ease_type = p_ease_type;
+	interp_data.delay = p_delay;
 
 	// Add the new interpolation
-	_push_interpolate_data(data);
+	_push_interpolate_data(interp_data);
 	return true;
 }
 
@@ -1843,32 +1839,32 @@ bool Threen::targeting_property(Object *p_object, NodePath p_property, Object *p
 	ERR_FAIL_COND_V(initial_val.get_type() != p_final_val.get_type(), false);
 
 	// Build the InterpolateData object
-	InterpolateData data;
-	data.active = true;
-	data.type = TARGETING_PROPERTY;
-	data.finish = false;
-	data.elapsed = 0;
+	InterpolateData interp_data;
+	interp_data.active = true;
+	interp_data.type = TARGETING_PROPERTY;
+	interp_data.finish = false;
+	interp_data.elapsed = 0;
 
 	// Give the data it's configuration
-	data.id = p_object->get_instance_id();
-	data.key = nodepath_get_subnames(p_property);
-	data.concatenated_key = p_property.get_concatenated_subnames();
-	data.target_id = p_initial->get_instance_id();
-	data.target_key = nodepath_get_subnames(p_initial_property);
-	data.initial_val = initial_val;
-	data.final_val = p_final_val;
-	data.duration = p_duration;
-	data.trans_type = p_trans_type;
-	data.ease_type = p_ease_type;
-	data.delay = p_delay;
+	interp_data.id = p_object->get_instance_id();
+	interp_data.key = nodepath_get_subnames(p_property);
+	interp_data.concatenated_key = p_property.get_concatenated_subnames();
+	interp_data.target_id = p_initial->get_instance_id();
+	interp_data.target_key = nodepath_get_subnames(p_initial_property);
+	interp_data.initial_val = initial_val;
+	interp_data.final_val = p_final_val;
+	interp_data.duration = p_duration;
+	interp_data.trans_type = p_trans_type;
+	interp_data.ease_type = p_ease_type;
+	interp_data.delay = p_delay;
 
 	// Ensure there is a valid delta
-	if (!_calc_delta_val(data.initial_val, data.final_val, data.delta_val)) {
+	if (!_calc_delta_val(interp_data.initial_val, interp_data.final_val, interp_data.delta_val)) {
 		return false;
 	}
 
 	// Add the interpolation
-	_push_interpolate_data(data);
+	_push_interpolate_data(interp_data);
 	return true;
 }
 
@@ -1913,32 +1909,32 @@ bool Threen::targeting_method(Object *p_object, StringName p_method, Object *p_i
 	ERR_FAIL_COND_V(initial_val.get_type() != p_final_val.get_type(), false);
 
 	// Build the new InterpolateData object
-	InterpolateData data;
-	data.active = true;
-	data.type = TARGETING_METHOD;
-	data.finish = false;
-	data.elapsed = 0;
+	InterpolateData interp_data;
+	interp_data.active = true;
+	interp_data.type = TARGETING_METHOD;
+	interp_data.finish = false;
+	interp_data.elapsed = 0;
 
 	// Configure the data
-	data.id = p_object->get_instance_id();
-	data.key.push_back(p_method);
-	data.concatenated_key = p_method;
-	data.target_id = p_initial->get_instance_id();
-	data.target_key.push_back(p_initial_method);
-	data.initial_val = initial_val;
-	data.final_val = p_final_val;
-	data.duration = p_duration;
-	data.trans_type = p_trans_type;
-	data.ease_type = p_ease_type;
-	data.delay = p_delay;
+	interp_data.id = p_object->get_instance_id();
+	interp_data.key.push_back(p_method);
+	interp_data.concatenated_key = p_method;
+	interp_data.target_id = p_initial->get_instance_id();
+	interp_data.target_key.push_back(p_initial_method);
+	interp_data.initial_val = initial_val;
+	interp_data.final_val = p_final_val;
+	interp_data.duration = p_duration;
+	interp_data.trans_type = p_trans_type;
+	interp_data.ease_type = p_ease_type;
+	interp_data.delay = p_delay;
 
 	// Ensure there is a valid delta
-	if (!_calc_delta_val(data.initial_val, data.final_val, data.delta_val)) {
+	if (!_calc_delta_val(interp_data.initial_val, interp_data.final_val, interp_data.delta_val)) {
 		return false;
 	}
 
 	// Add the interpolation
-	_push_interpolate_data(data);
+	_push_interpolate_data(interp_data);
 	return true;
 }
 

@@ -10,7 +10,7 @@
 #include "shinobu_clock.h"
 #include "shinobu_group.h"
 #include "shinobu_sound_source.h"
-#include "thirdparty/miniaudio/miniaudio.h"
+#include "miniaudio/miniaudio.h"
 
 class Shinobu : public Object {
 	GDCLASS(Shinobu, Object);

@@ -54,10 +54,10 @@ String MultiSpinBox::get_range_string() const {
 		// Using %.*f with a precision of 0 decimal places seems to silently fail
 		if (precision > 0) {
 			// HACK: The maximum amount of params for vformat is 5 ._.
-			String min = vformat("%.*f%s", precision, range[0], suffix);
-			String max = vformat("%.*f%s", precision, range[1], suffix);
+			String min_rs = vformat("%.*f%s", precision, range[0], suffix);
+			String max_rs = vformat("%.*f%s", precision, range[1], suffix);
 
-			range_string = vformat("(%s %s %s)", min, String::utf8("⋯"), max);
+			range_string = vformat("(%s %s %s)", min_rs, String::utf8("⋯"), max_rs);
 		} else {
 			range_string = vformat("(%d%s %s %d%s)", range[0], suffix, String::utf8("⋯"), range[1], suffix);
 		}

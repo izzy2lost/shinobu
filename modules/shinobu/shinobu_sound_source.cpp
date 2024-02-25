@@ -57,11 +57,11 @@ const String ShinobuSoundSource::get_name() const {
 	return name;
 }
 
-const ma_result ShinobuSoundSource::get_result() const {
+ma_result ShinobuSoundSource::get_result() const {
 	return result;
 }
 
-const uint64_t ShinobuSoundSource::get_fixed_length() const {
+uint64_t ShinobuSoundSource::get_fixed_length() const {
 	return 0.0f;
 }
 

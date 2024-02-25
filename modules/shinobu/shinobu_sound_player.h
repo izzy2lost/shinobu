@@ -4,7 +4,7 @@
 #include "scene/main/node.h"
 #include "shinobu_clock.h"
 #include "shinobu_effects.h"
-#include "thirdparty/miniaudio/miniaudio.h"
+#include "miniaudio/miniaudio.h"
 #include <memory>
 
 class ShinobuSoundSource;

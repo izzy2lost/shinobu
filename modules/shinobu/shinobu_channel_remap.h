@@ -1,6 +1,6 @@
 #ifndef SHINOBU_CHANNEL_REMAP_H
 #define SHINOBU_CHANNEL_REMAP_H
-#include "thirdparty/miniaudio/miniaudio.h"
+#include "miniaudio/miniaudio.h"
 
 #define SPS_PI 3.14159265358979323846
 #define SPS_TAU 6.2831853071795864769252867666

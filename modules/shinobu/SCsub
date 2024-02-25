@@ -74,6 +74,12 @@ if env["builtin_libogg"]:
 
         sources += thirdparty_sources
 
+# Treat miniaudio headers as system headers to avoid raising warnings. Not supported on MSVC.
+if not env.msvc:
+    module_env.Append(CPPFLAGS=["-isystem", Dir("thirdparty").path])
+else:
+    module_env.Prepend(CPPPATH=["thirdparty"])
+
 
 if ARGUMENTS.get("shinobu_shared", "no") == "yes":
     # Shared lib compilation

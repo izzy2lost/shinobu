@@ -2,7 +2,7 @@
 #ifndef SHINOBU_SOUND_SOURCE_H
 #define SHINOBU_SOUND_SOURCE_H
 
-#include "thirdparty/miniaudio/miniaudio.h"
+#include "miniaudio/miniaudio.h"
 #include <cstring>
 #include <memory>
 #include <string>
@@ -25,9 +25,9 @@ protected:
 public:
 	virtual const String get_name() const;
 
-	virtual const ma_result get_result() const;
+	virtual ma_result get_result() const;
 
-	virtual const uint64_t get_fixed_length() const;
+	virtual uint64_t get_fixed_length() const;
 	ShinobuSoundPlayer *instantiate(Ref<ShinobuGroup> m_group, bool m_use_source_channel_count = false);
 
 	ShinobuSoundSource(String m_name);

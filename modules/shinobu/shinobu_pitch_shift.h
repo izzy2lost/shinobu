@@ -1,6 +1,6 @@
 #ifndef SHINOBU_PITCH_SHIFT_H
 #define SHINOBU_PITCH_SHIFT_H
-#include "thirdparty/miniaudio/miniaudio.h"
+#include "miniaudio/miniaudio.h"
 
 #define SPS_PI 3.14159265358979323846
 #define SPS_TAU 6.2831853071795864769252867666
@@ -24,15 +24,15 @@ typedef enum {
 typedef struct {
 	float gInFIFO[SMB_PS_MAX_FRAME_LENGTH];
 	float gOutFIFO[SMB_PS_MAX_FRAME_LENGTH];
-	double gFFTworksp[2 * SMB_PS_MAX_FRAME_LENGTH];
-	double gLastPhase[SMB_PS_MAX_FRAME_LENGTH / 2 + 1];
-	double gSumPhase[SMB_PS_MAX_FRAME_LENGTH / 2 + 1];
-	double gOutputAccum[2 * SMB_PS_MAX_FRAME_LENGTH];
-	double gAnaFreq[SMB_PS_MAX_FRAME_LENGTH];
-	double gAnaMagn[SMB_PS_MAX_FRAME_LENGTH];
-	double gSynFreq[SMB_PS_MAX_FRAME_LENGTH];
-	double gSynMagn[SMB_PS_MAX_FRAME_LENGTH];
-	int64_t gRover;
+	float gFFTworksp[2 * SMB_PS_MAX_FRAME_LENGTH];
+	float gLastPhase[SMB_PS_MAX_FRAME_LENGTH / 2 + 1];
+	float gSumPhase[SMB_PS_MAX_FRAME_LENGTH / 2 + 1];
+	float gOutputAccum[2 * SMB_PS_MAX_FRAME_LENGTH];
+	float gAnaFreq[SMB_PS_MAX_FRAME_LENGTH];
+	float gAnaMagn[SMB_PS_MAX_FRAME_LENGTH];
+	float gSynFreq[SMB_PS_MAX_FRAME_LENGTH];
+	float gSynMagn[SMB_PS_MAX_FRAME_LENGTH];
+	int32_t gRover;
 	float lastPitchShift;
 } SMBPitchShift;
 
@@ -65,6 +65,8 @@ MA_API void ma_pitch_shift_node_uninit(ma_pitch_shift_node *pPitchShiftNode, con
 
 #if defined(MINIAUDIO_IMPLEMENTATION) || defined(MA_IMPLEMENTATION)
 
+#include "shinobu_fft.h"
+
 static void ma_smb_pitch_shift_init(SMBPitchShift *pitch_shift) {
 	pitch_shift->gRover = 0;
 	memset(pitch_shift->gInFIFO, 0, SMB_PS_MAX_FRAME_LENGTH * sizeof(float));
@@ -78,68 +80,7 @@ static void ma_smb_pitch_shift_init(SMBPitchShift *pitch_shift) {
 	pitch_shift->lastPitchShift = 1.0;
 }
 
-/* Thirdparty code, so disable clang-format with Godot style */
 /* clang-format off */
-
-static void smbFft(double *fftBuffer, int64_t fftFrameSize, int64_t sign)
-/*
-	FFT routine, (C)1996 S.M.Bernsee. Sign = -1 is FFT, 1 is iFFT (inverse)
-	Fills fftBuffer[0...2*fftFrameSize-1] with the Fourier transform of the
-	time domain data in fftBuffer[0...2*fftFrameSize-1]. The FFT array takes
-	and returns the cosine and sine parts in an interleaved manner, ie.
-	fftBuffer[0] = cosPart[0], fftBuffer[1] = sinPart[0], asf. fftFrameSize
-	must be a power of 2. It expects a complex input signal (see footnote 2),
-	ie. when working with 'common' audio signals our input signal has to be
-	passed as {in[0],0.,in[1],0.,in[2],0.,...} asf. In that case, the transform
-	of the frequencies of interest is in fftBuffer[0...fftFrameSize].
-*/
-{
-	double wr, wi, arg, *p1, *p2, temp;
-	double tr, ti, ur, ui, *p1r, *p1i, *p2r, *p2i;
-	int64_t i, bitm, j, le, le2, k, logN;
-	logN = (int64_t)(log(fftFrameSize) / log(2.) + .5);
-
-	for (i = 2; i < 2*fftFrameSize-2; i += 2) {
-		for (bitm = 2, j = 0; bitm < 2*fftFrameSize; bitm <<= 1) {
-			if (i & bitm) {
-				j++;
-			}
-			j <<= 1;
-		}
-		if (i < j) {
-			p1 = fftBuffer+i; p2 = fftBuffer+j;
-			temp = *p1; *(p1++) = *p2;
-			*(p2++) = temp; temp = *p1;
-			*p1 = *p2; *p2 = temp;
-		}
-	}
-
-	for (k = 0, le = 2; k < logN; k++) {
-		le <<= 1;
-		le2 = le>>1;
-		ur = 1.0;
-		ui = 0.0;
-		arg = SPS_PI / (le2>>1);
-		wr = cos(arg);
-		wi = sign*sin(arg);
-		for (j = 0; j < le2; j += 2) {
-			p1r = fftBuffer+j; p1i = p1r+1;
-			p2r = p1r+le2; p2i = p2r+1;
-			for (i = j; i < 2*fftFrameSize; i += le) {
-				tr = *p2r * ur - *p2i * ui;
-				ti = *p2r * ui + *p2i * ur;
-				*p2r = *p1r - tr; *p2i = *p1i - ti;
-				*p1r += tr; *p1i += ti;
-				p1r += le; p1i += le;
-				p2r += le; p2i += le;
-			}
-			tr = ur*wr - ui*wi;
-			ui = ur*wi + ui*wr;
-			ur = tr;
-		}
-	}
-}
-
 /****************************************************************************
 *
 * NAME: smbPitchShift.cpp
@@ -178,7 +119,7 @@ static void smbFft(double *fftBuffer, int64_t fftFrameSize, int64_t sign)
 *
 *****************************************************************************/
 
-static void PitchShift(SMBPitchShift *smbPitchShift, float pitchShift, int64_t numSampsToProcess, int64_t fftFrameSize, int64_t osamp, float sampleRate, const float *indata, float *outdata,int stride) {
+static void PitchShift(SMBPitchShift *smbPitchShift, float pitchShift, long numSampsToProcess, long fftFrameSize, long osamp, float sampleRate, const float *indata, float *outdata,int stride) {
 
 
 	/*
@@ -189,36 +130,24 @@ static void PitchShift(SMBPitchShift *smbPitchShift, float pitchShift, int64_t n
 	*/
 
 	double magn, phase, tmp, window, real, imag;
-	double freqPerBin, expct, reciprocalFftFrameSize;
-	int64_t i,k, qpd, index, inFifoLatency, stepSize, fftFrameSize2;
+	double freqPerBin, expct;
+	long i,k, qpd, index, inFifoLatency, stepSize, fftFrameSize2;
+	unsigned long fftFrameBufferSize;
 
 	/* set up some handy variables */
+	fftFrameBufferSize = (unsigned long)fftFrameSize*sizeof(float);
 	fftFrameSize2 = fftFrameSize/2;
-	reciprocalFftFrameSize = 1./fftFrameSize;
 	stepSize = fftFrameSize/osamp;
-	freqPerBin = reciprocalFftFrameSize * sampleRate;
-	expct = SPS_TAU * reciprocalFftFrameSize * stepSize;
+	freqPerBin = sampleRate/(double)fftFrameSize;
+	expct = 2.*Math_PI*(double)stepSize/(double)fftFrameSize;
 	inFifoLatency = fftFrameSize-stepSize;
-	if (smbPitchShift->gRover == 0) {
-		smbPitchShift->gRover = inFifoLatency;
-	}
+	if (smbPitchShift->gRover == 0) { smbPitchShift->gRover = inFifoLatency;
+}
 
-	// If pitchShift changes clear arrays to prevent some artifacts and quality loss.
-	if (smbPitchShift->lastPitchShift != pitchShift) {
-		smbPitchShift->lastPitchShift = pitchShift;
-		memset(smbPitchShift->gInFIFO, 0, SMB_PS_MAX_FRAME_LENGTH * sizeof(float));
-		memset(smbPitchShift->gOutFIFO, 0, SMB_PS_MAX_FRAME_LENGTH * sizeof(float));
-		memset(smbPitchShift->gFFTworksp, 0, 2 * SMB_PS_MAX_FRAME_LENGTH * sizeof(double));
-		memset(smbPitchShift->gLastPhase, 0, (SMB_PS_MAX_FRAME_LENGTH / 2 + 1) * sizeof(double));
-		memset(smbPitchShift->gSumPhase, 0, (SMB_PS_MAX_FRAME_LENGTH / 2 + 1) * sizeof(double));
-		memset(smbPitchShift->gOutputAccum, 0, 2 * SMB_PS_MAX_FRAME_LENGTH * sizeof(double));
-		memset(smbPitchShift->gAnaFreq, 0, SMB_PS_MAX_FRAME_LENGTH * sizeof(double));
-		memset(smbPitchShift->gAnaMagn, 0, SMB_PS_MAX_FRAME_LENGTH * sizeof(double));
-	}
+	/* initialize our static arrays */
 
 	/* main processing loop */
 	for (i = 0; i < numSampsToProcess; i++){
-
 		/* As long as we have not yet collected enough data just read in */
 		smbPitchShift->gInFIFO[smbPitchShift->gRover] = indata[i*stride];
 		outdata[i*stride] = smbPitchShift->gOutFIFO[smbPitchShift->gRover-inFifoLatency];
@@ -230,7 +159,7 @@ static void PitchShift(SMBPitchShift *smbPitchShift, float pitchShift, int64_t n
 
 			/* do windowing and re,im interleave */
 			for (k = 0; k < fftFrameSize;k++) {
-				window = -.5*cos(SPS_TAU * reciprocalFftFrameSize * k)+.5;
+				window = -.5*cos(2.*Math_PI*(double)k/(double)fftFrameSize)+.5;
 				smbPitchShift->gFFTworksp[2*k] = smbPitchShift->gInFIFO[k] * window;
 				smbPitchShift->gFFTworksp[2*k+1] = 0.;
 			}
@@ -242,7 +171,6 @@ static void PitchShift(SMBPitchShift *smbPitchShift, float pitchShift, int64_t n
 
 			/* this is the analysis step */
 			for (k = 0; k <= fftFrameSize2; k++) {
-
 				/* de-interlace FFT buffer */
 				real = smbPitchShift->gFFTworksp[2*k];
 				imag = smbPitchShift->gFFTworksp[2*k+1];
@@ -259,16 +187,14 @@ static void PitchShift(SMBPitchShift *smbPitchShift, float pitchShift, int64_t n
 				tmp -= (double)k*expct;
 
 				/* map delta phase into +/- Pi interval */
-				qpd = tmp/SPS_PI;
-				if (qpd >= 0) {
-					qpd += qpd&1;
-				} else {
-					qpd -= qpd&1;
-				}
-				tmp -= SPS_PI*(double)qpd;
+				qpd = tmp/Math_PI;
+				if (qpd >= 0) { qpd += qpd&1;
+				} else { qpd -= qpd&1;
+}
+				tmp -= Math_PI*(double)qpd;
 
 				/* get deviation from bin frequency from the +/- Pi interval */
-				tmp = osamp*tmp/SPS_TAU;
+				tmp = osamp*tmp/(2.*Math_PI);
 
 				/* compute the k-th partials' true frequency */
 				tmp = (double)k*freqPerBin + tmp*freqPerBin;
@@ -281,8 +207,8 @@ static void PitchShift(SMBPitchShift *smbPitchShift, float pitchShift, int64_t n
 
 			/* ***************** PROCESSING ******************* */
 			/* this does the actual pitch shifting */
-			memset(smbPitchShift->gSynMagn, 0, fftFrameSize*sizeof(double));
-			memset(smbPitchShift->gSynFreq, 0, fftFrameSize*sizeof(double));
+			memset(smbPitchShift->gSynMagn, 0, fftFrameBufferSize);
+			memset(smbPitchShift->gSynFreq, 0, fftFrameBufferSize);
 			for (k = 0; k <= fftFrameSize2; k++) {
 				index = k*pitchShift;
 				if (index <= fftFrameSize2) {
@@ -294,7 +220,6 @@ static void PitchShift(SMBPitchShift *smbPitchShift, float pitchShift, int64_t n
 			/* ***************** SYNTHESIS ******************* */
 			/* this is the synthesis step */
 			for (k = 0; k <= fftFrameSize2; k++) {
-
 				/* get magnitude and true frequency from synthesis arrays */
 				magn = smbPitchShift->gSynMagn[k];
 				tmp = smbPitchShift->gSynFreq[k];
@@ -306,7 +231,7 @@ static void PitchShift(SMBPitchShift *smbPitchShift, float pitchShift, int64_t n
 				tmp /= freqPerBin;
 
 				/* take osamp into account */
-				tmp = SPS_TAU*tmp/osamp;
+				tmp = 2.*Math_PI*tmp/osamp;
 
 				/* add the overlap phase advance back in */
 				tmp += (double)k*expct;
@@ -321,29 +246,26 @@ static void PitchShift(SMBPitchShift *smbPitchShift, float pitchShift, int64_t n
 			}
 
 			/* zero negative frequencies */
-			for (k = fftFrameSize+2; k < 2*SMB_PS_MAX_FRAME_LENGTH; k++) {
-				smbPitchShift->gFFTworksp[k] = 0.;
-			}
+			for (k = fftFrameSize+2; k < 2*fftFrameSize; k++) { smbPitchShift->gFFTworksp[k] = 0.;
+}
 
 			/* do inverse transform */
 			smbFft(smbPitchShift->gFFTworksp, fftFrameSize, 1);
 
 			/* do windowing and add to output accumulator */
 			for(k=0; k < fftFrameSize; k++) {
-				window = -.5*cos(SPS_TAU * reciprocalFftFrameSize * k)+.5;
+				window = -.5*cos(2.*Math_PI*(double)k/(double)fftFrameSize)+.5;
 				smbPitchShift->gOutputAccum[k] += 2.*window*smbPitchShift->gFFTworksp[2*k]/(fftFrameSize2*osamp);
 			}
-			for (k = 0; k < stepSize; k++) {
-				smbPitchShift->gOutFIFO[k] = smbPitchShift->gOutputAccum[k];
-			}
+			for (k = 0; k < stepSize; k++) { smbPitchShift->gOutFIFO[k] = smbPitchShift->gOutputAccum[k];
+}
 
 			/* shift accumulator */
-			memmove(smbPitchShift->gOutputAccum, smbPitchShift->gOutputAccum+stepSize, fftFrameSize*sizeof(double));
+			memmove(smbPitchShift->gOutputAccum, smbPitchShift->gOutputAccum+stepSize, fftFrameBufferSize);
 
 			/* move input FIFO */
-			for (k = 0; k < inFifoLatency; k++) {
-				smbPitchShift->gInFIFO[k] = smbPitchShift->gInFIFO[k+stepSize];
-			}
+			for (k = 0; k < inFifoLatency; k++) { smbPitchShift->gInFIFO[k] = smbPitchShift->gInFIFO[k+stepSize];
+}
 		}
 	}
 }

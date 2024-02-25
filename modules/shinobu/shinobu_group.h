@@ -3,7 +3,7 @@
 
 #include "core/object/ref_counted.h"
 #include "core/string/ustring.h"
-#include "thirdparty/miniaudio/miniaudio.h"
+#include "miniaudio/miniaudio.h"
 #include <memory>
 
 class ShinobuEffect;

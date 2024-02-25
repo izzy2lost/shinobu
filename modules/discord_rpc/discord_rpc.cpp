@@ -33,7 +33,7 @@ void DiscordRPC::init(const String &p_discord_app_id, const String &p_steam_app_
 	if (p_steam_app_id.is_empty()) {
 		steam_id_ptr = nullptr;
 	}
-	Discord_Initialize(p_discord_app_id.utf8().get_data(), &handlers, 1, nullptr);
+	Discord_Initialize(p_discord_app_id.utf8().get_data(), &handlers, 1, steam_id_ptr);
 	init_complete = true;
 	print_line("discord init");
 }

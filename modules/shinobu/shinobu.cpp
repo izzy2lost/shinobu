@@ -9,7 +9,7 @@
 #define MA_DEBUG_OUTPUT
 
 /* clang-format off */
-#include "thirdparty/miniaudio/miniaudio.h"
+#include "miniaudio/miniaudio.h"
 #include "shinobu_channel_remap.h"
 #include "shinobu_pitch_shift.h"
 #include "shinobu_spectrum_analyzer.h"
@@ -17,7 +17,7 @@
 
 #include "core/os/os.h"
 #include "shinobu_macros.h"
-#include "thirdparty/miniaudio/extras/miniaudio_libvorbis.h"
+#include "miniaudio/extras/miniaudio_libvorbis.h"
 
 Shinobu *Shinobu::singleton = nullptr;
 SafeNumeric<uint64_t> Shinobu::sound_source_uid;
