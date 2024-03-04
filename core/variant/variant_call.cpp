@@ -681,6 +681,23 @@ struct _VariantCall {
 		return s;
 	}
 
+	static Array func_PackedByteArray_get_string_from_utf8_checked(PackedByteArray *p_instance) {
+		PackedByteArray *ba = p_instance;
+		String s;
+		bool conversion_ok = true;
+		if (ba->size() > 0) {
+			const uint8_t *r = p_instance->ptr();
+			conversion_ok = s.parse_utf8((const char *)r, ba->size()) == OK;
+		}
+
+		Array a;
+
+		a.append(s);
+		a.append(conversion_ok);
+
+		return a;
+	}
+
 	static String func_PackedByteArray_get_string_from_utf16(PackedByteArray *p_instance) {
 		String s;
 		if (p_instance->size() > 0) {
@@ -2342,6 +2359,7 @@ static void _register_variant_builtin_methods_array() {
 
 	bind_function(PackedByteArray, get_string_from_ascii, _VariantCall::func_PackedByteArray_get_string_from_ascii, sarray(), varray());
 	bind_function(PackedByteArray, get_string_from_utf8, _VariantCall::func_PackedByteArray_get_string_from_utf8, sarray(), varray());
+	bind_function(PackedByteArray, get_string_from_utf8_checked, _VariantCall::func_PackedByteArray_get_string_from_utf8_checked, sarray(), varray());
 	bind_function(PackedByteArray, get_string_from_utf16, _VariantCall::func_PackedByteArray_get_string_from_utf16, sarray(), varray());
 	bind_function(PackedByteArray, get_string_from_utf32, _VariantCall::func_PackedByteArray_get_string_from_utf32, sarray(), varray());
 	bind_function(PackedByteArray, get_string_from_wchar, _VariantCall::func_PackedByteArray_get_string_from_wchar, sarray(), varray());
