@@ -17,7 +17,8 @@ class HBAttackData : public RefCounted {
 
 public:
 	enum AttackDirection {
-		RIGHT
+		RIGHT,
+		ATTACK_DIR_MAX
 	};
 
 private:

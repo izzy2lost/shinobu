@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="EPASOneshotAnimationNode" inherits="EPASNode" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+<class name="EPASOneshotAnimationNode" inherits="EPASNode" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
 	<brief_description>
 		Animation node that doesn't support looping, but allows for fancy motion warping and root motion magic.
 	</brief_description>
@@ -34,6 +34,12 @@
 				You should pass this a [Dictionary] with a StringName key for each warp point, with the values being the [Transform3D] of each warp point.
 				This will also set your root motion starting transform to whatever the [Skeleton3D]'s global transform is.
 				[b]Note:[/b] don't forget to set your [member root_motion_forward]!
+			</description>
+		</method>
+		<method name="seek">
+			<return type="void" />
+			<param index="0" name="time" type="float" />
+			<description>
 			</description>
 		</method>
 		<method name="set_warp_point_transform">

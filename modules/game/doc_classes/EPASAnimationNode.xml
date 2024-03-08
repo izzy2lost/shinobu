@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="EPASAnimationNode" inherits="EPASNode" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+<class name="EPASAnimationNode" inherits="EPASNode" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
 	<brief_description>
 		Plays back a given animation and outputs it.
 	</brief_description>
@@ -7,6 +7,19 @@
 	</description>
 	<tutorials>
 	</tutorials>
+	<methods>
+		<method name="get_time">
+			<return type="float" />
+			<description>
+			</description>
+		</method>
+		<method name="seek">
+			<return type="void" />
+			<param index="0" name="time" type="float" />
+			<description>
+			</description>
+		</method>
+	</methods>
 	<members>
 		<member name="animation" type="EPASAnimation" setter="set_animation" getter="get_animation">
 			The animation to play.
@@ -30,12 +43,9 @@
 		</signal>
 	</signals>
 	<constants>
-		<constant name="EPASAnimationNode::AUTOMATIC" value="0" enum="PlaybackMode">
-			Changes time together with the parent [EPASController].
+		<constant name="AUTOMATIC" value="0" enum="PlaybackMode">
 		</constant>
-		<constant name="EPASAnimationNode::MANUAL" value="1" enum="PlaybackMode">
-			Requires manually advancing the animation.
-			[b]TODO:[/b]: Add an [code]advance[/code] method.
+		<constant name="MANUAL" value="1" enum="PlaybackMode">
 		</constant>
 	</constants>
 </class>

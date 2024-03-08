@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="EPASController" inherits="Node" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+<class name="EPASController" inherits="Node" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
 	<brief_description>
 		Node that controls the EPAS animation system on a given skeleton.
 	</brief_description>
@@ -22,8 +22,8 @@
 			<param index="2" name="unique_name" type="StringName" />
 			<param index="3" name="input" type="int" />
 			<description>
-				Connects the [EPASNode] [code]from[/code] to one of [code]to[/code]'s [code]input[/code]s.
-				Additionally, a [code]unique_name[/code] must be given, one that doesn't exist in this controller.
+				Connects the [EPASNode] [param from] to one of [param to]'s [param input]s.
+				Additionally, a [param unique_name] must be given, one that doesn't exist in this controller.
 			</description>
 		</method>
 		<method name="connect_node_to_root">
@@ -31,8 +31,13 @@
 			<param index="0" name="from" type="EPASNode" />
 			<param index="1" name="unique_name" type="StringName" />
 			<description>
-				Connects the [EPASNode] [code]from[/code] to the output node of this controller.
-				Additionally, a [code]unique_name[/code] must be given, one that doesn't exist in this controller.
+				Connects the [EPASNode] [param from] to the output node of this controller.
+				Additionally, a [param unique_name] must be given, one that doesn't exist in this controller.
+			</description>
+		</method>
+		<method name="get_base_pose">
+			<return type="EPASPose" />
+			<description>
 			</description>
 		</method>
 		<method name="get_epas_node" qualifiers="const">

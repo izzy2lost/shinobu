@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="HBAgent" inherits="CharacterBody3D" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+<class name="HBAgent" inherits="JoltCharacterBody3D" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
 	<brief_description>
 	</brief_description>
 	<description>
@@ -7,6 +7,12 @@
 	<tutorials>
 	</tutorials>
 	<methods>
+		<method name="add_attack">
+			<return type="void" />
+			<param index="0" name="attack" type="HBAttackData" />
+			<description>
+			</description>
+		</method>
 		<method name="flush_inputs">
 			<return type="void" />
 			<description>
@@ -44,18 +50,64 @@
 	<members>
 		<member name="agent_constants" type="HBAgentConstants" setter="set_agent_constants" getter="get_agent_constants">
 		</member>
-		<member name="epas_controller_node" type="NodePath" setter="set_epas_controller_node" getter="get_epas_controller_node" default="NodePath(&quot;&quot;)">
+		<member name="attack_trail" type="NodePath" setter="set_attack_trail" getter="get_attack_trail" default="NodePath(&quot;&quot;)">
+		</member>
+		<member name="epas_controller" type="NodePath" setter="set_epas_controller" getter="get_epas_controller" default="NodePath(&quot;&quot;)">
 		</member>
 		<member name="graphics_node" type="NodePath" setter="set_graphics_node" getter="get_graphics_node" default="NodePath(&quot;&quot;)">
 			The path to the node that takes care of visually rotating the character around the Y axis.
 		</member>
+		<member name="ledge_detector_node" type="NodePath" setter="set_ledge_detector_node" getter="get_ledge_detector_node" default="NodePath(&quot;&quot;)">
+		</member>
 		<member name="movement_input_rotation" type="Quaternion" setter="set_movement_input_rotation" getter="get_movement_input_rotation">
 			The rotation to transform the movement input by, used for camera-aware input `_transformed` methods.
+		</member>
+		<member name="skeleton" type="NodePath" setter="set_skeleton" getter="get_skeleton" default="NodePath(&quot;&quot;)">
+		</member>
+		<member name="starting_heading" type="float" setter="set_starting_heading" getter="get_starting_heading" default="0.0">
 		</member>
 		<member name="tilt_node" type="NodePath" setter="set_tilt_node" getter="get_tilt_node" default="NodePath(&quot;&quot;)">
 			The path to the node that should tilt when accelerating, this should be different from [member graphics_node].
 		</member>
 	</members>
+	<signals>
+		<signal name="attack_aborted">
+			<description>
+			</description>
+		</signal>
+		<signal name="attack_connected">
+			<description>
+			</description>
+		</signal>
+		<signal name="attack_received">
+			<param index="0" name="attacker" type="Object" />
+			<param index="1" name="attack_data" type="HBAttackData" />
+			<description>
+			</description>
+		</signal>
+		<signal name="damage_received">
+			<param index="0" name="old_health" type="Object" />
+			<param index="1" name="new_health" type="Object" />
+			<description>
+			</description>
+		</signal>
+		<signal name="died">
+			<description>
+			</description>
+		</signal>
+		<signal name="emit_sword_sparks">
+			<description>
+			</description>
+		</signal>
+		<signal name="parried">
+			<description>
+			</description>
+		</signal>
+		<signal name="stopped_at_edge">
+			<description>
+			</description>
+		</signal>
+	</signals>
 	<constants>
 		<constant name="INPUT_ACTION_RUN" value="0" enum="AgentInputAction">
 			Action that when enabled makes the character's movement switch to run mode from walk mode.
@@ -64,7 +116,7 @@
 		</constant>
 		<constant name="INPUT_ACTION_PARKOUR_UP" value="2" enum="AgentInputAction">
 		</constant>
-		<constant name="INPUT_ACTION_MAX" value="3" enum="AgentInputAction">
+		<constant name="INPUT_ACTION_MAX" value="6" enum="AgentInputAction">
 		</constant>
 	</constants>
 </class>

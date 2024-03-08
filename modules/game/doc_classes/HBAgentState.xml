@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="HBAgentState" inherits="HBStateMachineState" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="whisker_reach_check">
+			<return type="bool" />
+			<param index="0" name="from" type="Vector3" />
+			<param index="1" name="to" type="Vector3" />
+			<param index="2" name="height_start" type="float" />
+			<param index="3" name="height_end" type="float" />
+			<description>
+			</description>
+		</method>
+	</methods>
+</class>

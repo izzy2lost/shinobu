@@ -162,7 +162,7 @@ void HBLedgeTraversalController::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_movement_input"), &HBLedgeTraversalController::get_movement_input);
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "movement_input"), "set_movement_input", "get_movement_input");
 	ClassDB::bind_method(D_METHOD("update", "delta"), &HBLedgeTraversalController::update);
-	ClassDB::bind_method(D_METHOD("move_to_ledge", "ledge_transform"), &HBLedgeTraversalController::move_to_ledge);
+	ClassDB::bind_method(D_METHOD("move_to_ledge", "ledge_transform", "offset"), &HBLedgeTraversalController::move_to_ledge);
 }
 
 void HBLedgeTraversalController::_handle_limbs() {

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="EPASPose" inherits="Resource" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+<class name="EPASPose" inherits="Resource" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
 	<brief_description>
 		EPAS system pose data.
 	</brief_description>
@@ -13,6 +13,44 @@
 			<param index="0" name="bone_name" type="StringName" />
 			<description>
 				Creates a bone that doesn't already exist.
+			</description>
+		</method>
+		<method name="get_bone_count" qualifiers="const">
+			<return type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_bone_name" qualifiers="const">
+			<return type="StringName" />
+			<param index="0" name="bone_idx" type="int" />
+			<description>
+			</description>
+		</method>
+		<method name="get_bone_position" qualifiers="const">
+			<return type="Vector3" />
+			<param index="0" name="bone_name" type="StringName" />
+			<param index="1" name="base_pose" type="EPASPose" default="null" />
+			<description>
+			</description>
+		</method>
+		<method name="get_bone_rotation" qualifiers="const">
+			<return type="Quaternion" />
+			<param index="0" name="bone_name" type="StringName" />
+			<param index="1" name="base_pose" type="EPASPose" default="null" />
+			<description>
+			</description>
+		</method>
+		<method name="get_bone_scale" qualifiers="const">
+			<return type="Vector3" />
+			<param index="0" name="bone_name" type="StringName" />
+			<param index="1" name="base_pose" type="EPASPose" default="null" />
+			<description>
+			</description>
+		</method>
+		<method name="has_bone" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="bone_name" type="StringName" />
+			<description>
 			</description>
 		</method>
 		<method name="set_bone_position">

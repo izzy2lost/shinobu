@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="HBAgentConstants" inherits="Resource" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+<class name="HBAgentConstants" inherits="Resource" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
 	<brief_description>
 		Constants that this agent uses.
 	</brief_description>
@@ -36,4 +36,60 @@
 			The half-life of the velocity spring that controls this agent's movement, see [url=https://theorangeduck.com/page/spring-roll-call#controllers]this article[/url] for a more detailed look at character velocity springs.
 		</member>
 	</members>
+	<constants>
+		<constant name="MOVEMENT_MOVE" value="0" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_VAULT" value="1" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_TURN180_L" value="2" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_TURN180_R" value="3" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_WALLRUN" value="4" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_WALLGRABBED" value="5" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_FALL" value="6" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_LEDGE_GETUP" value="7" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_PARKOUR_CAT" value="8" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_MOVE_BEAM" value="9" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_LEDGE_DROP" value="10" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_LEDGE_TO_GROUND" value="11" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_LEDGE_HOP_UP" value="12" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_STANDING_DROP_TO_LEDGE" value="13" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_STANDING_JUMP_TO_LEDGE" value="14" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_SHORT_HOP" value="15" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_BACK_EJECT_TO_LEDGE" value="16" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_BACK_EJECT_TO_SURFACE" value="17" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_WALLPARKOUR_UP_LONG_JUMP" value="18" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_WALLPARKOUR_DOWN_LONG_JUMP" value="19" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_WALLPARKOUR_LEFT_LONG_JUMP" value="20" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_WALLPARKOUR_RIGHT_LONG_JUMP" value="21" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_COMBAT_ATTACK" value="22" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_COMBAT_HIT_RIGHT" value="23" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_COMBAT_PARRY" value="24" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_COMBAT_ROLL" value="26" enum="MovementTransitionInputs">
+		</constant>
+		<constant name="MOVEMENT_MAX" value="27" enum="MovementTransitionInputs">
+		</constant>
+	</constants>
 </class>

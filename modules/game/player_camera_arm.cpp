@@ -108,7 +108,7 @@ void HBPlayerCameraArm::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_target_mode"), &HBPlayerCameraArm::get_target_mode);
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "target_mode", PROPERTY_HINT_ENUM, "Bone,Track nodes"), "set_target_mode", "get_target_mode");
 
-	ClassDB::bind_method(D_METHOD("track_node"), &HBPlayerCameraArm::track_node);
+	ClassDB::bind_method(D_METHOD("track_node", "node"), &HBPlayerCameraArm::track_node);
 
 	BIND_ENUM_CONSTANT(CameraTargetMode::BONE);
 	BIND_ENUM_CONSTANT(CameraTargetMode::TRACK_NODES);

@@ -12,8 +12,8 @@ void EPASPose::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_bone_rotation", "bone_name", "base_pose"), &EPASPose::get_bone_rotation, DEFVAL(Ref<EPASPose>()));
 	ClassDB::bind_method(D_METHOD("get_bone_scale", "bone_name", "base_pose"), &EPASPose::get_bone_scale, DEFVAL(Ref<EPASPose>()));
 	ClassDB::bind_method(D_METHOD("get_bone_count"), &EPASPose::get_bone_count);
-	ClassDB::bind_method(D_METHOD("get_bone_name"), &EPASPose::get_bone_name);
-	ClassDB::bind_method(D_METHOD("has_bone"), &EPASPose::has_bone);
+	ClassDB::bind_method(D_METHOD("get_bone_name", "bone_idx"), &EPASPose::get_bone_name);
+	ClassDB::bind_method(D_METHOD("has_bone", "bone_name"), &EPASPose::has_bone);
 	ClassDB::bind_method(D_METHOD("create_bone", "bone_name"), &EPASPose::create_bone_gd);
 }
 

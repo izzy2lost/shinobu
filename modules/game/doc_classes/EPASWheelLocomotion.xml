@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="EPASWheelLocomotion" inherits="EPASNode" version="4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+<class name="EPASWheelLocomotion" inherits="EPASNode" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
 	<brief_description>
 		Surveyor wheel based locomotion system.
 	</brief_description>
@@ -43,6 +43,12 @@
 				[b]Note:[/b] This value doesn't wrap, might want to use [code]fmod[/code] or [code]fposmod[/code].
 			</description>
 		</method>
+		<method name="set_left_foot_ik_node">
+			<return type="void" />
+			<param index="0" name="left_foot_ik_node" type="EPASIKNode" />
+			<description>
+			</description>
+		</method>
 		<method name="set_linear_velocity">
 			<return type="void" />
 			<param index="0" name="velocity" type="Vector3" />
@@ -82,10 +88,30 @@
 			<description>
 			</description>
 		</method>
+		<method name="set_right_foot_ik_node">
+			<return type="void" />
+			<param index="0" name="right_foot_ik_node" type="EPASIKNode" />
+			<description>
+			</description>
+		</method>
+		<method name="sync_with">
+			<return type="void" />
+			<param index="0" name="other_wheel_locomotions" type="EPASWheelLocomotion[]" />
+			<description>
+			</description>
+		</method>
 	</methods>
 	<members>
+		<member name="hip_bone_name" type="StringName" setter="set_hip_bone_name" getter="get_hip_bone_name" default="&amp;&quot;&quot;">
+		</member>
+		<member name="left_foot_bone_name" type="StringName" setter="set_left_foot_bone_name" getter="get_left_foot_bone_name" default="&amp;&quot;&quot;">
+		</member>
+		<member name="right_foot_bone_name" type="StringName" setter="set_right_foot_bone_name" getter="get_right_foot_bone_name" default="&amp;&quot;&quot;">
+		</member>
 		<member name="root_bone_name" type="StringName" setter="set_root_bone_name" getter="get_root_bone_name" default="&amp;&quot;&quot;">
 			The name of the root bone, used for bouncing.
+		</member>
+		<member name="use_foot_ik" type="bool" setter="set_use_foot_ik" getter="get_use_foot_ik" default="false">
 		</member>
 		<member name="x_blend" type="float" setter="set_x_blend" getter="get_x_blend" default="0.0">
 			Value that indicates how the different locomotion sets are blended.

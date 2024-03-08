@@ -41,4 +41,5 @@ def get_doc_classes():
         "HBStateMachine",
         "FABRIKSolver",
         "HBAgentState",
+        "HBAttackData",
     ]

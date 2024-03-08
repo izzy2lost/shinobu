@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="HBAttackData" inherits="RefCounted" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="animation" type="EPASAnimation" setter="set_animation" getter="get_animation">
+		</member>
+		<member name="attack_direction" type="int" setter="set_attack_direction" getter="get_attack_direction" enum="HBAttackData.AttackDirection" default="0">
+		</member>
+		<member name="cancel_time" type="float" setter="set_cancel_time" getter="get_cancel_time" default="-1.0">
+		</member>
+		<member name="hit_time" type="float" setter="set_hit_time" getter="get_hit_time" default="-1.0">
+		</member>
+		<member name="hitstop_duration" type="float" setter="set_hitstop_duration" getter="get_hitstop_duration" default="0.1">
+		</member>
+		<member name="mesh" type="Mesh" setter="set_mesh" getter="get_mesh">
+		</member>
+		<member name="name" type="StringName" setter="set_name" getter="get_name" default="&amp;&quot;&quot;">
+		</member>
+		<member name="next_attack" type="StringName" setter="set_next_attack" getter="get_next_attack" default="&amp;&quot;&quot;">
+		</member>
+		<member name="transition_index" type="int" setter="set_transition_index" getter="get_transition_index" default="236373776">
+		</member>
+	</members>
+	<constants>
+		<constant name="RIGHT" value="0" enum="AttackDirection">
+		</constant>
+		<constant name="ATTACK_DIR_MAX" value="1" enum="AttackDirection">
+		</constant>
+	</constants>
+</class>
