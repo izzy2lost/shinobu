@@ -7,6 +7,7 @@
 #include "modules/game/game_main_loop.h"
 #include "modules/modules_enabled.gen.h"
 #include "scene/gui/label.h"
+#include "scene/main/window.h"
 #include "servers/rendering/rendering_device_binds.h"
 
 GodotImGui *GodotImGui::singleton = nullptr;
@@ -127,7 +128,7 @@ GodotImGui::GodotImGui() {
 	viewport->set_clear_mode(SubViewport::CLEAR_MODE_NEVER);
 	viewport->set_update_mode(SubViewport::UPDATE_DISABLED);
 	viewport->set_transparent_background(true);
-
+	set_stretch(true);
 	add_child(viewport);
 
 	_init_imgui();
@@ -166,7 +167,6 @@ GodotImGui::GodotImGui() {
 	config_file.instantiate();
 	config_file->load(CONFIG_FILE_PATH);
 
-	set_stretch(true);
 #ifdef MODULE_INPUT_GLYPHS_ENABLED
 	tools.push_back(memnew(InputGlyphDemoTool));
 #endif
@@ -797,6 +797,8 @@ void GodotImGui::_notification(int p_what) {
 		case NOTIFICATION_READY: {
 			SceneTree::get_singleton()->connect("process_frame", callable_mp(this, &GodotImGui::_begin_frame));
 			SceneTree::get_singleton()->add_idle_callback(&_end_frame_callback);
+			get_viewport()->connect("size_changed", callable_mp(this, &GodotImGui::_on_window_size_changed));
+			_on_window_size_changed();
 		} break;
 	}
 }
@@ -1038,6 +1040,14 @@ void GodotImGui::_draw_debug_object_tree(ObjectID p_id) {
 	}
 }
 
+void GodotImGui::_on_window_size_changed() {
+	viewport->set_size_force(get_window()->get_size());
+}
+
+Size2 GodotImGui::get_minimum_size() const {
+	return Size2();
+}
+
 void GodotImGui::register_debug_object(const ObjectID &p_object_id) {
 	ERR_FAIL_COND_MSG(debug_status.has(p_object_id), "GAME: Error registering debug object, already registered");
 	const ObjectDebugInfo debug_data;
@@ -1064,7 +1074,7 @@ void GodotImGui::register_debug_object(const ObjectID &p_object_id) {
 
 		SceneTree *tree = node->get_tree();
 
-		if (tree) {
+		if (tree && tree->get_current_scene()) {
 			debug_status[p_object_id].config_section_name = tree->get_current_scene()->get_scene_file_path() + node->get_path();
 			debug_status[p_object_id].debug_enabled = config_file->get_value(debug_status[p_object_id].config_section_name, "enabled", false);
 		}

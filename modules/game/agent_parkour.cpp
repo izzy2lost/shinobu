@@ -1,8 +1,12 @@
 #include "agent_parkour.h"
-#include "physics_layers.h"
 #include "clipper2/clipper.h"
+#include "modules/game/console_system.h"
+#include "physics_layers.h"
 
-#include "scene/resources/sphere_shape_3d.h"
+#include "scene/resources/3d/box_shape_3d.h"
+#include "scene/resources/3d/sphere_shape_3d.h"
+
+CVar parkour_debug_enabled = CVar("parkour_debug", Variant::BOOL, false);
 
 void HBAgentParkourPoint::_update_collision_shape() {
 	collision_shape_dirty = false;
@@ -52,7 +56,7 @@ void HBAgentParkourBeam::_editor_build(const EntityCompileInfo &p_info, const Ha
 
 		DEV_ASSERT(child_beam_point != nullptr);
 
-		BeamPointData point_data = { };
+		BeamPointData point_data = {};
 
 		if (child_beam_point) {
 			point_data.is_edge = child_beam_point->get_is_edge();
@@ -82,7 +86,7 @@ void HBAgentParkourBeam::_editor_build(const EntityCompileInfo &p_info, const Ha
 
 Ref<Curve3D> HBAgentParkourBeam::get_curve() const {
 	if (is_curve_dirty) {
-		const_cast<HBAgentParkourBeam*>(this)->_update_curve();
+		const_cast<HBAgentParkourBeam *>(this)->_update_curve();
 	}
 	return curve_cache;
 }
@@ -167,7 +171,7 @@ void HBAgentParkourBeam::_line_redraw() {
 
 void HBAgentParkourBeam::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_curve"), &HBAgentParkourBeam::get_curve);
-	
+
 	ClassDB::bind_method(D_METHOD("set_is_edge", "is_edge"), &HBAgentParkourBeam::set_is_edge);
 	ClassDB::bind_method(D_METHOD("get_is_edge"), &HBAgentParkourBeam::get_is_edge);
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "is_edge"), "set_is_edge", "get_is_edge");
@@ -186,7 +190,7 @@ bool HBAgentParkourBeam::_set(const StringName &p_name, const Variant &p_value) 
 		Array bpi = p_value;
 		beam_points_data.resize_zeroed(bpi.size());
 		BeamPointData *bpi_w = beam_points_data.ptrw();
-		for(int i = 0; i < bpi.size(); i++) {
+		for (int i = 0; i < bpi.size(); i++) {
 			Dictionary point_data = bpi[i];
 			bpi_w[i].is_edge = point_data.get("is_edge", false);
 			bpi_w[i].position = point_data.get("position", Vector3());
@@ -240,6 +244,29 @@ bool HBAgentParkourBeam::is_point_edge(int p_point_idx) const {
 	return beam_points_data[p_point_idx].is_edge;
 }
 
+void HBAgentParkourLedge::_on_parkour_debug_changed() {
+	bool visible = parkour_debug_enabled.get();
+	if (curve.is_valid() && visible) {
+		Ref<ImmediateMesh> mesh;
+		mesh.instantiate();
+		mesh->surface_begin(Mesh::PRIMITIVE_LINE_STRIP);
+		for (int i = 0; i < curve->get_point_count(); i++) {
+			mesh->surface_add_vertex(curve->get_point_position(i));
+		}
+		mesh->surface_end();
+		MeshInstance3D *mesh_instance = memnew(MeshInstance3D);
+		mesh_instance->set_mesh(mesh);
+		add_child(mesh_instance);
+	}
+
+	if (!visible) {
+		Node *node = get_node(NodePath("preview"));
+		if (node != nullptr) {
+			node->queue_free();
+		}
+	}
+}
+
 void HBAgentParkourLedge::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_curve"), &HBAgentParkourLedge::get_curve);
 	ClassDB::bind_method(D_METHOD("set_curve", "curve"), &HBAgentParkourLedge::set_curve);
@@ -257,7 +284,7 @@ void HBAgentParkourLedge::set_curve(const Ref<Curve3D> &p_curve) { curve = p_cur
 void HBAgentParkourLedge::generate_colliders() {
 	ERR_FAIL_COND(!curve.is_valid());
 
-	for (int i = 0; i < curve->get_point_count()-1; i++) {
+	for (int i = 0; i < curve->get_point_count() - 1; i++) {
 		Ref<BoxShape3D> box_shape;
 		box_shape.instantiate();
 		Vector3 a = curve->get_point_position(i);
@@ -302,20 +329,22 @@ void zfill_callback(const Clipper2Lib::Point64 &e1bot, const Clipper2Lib::Point6
 	}
 }
 
-inline Clipper2Lib::PathsD InflatePathsMagic(const Clipper2Lib::PathsD& paths, double delta,
-	Clipper2Lib::JoinType jt, Clipper2Lib::EndType et, double miter_limit = 2.0, 
-	int precision = 2, double arc_tolerance = 0.0)
-{
+inline Clipper2Lib::PathsD InflatePathsMagic(const Clipper2Lib::PathsD &paths, double delta,
+		Clipper2Lib::JoinType jt, Clipper2Lib::EndType et, double miter_limit = 2.0,
+		int precision = 2, double arc_tolerance = 0.0) {
 	int error_code = 0;
 	Clipper2Lib::CheckPrecision(precision, error_code);
-	if (!delta) return paths;
-	if (error_code) return Clipper2Lib::PathsD();
+	if (!delta)
+		return paths;
+	if (error_code)
+		return Clipper2Lib::PathsD();
 	const double scale = std::pow(10, precision);
 	Clipper2Lib::ClipperOffset clip_offset(miter_limit, arc_tolerance);
 	clip_offset.SetZCallback(zfill_callback);
 	clip_offset.PreserveCollinear(true);
-	clip_offset.AddPaths(Clipper2Lib::ScalePaths<int64_t,double>(paths, scale, error_code), jt, et);
-	if (error_code) return Clipper2Lib::PathsD();
+	clip_offset.AddPaths(Clipper2Lib::ScalePaths<int64_t, double>(paths, scale, error_code), jt, et);
+	if (error_code)
+		return Clipper2Lib::PathsD();
 	Clipper2Lib::Paths64 solution;
 	clip_offset.Execute(delta * scale, solution);
 	return Clipper2Lib::ScalePaths<double, int64_t>(solution, 1 / scale, error_code);
@@ -334,7 +363,6 @@ void HBAgentParkourLedge::generate_offset_path() {
 
 	float delta_mul = Clipper2Lib::IsPositive(paths[0]) ? 1.0f : -1.0f;
 	Clipper2Lib::PathsD out_paths = InflatePathsMagic(paths, 0.2f * delta_mul, Clipper2Lib::JoinType::Round, Clipper2Lib::EndType::Polygon, 2.0, 2);
-
 }
 
 void HBAgentParkourLedge::round_path() {
@@ -350,12 +378,12 @@ void HBAgentParkourLedge::round_path() {
 
 	int point_count = 0;
 
-	for(int i = 0; i < curve->get_point_count(); i++) {
-		int prev_point_idx = Math::posmod(i-1, curve->get_point_count());
-		int next_point_idx = Math::posmod(i+1, curve->get_point_count());
+	for (int i = 0; i < curve->get_point_count(); i++) {
+		int prev_point_idx = Math::posmod(i - 1, curve->get_point_count());
+		int next_point_idx = Math::posmod(i + 1, curve->get_point_count());
 		Vector3 point_prev = curve->get_point_position(prev_point_idx);
 		if (point_count > 0) {
-			point_prev = points[point_count-1].pos;
+			point_prev = points[point_count - 1].pos;
 		}
 		Vector3 point = curve->get_point_position(i);
 		Vector3 point_next = curve->get_point_position(next_point_idx);
@@ -363,13 +391,12 @@ void HBAgentParkourLedge::round_path() {
 		const Vector3 dir_to_prev = point.direction_to(point_prev);
 		const Vector3 dir_to_next = point.direction_to(point_next);
 
-		bool is_end = i == 0 || (i == curve->get_point_count()-1);
+		bool is_end = i == 0 || (i == curve->get_point_count() - 1);
 
 		if (dir_to_prev.angle_to(dir_to_next) < Math::deg_to_rad(35.0f) || (!closed && is_end)) {
 			points[point_count++].pos = point;
 			continue;
 		}
-
 
 		const float dist_prev = point.distance_to(point_prev);
 		const float dist_next = point.distance_to(point_next);
@@ -379,7 +406,7 @@ void HBAgentParkourLedge::round_path() {
 
 		const Vector3 p0 = point + dir_to_prev * interp_radius_prev;
 		const Vector3 p2 = point + dir_to_next * interp_radius_next;
-		
+
 		const Vector3 p0x = p0.lerp(point, 0.5f);
 		const Vector3 p2x = p2.lerp(point, 0.5f);
 
@@ -408,7 +435,7 @@ void HBAgentParkourLedge::round_path() {
 	Ref<Curve3D> rounded_path;
 	rounded_path.instantiate();
 
-	for(int i = 0; i < point_count; i++) {
+	for (int i = 0; i < point_count; i++) {
 		rounded_path->add_point(points[i].pos, points[i].in, points[i].out);
 	}
 
@@ -458,6 +485,7 @@ bool HBAgentParkourLedge::check_agent_fits(HBAgent *p_agent, float p_offset, HBD
 HBAgentParkourLedge::HBAgentParkourLedge() {
 	set_collision_mask(0);
 	set_collision_layer(HBPhysicsLayers::LAYER_PARKOUR_NODES);
+	parkour_debug_enabled.data->get_signaler()->connect("changed", callable_mp(this, &HBAgentParkourLedge::_on_parkour_debug_changed));
 }
 
 void HBAgentParkourLedge::_editor_build(const EntityCompileInfo &p_info, const HashMap<StringName, EntityCompileInfo> &p_entities) {
@@ -468,7 +496,7 @@ void HBAgentParkourLedge::_editor_build(const EntityCompileInfo &p_info, const H
 	Vector<StringName> children = p_info.children;
 	HBAgentParkourLedge *ledge = Object::cast_to<HBAgentParkourLedge>(p_info.node);
 
-	DEV_ASSERT(ledge != nullptr); 
+	DEV_ASSERT(ledge != nullptr);
 
 	curve.instantiate();
 	curve->add_point(get_global_position());
@@ -496,11 +524,4 @@ void HBAgentParkourLedge::_editor_build(const EntityCompileInfo &p_info, const H
 
 	generate_colliders();
 	generate_offset_path();
-
-	Path3D *curve_preview = memnew(Path3D);
-	curve_preview->set_name("CURVE PREVIEW!");
-	curve_preview->set_curve(get_curve());
-	add_child(curve_preview);
-	curve_preview->set_owner(get_tree()->get_edited_scene_root());
-	curve_preview->set_position(Vector3());
 }

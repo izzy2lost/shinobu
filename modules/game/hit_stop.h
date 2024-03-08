@@ -4,21 +4,22 @@
 #include "core/object/ref_counted.h"
 
 class HitStopSolver : public RefCounted {
-    GDCLASS(HitStopSolver, RefCounted);
+	GDCLASS(HitStopSolver, RefCounted);
 
-    Vector3 direction;
-    
-    float duration = 0.0f;
-    float current_time = 0.0f;
+	Vector3 direction;
 
-    float shake_amount = 0.1f;
+	float duration = 0.0f;
+	float current_time = 0.0f;
 
-    Vector3 current_offset;
+	float shake_amount = 0.1f;
+
+	Vector3 current_offset;
+
 public:
-    void start(Vector3 p_direction, float p_duration);
-    void advance(float p_camera_distance, float p_delta);
-    Vector3 get_offset() const;
-    bool is_done() const;
+	void start(Vector3 p_direction, float p_duration);
+	void advance(float p_camera_distance, float p_delta);
+	Vector3 get_offset() const;
+	bool is_done() const;
 };
 
 #endif // HIT_STOP_H

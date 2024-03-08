@@ -40,5 +40,5 @@ def get_doc_classes():
         "HBAgentConstants",
         "HBStateMachine",
         "FABRIKSolver",
-        "HBAgentState"
+        "HBAgentState",
     ]

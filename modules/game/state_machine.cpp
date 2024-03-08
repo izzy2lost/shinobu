@@ -121,7 +121,6 @@ void HBStateMachine::_on_child_entered_tree(Node *p_child) {
 
 void HBStateMachine::transition_to(const StringName &p_name, const Dictionary &p_args) {
 	HBStateMachineState *current_state = _get_current_state();
-	print_line("TRANSITION TO", p_name);
 	if (current_state) {
 		current_state->exit();
 		// HACK: hide debug collisions when switching states, please ignore
@@ -133,8 +132,8 @@ void HBStateMachine::transition_to(const StringName &p_name, const Dictionary &p
 	}
 	current_state = Object::cast_to<HBStateMachineState>(get_node(String(p_name)));
 	ERR_FAIL_COND_MSG(!current_state, "State machine state not found: " + p_name);
-	current_state->enter(p_args);
 	current_state_cache = current_state->get_instance_id();
+	current_state->enter(p_args);
 }
 
 HBStateMachine::HBStateMachine() {

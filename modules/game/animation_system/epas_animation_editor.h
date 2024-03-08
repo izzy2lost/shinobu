@@ -211,6 +211,7 @@ private:
 	bool warp_point_sphere_update_queued = false;
 	void queue_warp_point_sphere_update();
 	void _load_placeholder_scene(const String &p_path);
+	void _copy_fk_to_ik();
 
 	Ref<EPASPose> get_current_pose() const;
 	AnimationKeyframeCache *get_keyframe(int p_frame_time) const;

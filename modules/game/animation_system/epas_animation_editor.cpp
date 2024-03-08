@@ -5,7 +5,6 @@
 #include "core/object/callable_method_pointer.h"
 #include "core/os/memory.h"
 
-
 #include "modules/game/animation_system/epas_animation.h"
 #include "modules/game/animation_system/epas_animation_node.h"
 #include "modules/game/animation_system/epas_pose.h"
@@ -14,9 +13,9 @@
 #include "scene/3d/camera_3d.h"
 #include "scene/3d/light_3d.h"
 #include "scene/3d/world_environment.h"
+#include "scene/resources/3d/primitive_meshes.h"
+#include "scene/resources/3d/sky_material.h"
 #include "scene/resources/packed_scene.h"
-#include "scene/resources/primitive_meshes.h"
-#include "scene/resources/sky_material.h"
 
 void EPASEditorAnimation::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_editor_animation", "editor_animation"), &EPASEditorAnimation::set_editor_animation);
@@ -29,11 +28,11 @@ void EPASEditorAnimation::_bind_methods() {
 
 #ifdef DEBUG_ENABLED
 
+#include "editor/editor_settings.h"
+#include "editor/plugins/curve_editor_plugin.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "imgui_neo_sequencer.h"
-#include "editor/editor_settings.h"
-#include "editor/plugins/curve_editor_plugin.h"
 #include "modules/game/resources/game_tools_theme.h"
 void EPASAnimationEditor::_notification(int p_what) {
 	switch (p_what) {
@@ -408,7 +407,6 @@ void EPASAnimationEditor::_apply_constraints(const Ref<EPASPose> &p_pose) {
 }
 
 void EPASAnimationEditor::_apply_constraints_to_current_frame() {
-
 	Ref<EPASPose> current_pose = get_current_pose();
 	if (!current_pose.is_valid()) {
 		return;
@@ -506,7 +504,7 @@ void EPASAnimationEditor::_draw_ui() {
 			}
 			if (ImGui::MenuItem("Paste pose", nullptr, false, ui_info.pose_copy_buffer.is_valid())) {
 				if (ui_info.pose_copy_buffer.is_valid()) {
-					AnimationKeyframeCache* kf = get_keyframe(current_frame);
+					AnimationKeyframeCache *kf = get_keyframe(current_frame);
 					if (kf) {
 						kf->keyframe->set_pose(ui_info.pose_copy_buffer->duplicate());
 					}
@@ -546,6 +544,55 @@ void EPASAnimationEditor::_draw_ui() {
 			}
 			if (ImGui::MenuItem("Create EIRTeam humanoid IK rig")) {
 				_create_eirteam_humanoid_ik();
+			}
+			if (ImGui::MenuItem("Copy FK to IK")) {
+				_copy_fk_to_ik();
+			}
+			if (ImGui::MenuItem("Root motion post-process funky")) {
+				Vector<StringName> children_of_root;
+				Ref<EPASPose> base_pose = epas_controller->get_base_pose();
+				{
+					Vector<int> bone_children = editing_skeleton->get_bone_children(editing_skeleton->find_bone("root"));
+					for (int i = 0; i < bone_children.size(); i++) {
+						children_of_root.push_back(editing_skeleton->get_bone_name(bone_children[i]));
+					}
+				}
+				Vector3 root_offset = Vector3();
+				for (int i = 0; i < current_animation->get_editor_animation()->get_keyframe_count(); i++) {
+					Ref<EPASKeyframe> kf = current_animation->get_editor_animation()->get_keyframe(i);
+					Ref<EPASPose> pose = kf->get_pose();
+
+					HashMap<StringName, Transform3D> children_of_root_global_trfs;
+
+					for (StringName sn : children_of_root) {
+						if (!pose->has_bone(sn)) {
+							pose->create_bone(sn);
+						}
+						children_of_root_global_trfs.insert(sn, pose->calculate_bone_global_transform(sn, editing_skeleton, base_pose));
+						print_line(sn);
+					}
+
+					Vector3 new_root_pos = pose->calculate_bone_global_transform("spine", editing_skeleton, base_pose).origin;
+					new_root_pos.y = 0.0f;
+					Transform3D new_root_trf(Basis(), new_root_pos);
+
+					if (!pose->has_bone("root")) {
+						pose->create_bone("root");
+					}
+
+					pose->set_bone_position("root", new_root_trf.origin);
+					pose->set_bone_rotation("root", new_root_trf.basis.get_rotation_quaternion());
+
+					for (KeyValue<StringName, Transform3D> kv : children_of_root_global_trfs) {
+						const Transform3D new_bone_trf = new_root_trf.affine_inverse() * kv.value;
+						pose->set_bone_position(kv.key, new_bone_trf.origin);
+						pose->set_bone_rotation(kv.key, new_bone_trf.basis.get_rotation_quaternion());
+					}
+					if (i == 0) {
+						root_offset = -new_root_trf.origin;
+					}
+					pose->set_bone_position("root", new_root_trf.origin + root_offset);
+				}
 			}
 			if (ImGui::MenuItem("Convert legacy IK")) {
 				// In the past IK bones used to be children of nobody, nowadays they are children of root
@@ -957,9 +1004,9 @@ void EPASAnimationEditor::_draw_ui() {
 					warp_point.instantiate();
 					warp_point->set_point_name(wp_name);
 					undo_redo->create_action("Add new warp point");
-					undo_redo->add_do_method(callable_mp((EPASAnimation*)current_animation.ptr(), &EPASAnimation::add_warp_point).bind(warp_point));
+					undo_redo->add_do_method(callable_mp((EPASAnimation *)current_animation.ptr(), &EPASAnimation::add_warp_point).bind(warp_point));
 					undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_add_warp_point).bind(warp_point));
-					undo_redo->add_undo_method(callable_mp((EPASAnimation*)current_animation.ptr(), &EPASAnimation::erase_warp_point).bind(warp_point));
+					undo_redo->add_undo_method(callable_mp((EPASAnimation *)current_animation.ptr(), &EPASAnimation::erase_warp_point).bind(warp_point));
 					undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_remove_warp_point).bind(warp_point));
 					undo_redo->commit_action();
 				}
@@ -989,9 +1036,9 @@ void EPASAnimationEditor::_draw_ui() {
 			if (ImGui::Button(FONT_REMIX_ICON_DELETE_BIN_LINE) && selected_warp_point_idx != -1) {
 				Ref<EPASWarpPoint> wp = current_animation->get_warp_point(selected_warp_point_idx);
 				undo_redo->create_action("Remove selected warp point");
-				undo_redo->add_do_method(callable_mp((EPASAnimation*)current_animation.ptr(), &EPASAnimation::erase_warp_point).bind(wp));
+				undo_redo->add_do_method(callable_mp((EPASAnimation *)current_animation.ptr(), &EPASAnimation::erase_warp_point).bind(wp));
 				undo_redo->add_do_method(callable_mp(this, &EPASAnimationEditor::_remove_warp_point).bind(wp));
-				undo_redo->add_undo_method(callable_mp((EPASAnimation*)current_animation.ptr(), &EPASAnimation::add_warp_point).bind(wp));
+				undo_redo->add_undo_method(callable_mp((EPASAnimation *)current_animation.ptr(), &EPASAnimation::add_warp_point).bind(wp));
 				undo_redo->add_undo_method(callable_mp(this, &EPASAnimationEditor::_add_warp_point).bind(wp));
 				undo_redo->commit_action();
 				selected_warp_point_idx = -1;
@@ -1254,6 +1301,52 @@ void EPASAnimationEditor::_load_placeholder_scene(const String &p_path) {
 	}
 }
 
+void EPASAnimationEditor::_copy_fk_to_ik() {
+	StringName ik_tips[] = {
+		"hand.L",
+		"hand.R",
+		"foot.L",
+		"foot.R"
+	};
+	StringName fk_magnet_bones[] = {
+		"forearm.L",
+		"forearm.R",
+		"shin.L",
+		"shin.R"
+	};
+
+	StringName fk_bones[] = {
+		"hand.L",
+		"hand.R",
+		"foot.L",
+		"foot.R"
+	};
+
+	Ref<EPASPose> base_pose = epas_controller->get_base_pose();
+	for (int i = 0; i < current_animation->get_editor_animation()->get_keyframe_count(); i++) {
+		Ref<EPASKeyframe> kf = current_animation->get_editor_animation()->get_keyframe(i);
+		Ref<EPASPose> pose = kf->get_pose();
+		const Transform3D root_trf = pose->get_bone_transform("root", base_pose);
+		for (int j = 0; j < static_cast<int>(std::size(ik_tips)); j++) {
+			String ik_magnet_bone_name = "IK.Magnet." + ik_tips[j];
+			String ik_target_bone_name = "IK." + ik_tips[j];
+			if (!pose->has_bone(ik_magnet_bone_name)) {
+				pose->create_bone(ik_magnet_bone_name);
+			}
+			if (!pose->has_bone(ik_target_bone_name)) {
+				pose->create_bone(ik_target_bone_name);
+			}
+
+			Transform3D magnet_trf = pose->calculate_bone_global_transform(fk_magnet_bones[j], editing_skeleton, base_pose);
+			Transform3D target_trf = pose->calculate_bone_global_transform(fk_bones[j], editing_skeleton, base_pose);
+
+			pose->set_bone_position(ik_magnet_bone_name, root_trf.xform_inv(magnet_trf.origin));
+			pose->set_bone_position(ik_target_bone_name, root_trf.xform_inv(target_trf.origin));
+			pose->set_bone_rotation(ik_target_bone_name, root_trf.basis.inverse() * target_trf.basis.get_rotation_quaternion());
+		}
+	}
+}
+
 void EPASAnimationEditor::open_file(const String &p_path) {
 	Error err;
 	Ref<EPASEditorAnimation> animation = ResourceLoader::load(p_path, "EPASEditorAnimation", ResourceFormatLoader::CACHE_MODE_REUSE, &err);
@@ -1452,19 +1545,18 @@ void EPASAnimationEditor::save_to_path(const String &p_path) {
 	current_animation->set_meta("__editor_group_visibility", group_vis);
 	current_animation->clear_keyframes();
 	Ref<EPASAnimation> editor_animation = current_animation->get_editor_animation();
-	
+
 	const int constexpr static ANIMATION_SAMPLE_FRAMERATE = 30;
 
 	const float animation_length = editor_animation->get_length();
 	int animation_sample_count = animation_length * ANIMATION_SAMPLE_FRAMERATE;
 	for (int i = 0; i < animation_sample_count; i++) {
-		float time = (i / (float)(animation_sample_count-1)) * animation_length;
+		float time = (i / (float)(animation_sample_count - 1)) * animation_length;
 		// Bake animation
 		Ref<EPASKeyframe> kf;
 		kf.instantiate();
 		kf->set_time(time);
 
-		
 		epas_animation_node->seek(time);
 		epas_controller->advance(0.0f);
 
@@ -1475,7 +1567,7 @@ void EPASAnimationEditor::save_to_path(const String &p_path) {
 		kf->set_pose(pose);
 		current_animation->add_keyframe(kf);
 	}
-	
+
 	int err_code = ResourceSaver::save(current_animation, p_path, ResourceSaver::FLAG_CHANGE_PATH);
 	ERR_FAIL_COND_MSG(err_code != OK, vformat("Error saving animation, %s", error_names[err_code]));
 	current_animation->set_path(p_path);
@@ -1655,7 +1747,7 @@ EPASAnimationEditor::EPASAnimationEditor() {
 		epas_animation_node->set_playback_mode(EPASAnimationNode::PlaybackMode::MANUAL);
 		epas_animation_node->set_looping_enabled(false);
 		epas_blend_node.instantiate();
-		
+
 		epas_controller->connect_node_to_root(epas_blend_node, "Blend Node");
 		epas_controller->connect_node(epas_animation_node, epas_blend_node, "Animation", 0);
 

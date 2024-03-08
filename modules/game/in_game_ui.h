@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  game_world.h                                                          */
+/*  in_game_ui.h                                                          */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,69 +28,26 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#ifndef GAME_WORLD_H
-#define GAME_WORLD_H
+#ifndef IN_GAME_UI_H
+#define IN_GAME_UI_H
 
-#include "modules/game/console_system.h"
-#include "modules/game/in_game_ui.h"
-#include "scene/3d/node_3d.h"
+#include "modules/game/agent.h"
+#include "scene/gui/control.h"
 
-// The objective of the combat coordinator is to ensure the player is never attacked by two enemies at the same instant
-// he can be attacked by two enemies at the same time, which allows him to interrupt his current attack by parrying
-class GameCombatCoordinator : public RefCounted {
-	// In milliseconds, time since the last attack happened
-	uint64_t last_attack_time = 0;
-};
-class HBAgent;
 class HBPlayerAgent;
-class GameWorldState : public RefCounted {
-	static CCommand trigger_alert_cc;
 
-public:
-	enum AlertStatus {
-		ALERT_CLEAR, // Everything is clear
-		ALERT_LOST, // Player has been spotted but isn't in view
-		ALERT_SEEN // Player's location is known
-	};
+class HBInGameUI : public Control {
+	GDCLASS(HBInGameUI, Control);
 
-private:
-	AlertStatus alert_status = GameWorldState::ALERT_CLEAR;
-	HBPlayerAgent *player;
-
-public:
-	AlertStatus get_alert_status() const { return alert_status; }
-	void set_alert_status(const AlertStatus &p_alert_status) { alert_status = p_alert_status; }
-	void set_player(HBPlayerAgent *p_player);
-	HBPlayerAgent *get_player() const { return player; };
-	GameWorldState();
-	friend class HBGameWorld;
-};
-
-VARIANT_ENUM_CAST(GameWorldState::AlertStatus);
-
-// Central game coordinator
-class HBGameWorld : public Node3D {
-	GDCLASS(HBGameWorld, Node3D);
-
-	Transform3D player_start_transform;
-	CanvasLayer *ui_canvas_layer = nullptr;
-	HBInGameUI *game_ui = nullptr;
-	Ref<GameWorldState> world_state;
-	HBPlayerAgent *player = nullptr;
-
-public:
-	void set_player(HBPlayerAgent *p_player);
-	HBPlayerAgent *get_player() const { return player; };
-
-	void set_player_start_transform(const Transform3D &p_transform);
-	void spawn_player();
-	Ref<GameWorldState> get_game_world_state() const;
-
+	HBPlayerAgent *player_agent = nullptr;
+	GDVIRTUAL3(_player_health_changed, int, int, int)
 protected:
-	void _notification(int p_what);
+	static void _bind_methods();
+	void _on_player_damage_received(int p_old_health, int p_new_health);
 
 public:
-	HBGameWorld();
+	HBPlayerAgent *get_player_agent() const { return player_agent; }
+	void set_player_agent(HBPlayerAgent *p_player_agent);
 };
 
-#endif // GAME_WORLD_H
+#endif // IN_GAME_UI_H

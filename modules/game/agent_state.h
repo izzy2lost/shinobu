@@ -14,8 +14,7 @@
 #include "ledge_traversal_controller.h"
 #include "modules/game/agent_parkour.h"
 #include "modules/game/hit_stop.h"
-#include "scene/animation/tween.h"
-#include "scene/resources/cylinder_shape_3d.h"
+#include "scene/resources/3d/box_shape_3d.h"
 #include "state_machine.h"
 
 enum AgentIKLimbType {
@@ -54,12 +53,12 @@ protected:
 	void debug_draw_cast_motion(const Ref<Shape3D> &p_shape, const PhysicsDirectSpaceState3D::ShapeParameters &p_shape_cast_3d, const Color &p_color = Color());
 	HBDebugGeometry *get_debug_geometry();
 #else
-	void debug_draw_shape(Ref<Shape3D> p_shape, const Vector3 &p_position, const Color &p_color = Color()) {};
-	void debug_draw_clear() {};
-	void debug_draw_raycast(const PhysicsDirectSpaceState3D::RayParameters &p_params, const Color &p_color = Color()) {};
-	void debug_draw_sphere(const Vector3 &p_position, float p_radius = 0.05f, const Color &p_color = Color()) {};
-	void debug_draw_line(const Vector3 &p_from, const Vector3 &p_to, const Color &p_color = Color()) {};
-	void debug_draw_cast_motion(const Ref<Shape3D> &p_shape, const PhysicsDirectSpaceState3D::ShapeParameters &p_shape_cast_3d, const Color &p_color = Color()) {};
+	void debug_draw_shape(Ref<Shape3D> p_shape, const Vector3 &p_position, const Color &p_color = Color()){};
+	void debug_draw_clear(){};
+	void debug_draw_raycast(const PhysicsDirectSpaceState3D::RayParameters &p_params, const Color &p_color = Color()){};
+	void debug_draw_sphere(const Vector3 &p_position, float p_radius = 0.05f, const Color &p_color = Color()){};
+	void debug_draw_line(const Vector3 &p_from, const Vector3 &p_to, const Color &p_color = Color()){};
+	void debug_draw_cast_motion(const Ref<Shape3D> &p_shape, const PhysicsDirectSpaceState3D::ShapeParameters &p_shape_cast_3d, const Color &p_color = Color()){};
 	HBDebugGeometry *get_debug_geometry() { return nullptr; };
 #endif
 	bool find_facing_wall(PhysicsDirectSpaceState3D::RayResult &p_result) const;
@@ -67,12 +66,13 @@ protected:
 	bool whisker_reach_check(const Vector3 &p_from, const Vector3 &p_target, const float p_height_start, const float p_height_end);
 	static void _bind_methods();
 
-
 	void handle_player_specific_inputs();
 
 	virtual void _on_attack_received(HBAgent *p_attacker, Ref<HBAttackData> p_attack_data);
 	void setup_attack_reception();
 	void remove_attack_reception();
+	bool handle_parrying();
+
 public:
 	HBAgent *get_agent() const;
 	EPASController *get_epas_controller() const;
@@ -91,6 +91,7 @@ public:
 
 class HBAgentGroundStateBase : public HBAgentState {
 	GDCLASS(HBAgentGroundStateBase, HBAgentState);
+
 protected:
 	bool try_vault_over_obstacle();
 	bool handle_parkour_up();
@@ -136,10 +137,12 @@ class HBAgentTurnState : public HBAgentState {
 	float target_angle;
 
 	void _on_animation_finished();
+
 public:
 	enum TurnStateParams {
 		PARAM_ANGLE
 	};
+
 protected:
 	virtual void enter(const Dictionary &p_args) override;
 	virtual void physics_process(float p_delta) override;
@@ -161,6 +164,7 @@ class HBAgentLedgeGrabbedStateNew : public HBAgentState {
 	HBAgentParkourLedge *ledge = nullptr;
 	bool are_limbs_init = false;
 	void _init_limbs();
+
 public:
 	enum WallGrabbedParams {
 		PARAM_LEDGE,
@@ -201,15 +205,14 @@ public:
 	struct WallParkourInitialPose {
 		AgentProceduralAnimator::AgentProceduralPose pose;
 		HBAgentParkourPoint *parkour_points[AgentProceduralAnimator::LIMB_MAX] = { nullptr };
-		
 	};
 	enum WallParkourParams {
 		PARAM_PARKOUR_NODE
 	};
 	static constexpr float SHORT_GRAB_REACH = 0.75f;
 	static constexpr float LONG_GRAB_REACH = 1.5f;
-private:
 
+private:
 	WallParkourInitialPose target_pose;
 	AgentProceduralAnimator::AgentProceduralAnimOptions animator_options;
 	// Parkour point currently being moved towards
@@ -236,8 +239,9 @@ private:
 	virtual void exit() override;
 	virtual void physics_process(float p_delta) override;
 	bool _handle_parkour_mid();
-	HBAgentParkourPoint* find_reachable_parkour_point(const AgentProceduralAnimator::AgentLimb p_sampling_limb, const Vector3 &p_direction, const float &p_reach) const;
+	HBAgentParkourPoint *find_reachable_parkour_point(const AgentProceduralAnimator::AgentLimb p_sampling_limb, const Vector3 &p_direction, const float &p_reach) const;
 	bool find_reachable_parkour_ledge(const AgentProceduralAnimator::AgentLimb p_sampling_limb, const Vector3 &p_direction, const float &p_reach, HBAgentParkourLedge **r_ledge, float &r_offset);
+
 public:
 	void find_initial_pose(WallParkourInitialPose &p_pose, const HBAgentParkourPoint *p_point) const;
 	HBAgentWallParkourStateNew();
@@ -250,13 +254,12 @@ class HBAgentParkourBeamWalk : public HBAgentGroundStateBase {
 
 public:
 	enum ParkourBeamWalkParams {
-		PARAM_BEAM_NODE,
-		PARAM_PREV_POSITION
+		PARAM_BEAM_NODE
 	};
 	float curve_offset = 0.0f;
 	Vector3 agent_global_position;
 	virtual void enter(const Dictionary &p_args) override;
-	virtual void exit() override {};
+	virtual void exit() override{};
 	virtual void physics_process(float p_delta) override;
 
 	bool try_ledge_drop();
@@ -298,10 +301,12 @@ public:
 		PARAM_NEXT_STATE_ARGS,
 		PARAM_VELOCITY_MODE,
 		PARAM_COLLIDE,
+		PARAM_INVULNERABLE,
 		PARAM_MAX
 	};
 	bool hack = false;
 	virtual void enter(const Dictionary &p_args) override;
+	virtual void exit() override;
 	virtual void physics_process(float p_delta) override;
 #ifdef DEBUG_ENABLED
 	virtual void debug_ui_draw() override;
@@ -312,6 +317,7 @@ class HBAgentWallTransitionState : public HBAgentState {
 	GDCLASS(HBAgentWallTransitionState, HBAgentState);
 
 	const float TRANSITION_DURATION = 0.5f;
+
 public:
 	enum TransitionMode {
 		TO_WALL,
@@ -338,10 +344,12 @@ public:
 	AgentProceduralAnimator::AgentLimb first_hand;
 
 	Vector3 relative_magnet_pos[AgentProceduralAnimator::LIMB_MAX];
+
 private:
 	TransitionMode transition_mode;
 	void apply_animator_pose(bool p_inertialize_transform = false);
 	void calculate_magnet_for_limbs(AgentProceduralAnimator::AgentProceduralPose &p_pose);
+
 public:
 	void set_starting_pose(const AgentProceduralAnimator::AgentProceduralPose &p_starting_pose);
 	virtual void enter(const Dictionary &p_args) override;
@@ -363,16 +371,20 @@ class HBAgentCombatMoveState : public HBAgentState {
 	void update_orientation_warp();
 	bool handle_attack();
 	void reset();
+
 public:
 	enum CombatMoveParams {
 		PARAM_TARGET
 	};
 	virtual void enter(const Dictionary &p_args) override;
+	virtual void exit() override;
 	virtual void physics_process(float p_delta) override;
 };
 
 class HBAgentCombatAttackState : public HBAgentRootMotionState {
 	GDCLASS(HBAgentCombatAttackState, HBAgentRootMotionState);
+
+	bool attack_connected = false;
 	HBAgent *target = nullptr;
 	Ref<HBAttackData> attack;
 	MeshInstance3D *attack_mesh_instance = nullptr;
@@ -381,10 +393,13 @@ class HBAgentCombatAttackState : public HBAgentRootMotionState {
 	Ref<HitStopSolver> hit_stop_solver;
 	// When attacking cancelling requires you to repress the attack button while the attack is happening
 	bool was_attack_repressed = false;
+
 private:
 	bool handle_attack();
 	void handle_hitstop(float p_delta);
 	void handle_sending_attack_to_target();
+	void _on_attack_parried();
+
 public:
 	enum CombatAttackParams {
 		PARAM_ATTACK_NAME = HBAgentRootMotionState::PARAM_MAX + 1,
@@ -400,6 +415,7 @@ class HBAgentCombatHitState : public HBAgentRootMotionState {
 	Ref<HBAttackData> attack;
 	HBAgent *attacker;
 	Ref<HitStopSolver> hit_stop_solver;
+
 public:
 	enum CombatHitStateParams {
 		PARAM_ATTACK,
@@ -407,10 +423,21 @@ public:
 	};
 	void look_towards_attacker();
 	void setup_animation();
+
 public:
 	virtual void enter(const Dictionary &p_args) override;
 	virtual void exit() override;
 	virtual void physics_process(float p_delta) override;
+};
+
+class HBAgentDeadState : public HBAgentState {
+	GDCLASS(HBAgentDeadState, HBAgentState);
+
+public:
+	enum DeadStateParams {
+		PARAM_DEATH_FORCE
+	};
+	virtual void enter(const Dictionary &p_args) override;
 };
 
 #endif // AGENT_STATE_H

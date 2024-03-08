@@ -1,5 +1,6 @@
 #include "player_agent.h"
-#include "scene/3d/node_3d.h"
+#include "modules/game/game_main_loop.h"
+#include "modules/game/game_world.h"
 #include "scene/main/viewport.h"
 #ifdef DEBUG_ENABLED
 #include "modules/imgui/godot_imgui.h"
@@ -8,6 +9,17 @@
 
 #include "core/config/project_settings.h"
 #include "scene/resources/packed_scene.h"
+
+void HBPlayerAgent::_notification(int p_what) {
+	switch (p_what) {
+		case NOTIFICATION_READY: {
+			if (!Engine::get_singleton()->is_editor_hint()) {
+				HBGameWorld *gw = Object::cast_to<HBGameMainLoop>(get_tree())->get_game_world();
+				gw->set_player(this);
+			}
+		} break;
+	}
+}
 
 HBPlayerAgent::HBPlayerAgent() :
 		HBAgent() {
@@ -75,6 +87,7 @@ void HBPlayerAgentController::_notification(int p_what) {
 				agent->set_input_action_state(HBAgent::AgentInputAction::INPUT_ACTION_PARKOUR_UP, input->is_action_pressed(SNAME("move_parkour_up")));
 				agent->set_input_action_state(HBAgent::AgentInputAction::INPUT_ACTION_TARGET, input->is_action_pressed(SNAME("target")));
 				agent->set_input_action_state(HBAgent::AgentInputAction::INPUT_ACTION_ATTACK, input->is_action_pressed(SNAME("attack")));
+				agent->set_input_action_state(HBAgent::AgentInputAction::INPUT_ACTION_PARRY, input->is_action_pressed(SNAME("parry")));
 
 				// Movement input
 				Vector2 movement_input = Input::get_singleton()->get_vector("move_left", "move_right", "move_forward", "move_backward");
@@ -137,20 +150,13 @@ HBPlayerAgentController::HBPlayerAgentController() {
 HBPlayerAgentController::~HBPlayerAgentController() {
 }
 
+void HBInfoPlayerStart::_notification(int p_what) {
+	switch (p_what) {
+		case NOTIFICATION_READY: {
+			add_to_group("info_player_start");
+		} break;
+	}
+}
+
 void HBInfoPlayerStart::_editor_build(const EntityCompileInfo &p_info, const HashMap<StringName, EntityCompileInfo> &p_entities) {
-	String player_scene_path = GLOBAL_GET("game/player/player_scene");
-	DEV_ASSERT(!player_scene_path.is_empty());
-	Ref<PackedScene> packed_scene = ResourceLoader::load(player_scene_path);
-	DEV_ASSERT(packed_scene.is_valid());
-	Node *player_node = packed_scene->instantiate();
-	HBPlayerAgent *player_agent_node = Object::cast_to<HBPlayerAgent>(player_node);
-	DEV_ASSERT(player_agent_node);
-
-
-	Basis basis = get_global_transform().basis;
-	set_global_basis(Basis());
-	add_child(player_agent_node);
-	player_agent_node->set_starting_heading(basis.get_euler().y);
-	player_agent_node->set_owner(get_owner());
-	player_agent_node->set_as_top_level(true);
 }

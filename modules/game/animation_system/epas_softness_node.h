@@ -3,7 +3,6 @@
 
 #include "../agent.h"
 #include "epas_node.h"
-#include "scene/3d/physics_body_3d.h"
 
 class EPASSoftnessNode : public EPASNode {
 	GDCLASS(EPASSoftnessNode, EPASNode);

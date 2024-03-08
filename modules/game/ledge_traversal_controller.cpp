@@ -1,9 +1,9 @@
 #include "ledge_traversal_controller.h"
 #include "physics_layers.h"
-#include "scene/3d/collision_shape_3d.h"
-#include "scene/resources/cylinder_shape_3d.h"
+#include "scene/3d/physics/character_body_3d.h"
+#include "scene/resources/3d/cylinder_shape_3d.h"
+#include "scene/resources/3d/sphere_shape_3d.h"
 #include "scene/resources/immediate_mesh.h"
-#include "scene/resources/sphere_shape_3d.h"
 #include "springs.h"
 
 bool is_wall_n(const Vector3 &p_normal, float p_floor_max_angle) {
@@ -165,8 +165,6 @@ void HBLedgeTraversalController::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("move_to_ledge", "ledge_transform"), &HBLedgeTraversalController::move_to_ledge);
 }
 
-
-
 void HBLedgeTraversalController::_handle_limbs() {
 	Vector3 pos = ledge->get_ledge_transform_at_offset(curve_offset).origin;
 	const float inner_offset = ledge->get_closest_offset(pos);
@@ -193,7 +191,6 @@ void HBLedgeTraversalController::_handle_limbs() {
 		limb_transforms_predicted[i] = limb_transforms_predicted[i - 2];
 		limb_transforms_predicted[i].origin -= Vector3(0.0f, height * 0.4f, 0.0f);
 	}
-
 }
 
 Transform3D HBLedgeTraversalController::calculate_limb_trf(HBAgentParkourLedge *p_ledge, float p_agent_radius, float p_limb_offset_diff, float p_agent_offset, const AgentProceduralAnimator::AgentLimb p_limb) const {

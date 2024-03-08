@@ -3,6 +3,8 @@
 #include "epas_animation.h"
 #include "modules/game/animation_system/epas_animation_editor.h"
 
+CVar EPASInertializationNode::inertialization_dump_path_cvar = CVar("inertialization_dump_path", Variant::STRING, "");
+
 void EPASInertializationNode::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("inertialize", "transition_duration", "bone_filter"), &EPASInertializationNode::inertialize, DEFVAL(0.25f), DEFVAL(TypedArray<StringName>()));
 }
@@ -38,23 +40,26 @@ void EPASInertializationNode::start_inertialization(const Ref<EPASPose> &p_base_
 	poses.set(EPASPoseInertializer::InertializationPose::PREV_POSE, last_frame_pose);
 	poses.set(EPASPoseInertializer::InertializationPose::TARGET_POSE, p_target_pose);
 
-	Ref<EPASEditorAnimation> polla;
-	polla.instantiate();
-	Ref<EPASKeyframe> kf1 = memnew(EPASKeyframe);
-	kf1->set_time(0.0f);
-	kf1->set_pose(p_target_pose);
-	Ref<EPASKeyframe> kf2 = memnew(EPASKeyframe);
-	kf2->set_time(0.5f);
-	kf2->set_pose(last_frame_pose);
-	Ref<EPASKeyframe> kf3 = memnew(EPASKeyframe);
-	kf3->set_time(1.0f);
-	kf3->set_pose(last_last_frame_pose);
+	String dump_path = inertialization_dump_path_cvar.get();
+	if (!dump_path.is_empty()) {
+		Ref<EPASEditorAnimation> polla;
+		polla.instantiate();
+		Ref<EPASKeyframe> kf1 = memnew(EPASKeyframe);
+		kf1->set_time(0.0f);
+		kf1->set_pose(p_target_pose);
+		Ref<EPASKeyframe> kf2 = memnew(EPASKeyframe);
+		kf2->set_time(0.5f);
+		kf2->set_pose(last_frame_pose);
+		Ref<EPASKeyframe> kf3 = memnew(EPASKeyframe);
+		kf3->set_time(1.0f);
+		kf3->set_pose(last_last_frame_pose);
 
-	polla->add_keyframe(kf1);
-	polla->add_keyframe(kf2);
-	polla->add_keyframe(kf3);
-	ResourceSaver::save(polla, "res://inertialization_dumped.tres");
-	
+		polla->add_keyframe(kf1);
+		polla->add_keyframe(kf2);
+		polla->add_keyframe(kf3);
+		ResourceSaver::save(polla, "res://inertialization_dumped.tres");
+	}
+
 	pose_inertializer = EPASPoseInertializer::create(poses.ptr(), p_base_pose, desired_blend_time, p_delta, bone_filter);
 }
 
@@ -63,7 +68,6 @@ void EPASInertializationNode::process_input_pose_inertialized(int p_input, const
 
 	if (pose_inertializer.is_valid()) {
 		if (pose_inertializer->advance(p_target_pose, p_base_pose, p_delta)) {
-			print_line("INERT DONE AFTER", pose_inertializer->get_current_transition_time());
 			pose_inertializer = Ref<EPASPoseInertializer>();
 		}
 	}
@@ -89,7 +93,6 @@ void EPASInertializationNode::process_node(const Ref<EPASPose> &p_base_pose, Ref
 		process_input_pose(0, p_base_pose, inert_target_pose, p_delta);
 		start_inertialization(p_base_pose, inert_target_pose, p_delta);
 		inertialization_queued = false;
-		print_line(vformat("Fulfilled inertialization on frame %d %.2f", Engine::get_singleton()->get_frames_drawn(), pose_inertializer->get_current_transition_time()));
 	}
 	process_input_pose_inertialized(0, p_base_pose, p_target_pose, delta);
 	last_last_frame_pose = last_frame_pose;
@@ -97,7 +100,6 @@ void EPASInertializationNode::process_node(const Ref<EPASPose> &p_base_pose, Ref
 }
 
 void EPASInertializationNode::inertialize(float p_transition_duration, TypedArray<StringName> p_bone_filter) {
-	print_line(vformat("Requested inertialization on frame %d for time %.2f", Engine::get_singleton()->get_frames_drawn(), p_transition_duration), inertialization_queued);
 	inertialization_queued = true;
 	desired_blend_time = p_transition_duration;
 	bone_filter = p_bone_filter;

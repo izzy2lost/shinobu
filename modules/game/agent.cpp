@@ -12,7 +12,7 @@
 #include "modules/imgui/godot_imgui_macros.h"
 
 #include "core/config/project_settings.h"
-#include "scene/resources/cylinder_shape_3d.h"
+#include "scene/resources/3d/cylinder_shape_3d.h"
 
 HBAgent::HBAgent() :
 		JoltCharacterBody3D() {
@@ -44,11 +44,15 @@ void HBAgent::set_is_player_controlled(bool p_is_player_controlled) {
 }
 
 HBAgent *HBAgent::get_target() const {
-	return target;
+	return Object::cast_to<HBAgent>(ObjectDB::get_instance(target_agent));
 }
 
 void HBAgent::set_target(HBAgent *p_target) {
-	target = p_target;
+	if (p_target == nullptr) {
+		target_agent = ObjectID();
+		return;
+	}
+	target_agent = p_target->get_instance_id();
 }
 
 Ref<HBAttackData> HBAgent::get_attack_data(const StringName &p_name) {
@@ -93,11 +97,19 @@ void HBAgent::set_outline_mode(AgentOutlineMode p_outline_mode) {
 	}
 }
 
+bool HBAgent::get_is_invulnerable() const {
+	return is_invulnerable;
+}
+
+void HBAgent::set_is_invulnerable(bool p_is_invulnerable) {
+	is_invulnerable = p_is_invulnerable;
+}
+
 Quaternion HBAgent::get_graphics_rotation() const { return graphics_rotation; }
 
 void HBAgent::set_graphics_rotation(const Quaternion &p_graphics_rotation) { graphics_rotation = p_graphics_rotation; }
 
-Vector<HBAgent*> HBAgent::find_nearby_agents(float p_radius) const {
+Vector<HBAgent *> HBAgent::find_nearby_agents(float p_radius) const {
 	Ref<SphereShape3D> sphere;
 	sphere.instantiate();
 	sphere->set_radius(p_radius);
@@ -113,7 +125,7 @@ Vector<HBAgent*> HBAgent::find_nearby_agents(float p_radius) const {
 	PhysicsDirectSpaceState3D::ShapeResult results[RESULT_COUNT];
 	int result_count = dss->intersect_shape(params, results, RESULT_COUNT);
 
-	Vector<HBAgent*> agents;
+	Vector<HBAgent *> agents;
 
 	for (int i = 0; i < result_count; i++) {
 		HBAgent *agent = Object::cast_to<HBAgent>(results[i].collider);
@@ -225,7 +237,7 @@ void HBAgent::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_graphics_node", "path"), &HBAgent::set_graphics_node);
 	ClassDB::bind_method(D_METHOD("get_graphics_node"), &HBAgent::get_graphics_node);
 	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "graphics_node", PROPERTY_HINT_NODE_PATH_VALID_TYPES, "Node3D"), "set_graphics_node", "get_graphics_node");
-	
+
 	NODE_CACHE_BIND(tilt_node, Node3D, HBAgent);
 
 	ClassDB::bind_method(D_METHOD("get_agent_constants"), &HBAgent::get_agent_constants);
@@ -248,11 +260,21 @@ void HBAgent::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("flush_inputs"), &HBAgent::flush_inputs);
 
 	ADD_SIGNAL(MethodInfo("stopped_at_edge"));
+	ADD_SIGNAL(MethodInfo("emit_sword_sparks"));
+	ADD_SIGNAL(MethodInfo("parried"));
+	ADD_SIGNAL(MethodInfo("died"));
 	ADD_SIGNAL(MethodInfo(
-		"attack_received",
-		PropertyInfo(Variant::OBJECT, "attacker", PROPERTY_HINT_NODE_TYPE, "HBAgent"),
-		PropertyInfo(Variant::OBJECT, "attack_data", PROPERTY_HINT_RESOURCE_TYPE, "HBAttackData")
-	));
+			"attack_received",
+			PropertyInfo(Variant::OBJECT, "attacker", PROPERTY_HINT_NODE_TYPE, "HBAgent"),
+			PropertyInfo(Variant::OBJECT, "attack_data", PROPERTY_HINT_RESOURCE_TYPE, "HBAttackData")));
+
+	ADD_SIGNAL(MethodInfo(
+			"damage_received",
+			PropertyInfo(Variant::OBJECT, "old_health"),
+			PropertyInfo(Variant::OBJECT, "new_health")));
+
+	ADD_SIGNAL(MethodInfo("attack_connected"));
+	ADD_SIGNAL(MethodInfo("attack_aborted"));
 
 	BIND_ENUM_CONSTANT(INPUT_ACTION_RUN);
 	BIND_ENUM_CONSTANT(INPUT_ACTION_PARKOUR_DOWN);
@@ -293,17 +315,12 @@ void HBAgent::_rotate_towards_velocity(float p_delta) {
 static Vector3 prev_velocities[2];
 
 void HBAgent::_tilt_towards_acceleration(float p_delta) {
-	Node3D *tn = get_tilt_node_node();
-
-
-
 	prev_velocities[0] = prev_velocities[1];
 	prev_velocities[1] = get_effective_velocity();
 }
 
 void HBAgent::_physics_process(float p_delta) {
 	ERR_FAIL_COND(!agent_constants.is_valid());
-	prev_position = get_global_position();
 
 	switch (movement_mode) {
 		case MovementMode::MOVE_FALL: {
@@ -419,6 +436,14 @@ bool HBAgent::is_action_just_released(AgentInputAction p_action) const {
 	return !current_input_state.action_states[p_action] && prev_input_state.action_states[p_action];
 }
 
+uint64_t HBAgent::get_last_action_press_time(AgentInputAction p_action) const {
+	return current_input_state.last_action_press_times[p_action];
+}
+
+uint64_t HBAgent::get_last_action_release_time(AgentInputAction p_action) const {
+	return current_input_state.last_action_release_times[p_action];
+}
+
 void HBAgent::flush_inputs() {
 	prev_input_state = current_input_state;
 }
@@ -475,8 +500,13 @@ HBAgent::MovementMode HBAgent::get_movement_mode() const {
 	return movement_mode;
 }
 
-Vector3 HBAgent::get_previous_position() const {
-	return prev_position;
+void HBAgent::receive_damage(const int p_damage) {
+	const int old_health = health;
+	health = MAX(health - p_damage, 0);
+	emit_signal("damage_received", old_health, health);
+	if (health == 0) {
+		emit_signal("died");
+	}
 }
 
 void HBAgent::_notification(int p_what) {
@@ -494,6 +524,7 @@ void HBAgent::_notification(int p_what) {
 			set_graphics_rotation(Basis::from_euler(Vector3(0.0f, starting_heading, 0.0f)));
 			if (gn) {
 				current_rotation = gn->get_global_transform().basis.get_rotation_quaternion();
+				gn->set_global_basis(graphics_rotation);
 				last_last_rotation = current_rotation;
 				last_rotation = current_rotation;
 				rotation_spring_target = gn->get_global_transform().basis.get_rotation_quaternion();
@@ -564,6 +595,13 @@ Vector3 HBAgent::_get_desired_velocity() const {
 }
 
 void HBAgent::set_input_action_state(AgentInputAction p_event, bool p_state) {
+	if (p_state != current_input_state.action_states[p_event]) {
+		if (p_state) {
+			current_input_state.last_action_press_times[p_event] = OS::get_singleton()->get_ticks_usec();
+		} else {
+			current_input_state.last_action_release_times[p_event] = OS::get_singleton()->get_ticks_usec();
+		}
+	}
 	current_input_state.action_states[p_event] = p_state;
 }
 
@@ -615,7 +653,7 @@ void HBAttackData::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_hit_time"), &HBAttackData::get_hit_time);
 	ClassDB::bind_method(D_METHOD("set_hit_time", "hit_time"), &HBAttackData::set_hit_time);
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "hit_time"), "set_hit_time", "get_hit_time");
-	
+
 	ClassDB::bind_method(D_METHOD("get_hitstop_duration"), &HBAttackData::get_hitstop_duration);
 	ClassDB::bind_method(D_METHOD("set_hitstop_duration", "hit_stop_duration"), &HBAttackData::set_hitstop_duration);
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "hitstop_duration"), "set_hitstop_duration", "get_hitstop_duration");

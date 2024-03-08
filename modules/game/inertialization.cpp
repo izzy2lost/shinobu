@@ -4,13 +4,17 @@
 #include "core/math/quaternion.h"
 #include "core/string/print_string.h"
 #include "core/string/string_name.h"
+#include <signal.h>
 
 static String rot = "";
 
 static float inertialize(float p_x0, float p_v0, float p_blend_time, float p_t) {
-	float blend_time_1 = -5.0 * (p_x0 / p_v0);
-	if (blend_time_1 > 0) {
-		p_blend_time = MIN(blend_time_1, p_blend_time);
+	if (p_v0 != 0) {
+		float blend_time_1 = -5.0 * (p_x0 / p_v0);
+		if (blend_time_1 > 0) {
+			p_blend_time = MIN(blend_time_1, p_blend_time);
+			p_t = MIN(p_blend_time, p_t);
+		}
 	}
 
 	float bt_2 = p_blend_time * p_blend_time;
@@ -18,7 +22,6 @@ static float inertialize(float p_x0, float p_v0, float p_blend_time, float p_t) 
 	float bt_4 = bt_3 * p_blend_time;
 	float bt_5 = bt_4 * p_blend_time;
 	float accel = MAX((-8.0f * p_v0 * p_blend_time - 20.0f * p_x0) / bt_2, 0.0f);
-	//accel = -8.0f * p_v0 * p_blend_time - 20.0f * p_x0;
 	float A = -((accel * bt_2 + 6.0f * p_v0 * p_blend_time + 12.0f * p_x0) / (2.0f * bt_5));
 	float B = (3.0f * accel * bt_2 + 16.0f * p_v0 * p_blend_time + 30.0f * p_x0) / (2.0f * bt_4);
 	float C = -((3.0f * accel * bt_2 + 12.0f * p_v0 * p_blend_time + 20.0f * p_x0) / (2.0f * bt_3));
@@ -39,7 +42,7 @@ Quaternion RotationInertializer::advance_cock(float p_delta) {
 	hack = true;
 	Quaternion cock = advance(p_delta);
 	hack = false;
-	
+
 	return cock;
 }
 Quaternion RotationInertializer::advance(float p_delta) {
@@ -48,6 +51,10 @@ Quaternion RotationInertializer::advance(float p_delta) {
 
 	float rot_x = inertialize(rotation_offset_angle, rotation_velocity, transition_duration, current_transition_time);
 	rot_x = MAX(rot_x, 0.0f);
+	rot_x = MIN(rot_x, rotation_offset_angle);
+	if (rot_x > rotation_offset_angle) {
+		raise(SIGTRAP);
+	}
 	DEV_ASSERT(rotation_offset_angle >= -0.001f);
 	Quaternion rot_off = Quaternion(rotation_offset_axis, rot_x);
 	return rot_off;
@@ -78,9 +85,10 @@ void quat_to_angle_axis(Quaternion q, float &angle, Vector3 &axis, float eps = 1
 }
 
 Ref<RotationInertializer> RotationInertializer::create(const Quaternion &p_prev_prev, const Quaternion &p_prev, const Quaternion &p_target, float p_duration, float p_delta) {
-	if (p_prev.angle_to(p_target) < Math::deg_to_rad(1.0f)) {
+	if (p_prev.angle_to(p_target) < Math::deg_to_rad(0.05f)) {
 		return nullptr;
 	}
+
 	Ref<RotationInertializer> in;
 	in.instantiate();
 
@@ -104,7 +112,7 @@ Ref<RotationInertializer> RotationInertializer::create(const Quaternion &p_prev_
 
 	Vector3 q_x_y_z = Vector3(q_prev_prev.x, q_prev_prev.y, q_prev_prev.z);
 	float q_x_m_1 = 2.0f * Math::atan(q_x_y_z.dot(x0_axis) / q_prev_prev.w);
-	in->rotation_velocity = (x0_angle - q_x_m_1) / p_delta;
+	in->rotation_velocity = MIN((x0_angle - q_x_m_1) / p_delta, 0.0);
 	in->rotation_offset_angle = x0_angle;
 	in->rotation_offset_axis = x0_axis;
 	in->transition_duration = p_duration;

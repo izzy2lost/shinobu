@@ -47,6 +47,8 @@
 #include "animation_system/epas_transition_node.h"
 #include "animation_system/epas_wheel_locomotion.h"
 
+#include "modules/game/console_system.h"
+
 AgentStringNames *agent_string_names = nullptr;
 
 void initialize_game_module(ModuleInitializationLevel p_level) {
@@ -78,7 +80,10 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(HBAgentCombatMoveState);
 	GDREGISTER_CLASS(HBAgentCombatAttackState);
 	GDREGISTER_CLASS(HBAgentCombatHitState);
+	GDREGISTER_CLASS(HBAgentDeadState);
 	GDREGISTER_CLASS(NPCBrains);
+	GDREGISTER_CLASS(HBAgentParkourLedge);
+
 	// State machine stuff
 	GDREGISTER_CLASS(HBStateMachine);
 	GDREGISTER_ABSTRACT_CLASS(HBStateMachineState);
@@ -110,21 +115,28 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 
 	GDREGISTER_CLASS(HBDebugGeometry);
 	GDREGISTER_CLASS(HBInfoPlayerStart);
+	GDREGISTER_CLASS(HBInGameUI);
+
+	// Console system
+	GDREGISTER_CLASS(ConsoleSignaler);
 
 	// Tests...
 	GDREGISTER_CLASS(JoltCharacterBody3D);
 	GDREGISTER_CLASS(HBLedgeTraversalController);
 	GDREGISTER_CLASS(HBLevelPreprocessor);
-	GDREGISTER_CLASS(HBAgentParkourLedge);
 	GDREGISTER_CLASS(EPASEditorAnimation);
 	GDREGISTER_CLASS(RotationInertializer);
+
+	GLOBAL_DEF_BASIC(PropertyInfo(Variant::STRING, "game/ingame_ui_scene", PROPERTY_HINT_FILE, "*.tscn,*.scn,*.res"), "");
 
 	TBLoaderSingleton::register_entity_type<HBAgentParkourPoint>();
 	TBLoaderSingleton::register_entity_type<HBAgentParkourBeam>();
 	TBLoaderSingleton::register_entity_type<HBAgentParkourLedge>();
 	TBLoaderSingleton::register_entity_type<HBInfoPlayerStart>();
 	TBLoaderSingleton::register_entity_type<HBRoute>();
-	
+
+	ConsoleSystem::get_singleton()->initialize_console();
+
 #ifdef DEBUG_ENABLED
 	GDREGISTER_CLASS(EPASAnimationEditor);
 	GDREGISTER_CLASS(EPASEditorGrid);
@@ -140,4 +152,6 @@ void uninitialize_game_module(ModuleInitializationLevel p_level) {
 	if (agent_string_names) {
 		memdelete(agent_string_names);
 	}
+
+	ConsoleSystem::get_singleton()->deinit_console();
 }

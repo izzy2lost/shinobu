@@ -18,15 +18,16 @@ public:
 	const StringName beam_walk_state;
 	const StringName root_motion_state;
 	const StringName wall_parkour_transition_state;
-	const StringName combat_move;
-	const StringName combat_attack;
-	const StringName combat_hit;
+	const StringName combat_move_state;
+	const StringName combat_attack_state;
+	const StringName combat_hit_state;
+	const StringName dead_state;
 
 	const StringName right_hand_ik_node;
 	const StringName left_hand_ik_node;
 	const StringName right_foot_ik_node;
 	const StringName left_foot_ik_node;
-	
+
 	const StringName ledge_getup_animation_node;
 	const StringName ledge_to_ground_animation_node;
 	const StringName ledge_hop_up_animation_node;
@@ -39,6 +40,8 @@ public:
 	const StringName wallparkour_down_long_jump_animation_node;
 	const StringName wallparkour_left_long_jump_animation_node;
 	const StringName wallparkour_right_long_jump_animation_node;
+	const StringName sword_parry_animation_node;
+	const StringName roll_animation_node;
 
 	const StringName wall_parkour_cat_animation_node;
 	const StringName wall_parkour_cat_point_wp_name;
@@ -52,8 +55,8 @@ public:
 
 protected:
 	static void _bind_methods();
-public:
 
+public:
 	AgentStringNames();
 };
 

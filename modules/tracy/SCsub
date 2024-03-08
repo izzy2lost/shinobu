@@ -38,7 +38,7 @@ env_tracy.Depends("#modules/tracy/tracy.gen.h", env_tracy.Value(tracy_defines))
 env_tracy.CommandNoCache(
     ["#modules/tracy/tracy.gen.h"],
     "tracy_header_builder.py",
-    env_tracy.Run(tracy_header_builder.make_tracy_header, "Generating tracy header", False),
+    env_tracy.Run(tracy_header_builder.make_tracy_header, subprocess=False),
 )
 
 env.Depends(module_obj, thirdparty_obj)

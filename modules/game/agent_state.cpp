@@ -1,3 +1,33 @@
+/**************************************************************************/
+/*  agent_state.cpp                                                       */
+/**************************************************************************/
+/*                         This file is part of:                          */
+/*                             GODOT ENGINE                               */
+/*                        https://godotengine.org                         */
+/**************************************************************************/
+/* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
+/* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
+/*                                                                        */
+/* Permission is hereby granted, free of charge, to any person obtaining  */
+/* a copy of this software and associated documentation files (the        */
+/* "Software"), to deal in the Software without restriction, including    */
+/* without limitation the rights to use, copy, modify, merge, publish,    */
+/* distribute, sublicense, and/or sell copies of the Software, and to     */
+/* permit persons to whom the Software is furnished to do so, subject to  */
+/* the following conditions:                                              */
+/*                                                                        */
+/* The above copyright notice and this permission notice shall be         */
+/* included in all copies or substantial portions of the Software.        */
+/*                                                                        */
+/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
+/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
+/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
+/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
+/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
+/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
+/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+/**************************************************************************/
+
 #include "agent_state.h"
 #include "agent_parkour.h"
 #include "animation_system/epas_animation_node.h"
@@ -10,10 +40,13 @@
 #endif
 #include "modules/tracy/tracy.gen.h"
 #include "physics_layers.h"
-#include "scene/resources/cylinder_shape_3d.h"
+#include "scene/3d/physics/physical_bone_3d.h"
+#include "scene/resources/3d/cylinder_shape_3d.h"
 #include "springs.h"
 
 #include "agent_string_names.h"
+
+#include "core/os/time.h"
 
 bool is_wall(const Vector3 &p_normal, float p_floor_max_angle) {
 	return p_normal.angle_to(Vector3(0.0f, 1.0f, 0.0f)) > p_floor_max_angle;
@@ -199,10 +232,45 @@ void HBAgentState::handle_player_specific_inputs() {
 }
 
 void HBAgentState::_on_attack_received(HBAgent *p_attacker, Ref<HBAttackData> p_attack_data) {
+	HBAgent *agent = get_agent();
+
+	const uint64_t time = OS::get_singleton()->get_ticks_usec();
+	const uint64_t last_parry_time = agent->get_last_action_press_time(HBAgent::INPUT_ACTION_PARRY);
+	const bool is_parrying = agent->get_is_parrying();
+
+	agent->set_is_parrying(false);
+	if (is_parrying && time - last_parry_time < HBAgentConstants::PARRY_WINDOW) {
+		// It's parrying time
+		Dictionary args;
+		args[HBAgentRootMotionState::PARAM_ANIMATION_NODE_NAME] = ASN()->sword_parry_animation_node;
+		args[HBAgentRootMotionState::PARAM_TRANSITION_NODE_INDEX] = HBAgentConstants::MOVEMENT_COMBAT_PARRY;
+		args[HBAgentRootMotionState::PARAM_NEXT_STATE] = ASN()->combat_move_state;
+		Dictionary next_state_args;
+
+		// When parrying an attack we automatically target the attacker
+		agent->set_target(p_attacker);
+
+		args[HBAgentRootMotionState::PARAM_NEXT_STATE_ARGS] = next_state_args;
+		state_machine->transition_to(ASN()->root_motion_state, args);
+		agent->emit_signal("parried");
+		return;
+	}
+
+	agent->receive_damage(p_attack_data->get_damage());
+
+	// We kicked the bucket, go to dead state
+	if (agent->is_dead()) {
+		Dictionary state_args;
+		state_args[HBAgentDeadState::PARAM_DEATH_FORCE] = Vector3(0.0, 0.0, 0.0f);
+		state_machine->transition_to(ASN()->dead_state, state_args);
+		return;
+	}
+
+	// We didn't parry in time, and thus got hit
 	Dictionary state_args;
 	state_args[HBAgentCombatHitState::PARAM_ATTACKER] = p_attacker;
 	state_args[HBAgentCombatHitState::PARAM_ATTACK] = p_attack_data;
-	state_machine->transition_to(ASN()->combat_hit, state_args);
+	state_machine->transition_to(ASN()->combat_hit_state, state_args);
 }
 
 void HBAgentState::setup_attack_reception() {
@@ -211,6 +279,17 @@ void HBAgentState::setup_attack_reception() {
 
 void HBAgentState::remove_attack_reception() {
 	get_agent()->disconnect("attack_received", callable_mp(this, &HBAgentState::_on_attack_received));
+}
+
+bool HBAgentState::handle_parrying() {
+	HBAgent *agent = get_agent();
+	// Parry is on release, blocking is on press
+	if (agent->is_action_just_pressed(HBAgent::INPUT_ACTION_PARRY)) {
+		agent->set_is_parrying(true);
+		return true;
+	}
+
+	return false;
 }
 
 HBAgent *HBAgentState::get_agent() const {
@@ -260,10 +339,10 @@ Ref<EPASWheelLocomotion> HBAgentState::get_wheel_locomotion_node() const {
 
 HBAgent *HBAgentState::get_highlighted_agent() const {
 	HBAgent *agent = get_agent();
-	Vector<HBAgent*> candidate_agents = agent->find_nearby_agents(40.0f);
+	Vector<HBAgent *> candidate_agents = agent->find_nearby_agents(40.0f);
 
 	struct AgentTarget {
-		HBAgent* agent;
+		HBAgent *agent;
 		float distance_to_screen_center;
 	};
 
@@ -299,7 +378,7 @@ HBAgent *HBAgentState::get_highlighted_agent() const {
 
 	// Sort them by closest to the center of the screen
 	targeteable_agents.sort_custom<TargetComparator>();
-	
+
 	return targeteable_agents[0].agent;
 }
 
@@ -349,14 +428,14 @@ void HBAgentMoveState::enter(const Dictionary &p_args) {
 	torso_lookat_node->set_influence(0.0f);
 	head_lookat_node->set_influence(0.0f);
 	get_softness_node()->set_influence(1.0f);
-	get_wheel_locomotion_node()->set_use_foot_ik(true);
+	get_wheel_locomotion_node()->set_use_foot_ik(false);
 	Ref<EPASIKNode> left_foot_ik_node = get_epas_controller()->get_epas_node(ASN()->left_foot_ik_node);
 	Ref<EPASIKNode> right_foot_ik_node = get_epas_controller()->get_epas_node(ASN()->right_foot_ik_node);
 
 	wait_for_transition = p_args.get(PARAM_WAIT_FOR_TRANSITION, false);
 
-	left_foot_ik_node->set_ik_influence(1.0f);
-	right_foot_ik_node->set_ik_influence(1.0f);
+	left_foot_ik_node->set_ik_influence(0.0f);
+	right_foot_ik_node->set_ik_influence(0.0f);
 
 	setup_attack_reception();
 }
@@ -382,12 +461,9 @@ void HBAgentMoveState::physics_process(float p_delta) {
 
 	HBAgent *agent = get_agent();
 	if (HBAgent *target = agent->get_target(); target) {
-		if (agent->is_action_just_pressed(HBAgent::INPUT_ACTION_ATTACK)) {
-			Dictionary args;
-			args[HBAgentCombatMoveState::PARAM_TARGET] = target;
-			state_machine->transition_to(ASN()->combat_move, args);
-			return;
-		}
+		Dictionary args;
+		state_machine->transition_to(ASN()->combat_move_state, args);
+		return;
 	}
 
 	if (wait_for_transition) {
@@ -397,16 +473,15 @@ void HBAgentMoveState::physics_process(float p_delta) {
 		wait_for_transition = false;
 	}
 
-
 	Vector3 input_vector = agent->get_desired_movement_input_transformed();
 	Vector3 target_desired_velocity = input_vector * agent->get_agent_constants()->get_max_move_velocity();
 	Vector3 desired_velocity = agent->get_desired_velocity();
 	HBSprings::velocity_spring_vector3(
-		desired_velocity,
-		velocity_spring_acceleration,
-		target_desired_velocity,
-		agent->get_agent_constants()->get_velocity_spring_halflife(),
-		p_delta);
+			desired_velocity,
+			velocity_spring_acceleration,
+			target_desired_velocity,
+			agent->get_agent_constants()->get_velocity_spring_halflife(),
+			p_delta);
 	agent->set_desired_velocity(desired_velocity);
 
 	Ref<EPASIKNode> left_foot_ik_node = get_epas_controller()->get_epas_node(ASN()->left_foot_ik_node);
@@ -460,19 +535,21 @@ void HBAgentMoveState::physics_process(float p_delta) {
 	}*/
 
 	{
-
-		// Initiate turn if needed
 		Ref<EPASOrientationWarpNode> orientation_warp_node = get_epas_controller()->get_epas_node("Orientation");
-
-		Vector3 facing_dir = agent->get_graphics_rotation().xform(Vector3(0.0f, 0.0f, -1.0f));
 		float angle = agent->get_graphics_rotation().xform(Vector3(0.0f, 0.0f, -1.0f)).angle_to(movement_input);
 		float rotation_angle = agent->get_graphics_rotation().xform(Vector3(0.0f, 0.0f, -1.0f)).signed_angle_to(movement_input, Vector3(0.0f, 1.0f, 0.0f));
-		if (agent->get_linear_velocity().project(facing_dir).length() < 0.1f && angle > Math::deg_to_rad(45.0f)) {
-			Dictionary args;
-			args[HBAgentTurnState::PARAM_ANGLE] = Math::rad_to_deg(rotation_angle);
-			orientation_warp_node->set_orientation_angle(0.0f);
-			state_machine->transition_to(ASN()->turn_state, args);
-			return;
+		if (movement_input.length_squared() > 0) {
+			// Initiate turn if needed
+
+			Vector3 facing_dir = agent->get_graphics_rotation().xform(Vector3(0.0f, 0.0f, -1.0f));
+			if (agent->get_linear_velocity().project(facing_dir).length() < get_agent()->get_agent_constants()->get_max_move_velocity() * 0.5f && angle > Math::deg_to_rad(90.0f)) {
+				print_line("Angle was", Math::rad_to_deg(angle), movement_input, agent->get_graphics_rotation().xform(Vector3(0.0f, 0.0f, -1.0f)));
+				Dictionary args;
+				args[HBAgentTurnState::PARAM_ANGLE] = Math::rad_to_deg(rotation_angle);
+				orientation_warp_node->set_orientation_angle(0.0f);
+				state_machine->transition_to(ASN()->turn_state, args);
+				return;
+			}
 		}
 
 		// Disable forward strafing when walking
@@ -482,20 +559,29 @@ void HBAgentMoveState::physics_process(float p_delta) {
 			Vector3 dir = movement_input.normalized();
 			if (agent->is_action_just_released(HBAgent::INPUT_ACTION_RUN)) {
 				Transform3D graphics_trf = agent->get_global_transform();
+				graphics_trf.basis = agent->get_graphics_rotation();
 				agent->inertialize_graphics_transform(graphics_trf, 0.15f);
 			} else if (dir.is_normalized()) {
 				Basis basis = Basis::looking_at(dir);
 				agent->set_graphics_rotation(basis.get_rotation_quaternion());
 			}
-			if (angle > Math::deg_to_rad(45.0f)) {
+			if (movement_input.length_squared() > 0 && angle > Math::deg_to_rad(45.0f)) {
 				if (dir.is_normalized()) {
 					Transform3D graphics_trf = Transform3D(Basis::looking_at(dir).get_rotation_quaternion(), get_agent()->get_global_position());
 					agent->inertialize_graphics_transform(graphics_trf, 0.25f);
 				}
 			}
 
-		} else {
+		} else if (movement_input.length_squared() > 0) {
+			// When running we can inertialize and reset the orientation warp every 45 degrees
 			orientation_warp_node->set_orientation_angle(Math::rad_to_deg(rotation_angle));
+			if (angle > Math::deg_to_rad(45.0f)) {
+				Vector3 dir = movement_input.normalized();
+
+				Transform3D trf = agent->get_global_transform();
+				trf.basis = Basis::looking_at(dir);
+				agent->inertialize_graphics_transform(trf, 0.25f);
+			}
 		}
 	}
 
@@ -558,7 +644,6 @@ void HBAgentMoveState::physics_process(float p_delta) {
 
 			Dictionary dict;
 			dict[HBAgentParkourBeamWalk::ParkourBeamWalkParams::PARAM_BEAM_NODE] = beam;
-			dict[HBAgentParkourBeamWalk::ParkourBeamWalkParams::PARAM_PREV_POSITION] = agent->get_previous_position();
 			state_machine->transition_to(ASN()->beam_walk_state, dict);
 		}
 	}
@@ -726,11 +811,11 @@ bool HBAgentGroundStateBase::handle_parkour_up() {
 	ray_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
 	ray_params.from = agent->get_global_position() + Vector3(0.0f, agent->get_height() * 0.5f, 0.0f);
 	ray_params.to = ray_params.from + agent->get_graphics_rotation().xform(Vector3(0.0f, 0.0f, -1.0f)) * 0.4f;
-	
+
 	PhysicsDirectSpaceState3D *dss = agent->get_world_3d()->get_direct_space_state();
 	PhysicsDirectSpaceState3D::RayResult ray_result;
 	bool hit = dss->intersect_ray(ray_params, ray_result);
-	
+
 	if (!hit || !is_wall(ray_result.normal, agent->get_floor_max_angle())) {
 		return false;
 	}
@@ -745,14 +830,13 @@ bool HBAgentGroundStateBase::handle_parkour_up() {
 	Transform3D wall_trf;
 	wall_trf.origin = ray_result.position;
 	wall_trf.basis = Basis::looking_at(ray_result.normal);
-	
+
 	Transform3D pp_check_shape_trf;
 	pp_check_shape_trf.origin = wall_trf.xform(Vector3(0.0f, reachable_height * 0.5f, 0.0f));
-	
+
 	if (handle_wallrun_to_parkour_point(cyl_check_shape, pp_check_shape_trf, wall_trf)) {
 		return true;
 	}
-
 
 	Ref<Shape3D> agent_shape = agent->get_collision_shape();
 	// Find a wall in front
@@ -1034,7 +1118,7 @@ bool HBAgentGroundStateBase::handle_parkour_mid() {
 	box_shape->set_size(Vector3(agent->get_radius() * 2.0f, agent->get_height(), STRAIGHT_TO_LEDGE_LONG_REACH));
 
 	// This jump should only happen at edges
-	shape_trf.origin = agent->get_global_position() + input_forward * (STRAIGHT_TO_LEDGE_LONG_REACH)*0.5f;
+	shape_trf.origin = agent->get_global_position() + input_forward * (STRAIGHT_TO_LEDGE_LONG_REACH) * 0.5f;
 	// add a margin so we don't hit ledges at our height
 	shape_trf.origin.y -= (box_shape->get_size().y * 0.5f) - agent->get_walk_stairs_step_up().y;
 
@@ -1090,7 +1174,6 @@ bool HBAgentGroundStateBase::handle_jump_to_ledge(Ref<BoxShape3D> p_shape, const
 				}
 
 				const Vector3 whishker_target = ledge_trf.origin + ledge_trf.basis.xform(Vector3(0.0f, 0.0f, 1.0f)) * agent->get_radius();
-
 
 				// Check if it's actually reachable by ray casting from the character at various heights
 				if (!whisker_reach_check(agent->get_global_position(), whishker_target, agent->get_walk_stairs_step_up().y, agent->get_height())) {
@@ -1206,7 +1289,7 @@ bool HBAgentGroundStateBase::handle_wallrun_to_parkour_point(const Ref<Shape3D> 
 		Vector3 point_forward = pp_candidate->get_global_transform().basis.xform(Vector3(0.0f, 0.0f, -1.0f));
 
 		if (point_forward.dot(pp_forward) > 0.0f) {
-			float distance_to_agent = pp_candidate->get_global_position().distance_to(get_agent()->get_global_position()); 
+			float distance_to_agent = pp_candidate->get_global_position().distance_to(get_agent()->get_global_position());
 			if (parkour_point) {
 				if (distance_to_agent > pp_dist_to_angent) {
 					continue;
@@ -1220,8 +1303,6 @@ bool HBAgentGroundStateBase::handle_wallrun_to_parkour_point(const Ref<Shape3D> 
 	if (!parkour_point) {
 		return false;
 	}
-
-	
 
 	Dictionary warp_points;
 	warp_points[StringName("WallrunBase")] = p_wall_base_trf;
@@ -1449,7 +1530,7 @@ void HBAgentLedgeGrabbedStateNew::enter(const Dictionary &p_args) {
 	animator_options.use_average_for_skeleton_trf = true;
 	animator_options.limb_peak_position[AgentProceduralAnimator::LIMB_LEFT_FOOT] = Vector3(0.0, 0.05f, 0.05f);
 	animator_options.limb_peak_position[AgentProceduralAnimator::LIMB_RIGHT_FOOT] = Vector3(0.0, 0.05f, 0.05f);
-	
+
 	if (!are_limbs_init) {
 		_init_limbs();
 	}
@@ -1458,8 +1539,6 @@ void HBAgentLedgeGrabbedStateNew::enter(const Dictionary &p_args) {
 		limbs[i].ik_node->set_ik_influence(1.0f);
 		limbs[i].dangle_status = false;
 	}
-
-
 
 	get_movement_transition_node()->transition_to(HBAgentConstants::MOVEMENT_WALLGRABBED);
 	get_inertialization_node()->inertialize(0.2f);
@@ -1545,7 +1624,6 @@ void HBAgentLedgeGrabbedStateNew::physics_process(float p_delta) {
 
 	_apply_ik_transforms(pose);
 
-
 	bool limbs_are_out_of_place = false;
 
 	for (int i = 0; i < AgentProceduralAnimator::AgentLimb::LIMB_MAX; i++) {
@@ -1554,7 +1632,6 @@ void HBAgentLedgeGrabbedStateNew::physics_process(float p_delta) {
 			break;
 		}
 	}
-	
 
 	if (animator.get_playback_position() == 1.0f && (input.x != 0 || limbs_are_out_of_place)) {
 		animator.reset();
@@ -1653,7 +1730,7 @@ void HBAgentLedgeGrabbedStateNew::physics_process(float p_delta) {
 		}
 	}
 
-	for(int i = 0; i < AgentProceduralAnimator::LIMB_MAX; i++) {
+	for (int i = 0; i < AgentProceduralAnimator::LIMB_MAX; i++) {
 		debug_draw_sphere(limbs[i].ik_node->get_magnet_position());
 		debug_draw_sphere(limbs[i].ik_node->get_target_transform().origin, 0.05f, Color("GREEN"));
 	}
@@ -1762,7 +1839,6 @@ bool HBAgentLedgeGrabbedStateNew::_handle_getup() {
 		if (beam) {
 			Dictionary beam_arg_dict;
 			beam_arg_dict[HBAgentParkourBeamWalk::PARAM_BEAM_NODE] = beam;
-			beam_arg_dict[HBAgentParkourBeamWalk::PARAM_PREV_POSITION] = get_agent()->get_global_position();
 			args[HBAgentRootMotionState::PARAM_NEXT_STATE] = ASN()->beam_walk_state;
 			args[HBAgentRootMotionState::PARAM_NEXT_STATE_ARGS] = beam_arg_dict;
 			args[HBAgentRootMotionState::PARAM_VELOCITY_MODE] = HBAgentRootMotionState::ANIMATION_DRIVEN;
@@ -1858,9 +1934,6 @@ void HBAgentLedgeGrabbedStateNew::_init_limbs() {
 
 // Modifies the output pose with updated values to be used with IK
 void HBAgentLedgeGrabbedStateNew::_update_ik_transforms(AgentProceduralAnimator::AgentProceduralPose &p_pose) {
-	Vector3 skeleton_position_offset = p_pose.skeleton_position_offset;
-	skeleton_position_offset.y = 0.0f;
-
 	bool feet_dangling = limbs[AgentProceduralAnimator::LIMB_LEFT_FOOT].dangle_status || limbs[AgentProceduralAnimator::LIMB_RIGHT_FOOT].dangle_status;
 
 	Vector3 skel_pos = p_pose.skeleton_trf.origin;
@@ -1886,7 +1959,7 @@ void HBAgentLedgeGrabbedStateNew::_update_ik_transforms(AgentProceduralAnimator:
 
 	Vector3 ledge_skel_pos = ledge_trf.origin;
 	ledge_skel_pos += ledge_trf.basis.xform(local_offset);
-	
+
 	p_pose.skeleton_trf = new_skel_trf;
 	p_pose.skeleton_trf.origin = ledge_skel_pos;
 
@@ -1925,7 +1998,6 @@ void HBAgentLedgeGrabbedStateNew::_apply_ik_transforms(AgentProceduralAnimator::
 
 		debug_draw_sphere(p_pose.skeleton_trf.origin);
 		debug_draw_sphere(p_pose.skeleton_trf.origin + p_pose.skeleton_position_offset, 0.05f, Color("BLUE"));
-
 	}
 }
 
@@ -2032,7 +2104,7 @@ void HBAgentParkourBeamWalk::physics_process(float p_delta) {
 	// Kill velocity near edges
 	bool are_end_edges[2] = {
 		beam->is_point_edge(0),
-		beam->is_point_edge(beam->get_curve()->get_point_count()-1)
+		beam->is_point_edge(beam->get_curve()->get_point_count() - 1)
 	};
 
 	const int desired_velocity_dir = SIGN(desired_velocity.dot(forward));
@@ -2202,7 +2274,7 @@ void HBAgentRootMotionState::enter(const Dictionary &p_args) {
 	animation_node = get_epas_controller()->get_epas_node(p_args.get(PARAM_ANIMATION_NODE_NAME, Variant()));
 	ERR_FAIL_COND(!p_args.has(PARAM_TRANSITION_NODE_INDEX));
 	ERR_FAIL_COND_MSG(!animation_node.is_valid(), "PARAM_ANIMATION_NODE_NAME was missing or was the wrong type.");
-	ERR_FAIL_COND(!animation_node->get_animation().is_valid());
+	ERR_FAIL_COND_MSG(!animation_node->get_animation().is_valid(), vformat("Animation node %s had no animation.", p_args.get(PARAM_ANIMATION_NODE_NAME, "")));
 	Dictionary warp_points = p_args.get(PARAM_WARP_POINTS, Dictionary());
 	for (int i = 0; i < animation_node->get_animation()->get_warp_point_count(); i++) {
 		Ref<EPASWarpPoint> wp = animation_node->get_animation()->get_warp_point(i);
@@ -2233,6 +2305,11 @@ void HBAgentRootMotionState::enter(const Dictionary &p_args) {
 	get_agent()->root_motion_begin(animation_node, get_physics_process_delta_time());
 	prev_pos = get_agent()->get_global_position();
 	inertialization_init = false;
+	get_agent()->set_is_invulnerable(p_args.get(PARAM_INVULNERABLE, false));
+}
+
+void HBAgentRootMotionState::exit() {
+	get_agent()->set_is_invulnerable(false);
 }
 
 void HBAgentRootMotionState::physics_process(float p_delta) {
@@ -2245,7 +2322,7 @@ void HBAgentRootMotionState::physics_process(float p_delta) {
 	if (collisions_enabled) {
 		get_agent()->update(p_delta);
 	}
-	
+
 	if (!inertialization_init) {
 		Transform3D trf = get_agent()->get_global_transform();
 		trf.basis = get_agent()->get_graphics_rotation();
@@ -2284,7 +2361,7 @@ bool HBAgentLedgeGrabbedStateNew::_handle_parkour_mid() {
 	PhysicsDirectSpaceState3D *dss = get_agent()->get_world_3d()->get_direct_space_state();
 	PhysicsDirectSpaceState3D::ShapeParameters shape_params;
 	static constexpr const int ITERS = 10;
-	
+
 	Ref<Shape3D> shape = get_agent()->get_collision_shape();
 	shape_params.shape_rid = shape->get_rid();
 	shape_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
@@ -2292,7 +2369,7 @@ bool HBAgentLedgeGrabbedStateNew::_handle_parkour_mid() {
 	shape_params.transform.origin.y += get_agent()->get_height() * 0.5f;
 	shape_params.transform.origin += controller->get_graphics_rotation().xform(Vector3(0.0f, 0.0f, 0.01f));
 	for (int i = 0; i < ITERS; i++) {
-		shape_params.motion = input * EJECT_REACH * ((i+1) / ((float)ITERS));
+		shape_params.motion = input * EJECT_REACH * ((i + 1) / ((float)ITERS));
 		real_t closest_safe, closest_unsafe;
 		dss->cast_motion(shape_params, closest_safe, closest_unsafe);
 		bool first_hit = closest_safe != 1.0f && closest_unsafe != 1.0f;
@@ -2323,7 +2400,7 @@ bool HBAgentLedgeGrabbedStateNew::_handle_parkour_mid() {
 			root_motion_args[HBAgentRootMotionState::PARAM_WARP_POINTS] = warp_points;
 			root_motion_args[HBAgentRootMotionState::PARAM_ANIMATION_NODE_NAME] = ASN()->short_hop_animation_node;
 			root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE] = ASN()->move_state;
-			
+
 			PhysicsDirectSpaceState3D::RayParameters ray_params;
 			ray_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
 			ray_params.from = wp_trf.origin - input * get_agent()->get_radius();
@@ -2336,7 +2413,7 @@ bool HBAgentLedgeGrabbedStateNew::_handle_parkour_mid() {
 			if (!dss->intersect_ray(ray_params, result)) {
 				continue;
 			}
-			
+
 			state_machine->transition_to(ASN()->root_motion_state, root_motion_args);
 			return true;
 		}
@@ -2414,9 +2491,8 @@ bool HBAgentLedgeGrabbedStateNew::_handle_drop_to_parkour_point() {
 		args[HBAgentRootMotionState::PARAM_NEXT_STATE_ARGS] = next_state_args;
 		args[HBAgentRootMotionState::PARAM_NEXT_STATE] = ASN()->wall_parkour_state;
 
-
 		args[HBAgentRootMotionState::PARAM_WARP_POINTS] = wp_points;
-		
+
 		state_machine->transition_to(ASN()->root_motion_state, args);
 		return true;
 	}
@@ -2425,7 +2501,7 @@ bool HBAgentLedgeGrabbedStateNew::_handle_drop_to_parkour_point() {
 		Dictionary state_args;
 		state_args[HBAgentWallTransitionState::PARAM_TRANSITION_MODE] = HBAgentWallTransitionState::TO_WALL;
 		state_args[HBAgentWallTransitionState::PARAM_PARKOUR_POINT] = parkour_point;
-		
+
 		HBAgentWallTransitionState *wall_transition_state = Object::cast_to<HBAgentWallTransitionState>(state_machine->get_state(ASN()->wall_parkour_transition_state));
 		AgentProceduralAnimator::AgentProceduralPose starting_pose;
 		animator.get_output_pose(starting_pose);
@@ -2444,7 +2520,6 @@ bool HBAgentLedgeGrabbedStateNew::_handle_drop_to_parkour_point() {
 	Wall Parkour State
 ***********************/
 void HBAgentWallParkourStateNew::apply_offsets(AgentProceduralAnimator::AgentProceduralPose &p_pose) const {
-	
 }
 
 void HBAgentWallParkourStateNew::apply_pose(AgentProceduralAnimator::AgentProceduralPose &p_pose) {
@@ -2472,13 +2547,11 @@ void HBAgentWallParkourStateNew::apply_pose(AgentProceduralAnimator::AgentProced
 	debug_draw_sphere(p_pose.skeleton_trf.origin + p_pose.skeleton_position_offset, 0.05f, Color("BLUE"));
 }
 
-
-
 // Returns a simple initial pose without offsets
 void HBAgentWallParkourStateNew::find_initial_pose(WallParkourInitialPose &p_pose, const HBAgentParkourPoint *p_point) const {
 	Ref<EPASAnimationNode> anim_node = get_epas_controller()->get_epas_node(ASN()->wall_parkour_cat_animation_node);
 	Ref<EPASPose> reference_pose = anim_node->get_animation()->get_keyframe(0)->get_pose();
-	
+
 	const int point_wp = anim_node->get_animation()->find_warp_point(ASN()->wall_parkour_cat_point_wp_name);
 	Ref<EPASWarpPoint> wp = anim_node->get_animation()->get_warp_point(point_wp);
 	const Transform3D wp_trf = wp->get_transform();
@@ -2496,7 +2569,7 @@ void HBAgentWallParkourStateNew::find_initial_pose(WallParkourInitialPose &p_pos
 		} else {
 			p_pose.pose.ik_magnet_positions[i] = get_agent()->get_global_position() + get_agent()->get_graphics_rotation().xform(Vector3(0.0f, -1.0f, 0.0f));
 		}
-		p_pose.parkour_points[i] = const_cast<HBAgentParkourPoint*>(p_point);
+		p_pose.parkour_points[i] = const_cast<HBAgentParkourPoint *>(p_point);
 	}
 
 	p_pose.pose.valid = true;
@@ -2522,15 +2595,14 @@ void HBAgentWallParkourStateNew::update_animator(const AgentProceduralAnimator::
 	animator_options.target_skeleton_transform = target_pose.pose.skeleton_trf;
 
 	animator_options.limb_animation_timings[p_limb_to_move][0] = 0.15f;
-	animator_options.limb_animation_timings[p_limb_to_move][1] = 1.0f; 
+	animator_options.limb_animation_timings[p_limb_to_move][1] = 1.0f;
 	const AgentProceduralAnimator::AgentLimb foot_to_move = p_limb_to_move == AgentProceduralAnimator::LIMB_LEFT_HAND ? AgentProceduralAnimator::LIMB_LEFT_FOOT : AgentProceduralAnimator::LIMB_RIGHT_FOOT;
-	
+
 	const AgentProceduralAnimator::AgentLimb hand_to_stay = p_limb_to_move == AgentProceduralAnimator::LIMB_LEFT_HAND ? AgentProceduralAnimator::LIMB_RIGHT_HAND : AgentProceduralAnimator::LIMB_LEFT_HAND;
 	const AgentProceduralAnimator::AgentLimb foot_to_stay = hand_to_stay == AgentProceduralAnimator::LIMB_LEFT_HAND ? AgentProceduralAnimator::LIMB_LEFT_FOOT : AgentProceduralAnimator::LIMB_RIGHT_FOOT;
 
 	animator_options.limb_dangle_status[hand_to_stay] = true;
 	animator_options.limb_dangle_status[foot_to_stay] = true;
-
 
 	animator_options.limb_animation_timings[foot_to_move][0] = 0.0f;
 	animator_options.limb_animation_timings[foot_to_move][1] = 0.75f;
@@ -2683,7 +2755,7 @@ void HBAgentWallParkourStateNew::physics_process(float p_delta) {
 
 	Vector3 snapped_untransformed_dir;
 
-	if (!input.is_zero_approx()){
+	if (!input.is_zero_approx()) {
 		const float snapped_angle = Math::snapped(input.signed_angle_to(Vector3(0.0, 1.0, 0.0), Vector3(0.0f, 0.0f, -1.0f)), Math::deg_to_rad(45.0f));
 		snapped_untransformed_dir = Vector3(0.0f, 1.0f, 0.0f).rotated(Vector3(0.0f, 0.0f, 1.0f), snapped_angle);
 		vertical_component = Math::is_zero_approx(snapped_untransformed_dir.y) ? 0 : SIGN(snapped_untransformed_dir.y);
@@ -2764,12 +2836,11 @@ void HBAgentWallParkourStateNew::physics_process(float p_delta) {
 					args[HBAgentWallTransitionState::PARAM_FIRST_HAND] = limb_to_move;
 				}
 
-
 				HBAgentWallTransitionState *new_state = Object::cast_to<HBAgentWallTransitionState>(state_machine->get_state(ASN()->wall_parkour_transition_state));
-				
+
 				AgentProceduralAnimator::AgentProceduralPose new_pose;
 				new_pose.skeleton_trf = animator_options.target_skeleton_transform;
-				for(int i = 0; i < AgentProceduralAnimator::LIMB_MAX; i++) {
+				for (int i = 0; i < AgentProceduralAnimator::LIMB_MAX; i++) {
 					new_pose.ik_targets[i] = animator_options.target_limb_transforms[i];
 					new_pose.ik_magnet_positions[i] = pose.ik_magnet_positions[i];
 				}
@@ -2806,7 +2877,7 @@ void HBAgentWallParkourStateNew::physics_process(float p_delta) {
 		}
 
 		HBAgentParkourPoint *point_to_reach = find_reachable_parkour_point(sampling_source_limb, snapped_dir, SHORT_GRAB_REACH);
-		
+
 		if (!point_to_reach) {
 			const Vector3 sampling_source_fwd = sampling_source_trf.basis.xform(Vector3(0.0f, 0.0f, 1.0f));
 			Vector3 rot_y = sampling_source_fwd.cross(snapped_dir).normalized();
@@ -2864,7 +2935,7 @@ void HBAgentWallParkourStateNew::physics_process(float p_delta) {
 			current_limb = limb_to_move;
 		} else {
 			// Try if we can find a point to long jump to
-			HBAgentParkourPoint* long_grab_point = find_reachable_parkour_point(sampling_source_limb, snapped_dir, LONG_GRAB_REACH);
+			HBAgentParkourPoint *long_grab_point = find_reachable_parkour_point(sampling_source_limb, snapped_dir, LONG_GRAB_REACH);
 
 			StringName animation_node_name = ASN()->wallparkour_up_long_jump_animation_node;
 			int transition_node_index = HBAgentConstants::MOVEMENT_WALLPARKOUR_UP_LONG_JUMP;
@@ -2891,17 +2962,15 @@ void HBAgentWallParkourStateNew::physics_process(float p_delta) {
 				root_motion_args[HBAgentRootMotionState::RootMotionParams::PARAM_NEXT_STATE] = ASN()->wall_parkour_state;
 				root_motion_args[HBAgentRootMotionState::RootMotionParams::PARAM_ANIMATION_NODE_NAME] = animation_node_name;
 				root_motion_args[HBAgentRootMotionState::RootMotionParams::PARAM_TRANSITION_NODE_INDEX] = transition_node_index;
-				
+
 				Dictionary next_state_args;
 				next_state_args[HBAgentWallParkourStateNew::PARAM_PARKOUR_NODE] = long_grab_point;
 				root_motion_args[HBAgentRootMotionState::RootMotionParams::PARAM_NEXT_STATE_ARGS] = next_state_args;
-				
+
 				state_machine->transition_to(ASN()->root_motion_state, root_motion_args);
 				return;
 			}
 		}
-
-
 
 		// We cannot reach higher, so bring the hands together
 		if (!are_hands_together && vertical_component != 0 && animator_just_finished && !point_to_reach) {
@@ -2910,7 +2979,7 @@ void HBAgentWallParkourStateNew::physics_process(float p_delta) {
 	}
 }
 bool HBAgentWallParkourStateNew::_handle_parkour_mid() {
-	if  (!get_agent()->is_action_pressed(HBAgent::AgentInputAction::INPUT_ACTION_RUN)) {
+	if (!get_agent()->is_action_pressed(HBAgent::AgentInputAction::INPUT_ACTION_RUN)) {
 		return false;
 	}
 
@@ -2922,7 +2991,7 @@ bool HBAgentWallParkourStateNew::_handle_parkour_mid() {
 	PhysicsDirectSpaceState3D *dss = get_agent()->get_world_3d()->get_direct_space_state();
 	PhysicsDirectSpaceState3D::ShapeParameters shape_params;
 	static constexpr const int ITERS = 10;
-	
+
 	Ref<Shape3D> shape = get_agent()->get_collision_shape();
 	shape_params.shape_rid = shape->get_rid();
 	shape_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
@@ -2930,7 +2999,7 @@ bool HBAgentWallParkourStateNew::_handle_parkour_mid() {
 	shape_params.transform.origin.y += get_agent()->get_height() * 1.5f;
 	shape_params.transform.origin += get_agent()->get_graphics_rotation().xform(Vector3(0.0f, 0.0f, 0.01f));
 	for (int i = 0; i < ITERS; i++) {
-		shape_params.motion = input * EJECT_REACH * ((i+1) / ((float)ITERS));
+		shape_params.motion = input * EJECT_REACH * ((i + 1) / ((float)ITERS));
 		real_t closest_safe, closest_unsafe;
 		debug_draw_cast_motion(shape, shape_params, Color("RED"));
 		dss->cast_motion(shape_params, closest_safe, closest_unsafe);
@@ -2962,7 +3031,7 @@ bool HBAgentWallParkourStateNew::_handle_parkour_mid() {
 			root_motion_args[HBAgentRootMotionState::PARAM_WARP_POINTS] = warp_points;
 			root_motion_args[HBAgentRootMotionState::PARAM_ANIMATION_NODE_NAME] = ASN()->short_hop_animation_node;
 			root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE] = ASN()->move_state;
-			
+
 			PhysicsDirectSpaceState3D::RayParameters ray_params;
 			ray_params.collision_mask = HBPhysicsLayers::LAYER_WORLD_GEO;
 			ray_params.from = wp_trf.origin - input * get_agent()->get_radius();
@@ -2975,11 +3044,10 @@ bool HBAgentWallParkourStateNew::_handle_parkour_mid() {
 			if (!dss->intersect_ray(ray_params, result)) {
 				continue;
 			}
-			
+
 			state_machine->transition_to(ASN()->root_motion_state, root_motion_args);
 			return true;
 		}
-
 
 		if (first_hit) {
 			break;
@@ -2987,9 +3055,8 @@ bool HBAgentWallParkourStateNew::_handle_parkour_mid() {
 	}
 
 	return false;
-
 }
-HBAgentParkourPoint* HBAgentWallParkourStateNew::find_reachable_parkour_point(const AgentProceduralAnimator::AgentLimb p_sampling_limb, const Vector3 &p_direction, const float &p_reach) const {
+HBAgentParkourPoint *HBAgentWallParkourStateNew::find_reachable_parkour_point(const AgentProceduralAnimator::AgentLimb p_sampling_limb, const Vector3 &p_direction, const float &p_reach) const {
 	HBAgent *agent = get_agent();
 
 	const Transform3D sampling_source_trf = target_pose.parkour_points[p_sampling_limb]->get_global_transform();
@@ -2999,9 +3066,9 @@ HBAgentParkourPoint* HBAgentWallParkourStateNew::find_reachable_parkour_point(co
 
 	cyl_shape->set_height(p_reach);
 	cyl_shape->set_radius(agent->get_radius());
-	
+
 	PhysicsDirectSpaceState3D::ShapeParameters shape_params;
-	shape_params.transform.origin = sampling_source_trf.origin + p_direction * p_reach * 0.5f; 
+	shape_params.transform.origin = sampling_source_trf.origin + p_direction * p_reach * 0.5f;
 	shape_params.transform.basis = Quaternion(Vector3(0.0f, 1.0f, 0.0f), p_direction);
 	shape_params.shape_rid = cyl_shape->get_rid();
 	shape_params.collision_mask = HBPhysicsLayers::LAYER_PARKOUR_NODES;
@@ -3014,7 +3081,7 @@ HBAgentParkourPoint* HBAgentWallParkourStateNew::find_reachable_parkour_point(co
 	int result_count = dss->intersect_shape(shape_params, results.ptrw(), MAX_RESULTS);
 	HBAgentParkourPoint *point_to_reach = nullptr;
 
-	const_cast<HBAgentWallParkourStateNew*>(this)->debug_draw_cast_motion(cyl_shape, shape_params);
+	const_cast<HBAgentWallParkourStateNew *>(this)->debug_draw_cast_motion(cyl_shape, shape_params);
 
 	// Now find the closest point
 	for (int i = 0; i < result_count; i++) {
@@ -3033,7 +3100,7 @@ HBAgentParkourPoint* HBAgentWallParkourStateNew::find_reachable_parkour_point(co
 		if (p_direction.angle_to(sampling_source_trf.origin.direction_to(pp->get_global_position())) > Math::deg_to_rad(45.0f)) {
 			continue;
 		}
-		
+
 		if (point_to_reach) {
 			// Perhaps we should project the hit nodes onto the input direction to use as a distance...
 			const float distance_to_current_point = sampling_source_trf.origin.distance_to(point_to_reach->get_global_position());
@@ -3046,7 +3113,7 @@ HBAgentParkourPoint* HBAgentWallParkourStateNew::find_reachable_parkour_point(co
 		}
 
 		point_to_reach = pp;
-		skip_iter: ;
+	skip_iter:;
 	}
 	return point_to_reach;
 }
@@ -3060,9 +3127,9 @@ bool HBAgentWallParkourStateNew::find_reachable_parkour_ledge(const AgentProcedu
 
 	cyl_shape->set_height(p_reach);
 	cyl_shape->set_radius(agent->get_radius());
-	
+
 	PhysicsDirectSpaceState3D::ShapeParameters shape_params;
-	shape_params.transform.origin = sampling_source_trf.origin + p_direction * p_reach * 0.5f; 
+	shape_params.transform.origin = sampling_source_trf.origin + p_direction * p_reach * 0.5f;
 	shape_params.transform.basis = Quaternion(Vector3(0.0f, 1.0f, 0.0f), p_direction);
 	shape_params.shape_rid = cyl_shape->get_rid();
 	shape_params.collision_mask = HBPhysicsLayers::LAYER_PARKOUR_NODES;
@@ -3076,7 +3143,7 @@ bool HBAgentWallParkourStateNew::find_reachable_parkour_ledge(const AgentProcedu
 	PhysicsDirectSpaceState3D *dss = agent->get_world_3d()->get_direct_space_state();
 	int result_count = dss->intersect_shape(shape_params, results.ptrw(), MAX_RESULTS);
 
-	const_cast<HBAgentWallParkourStateNew*>(this)->debug_draw_cast_motion(cyl_shape, shape_params);
+	const_cast<HBAgentWallParkourStateNew *>(this)->debug_draw_cast_motion(cyl_shape, shape_params);
 
 	// Now find the closest point
 	for (int i = 0; i < result_count; i++) {
@@ -3145,7 +3212,7 @@ void HBAgentWallTransitionState::calculate_magnet_for_limbs(AgentProceduralAnima
 void HBAgentWallTransitionState::enter(const Dictionary &p_args) {
 	DEV_ASSERT(p_args.has(PARAM_TRANSITION_MODE));
 	transition_mode = (TransitionMode)(int)p_args.get(PARAM_TRANSITION_MODE, Variant());
-	
+
 	AgentProceduralAnimator::AgentProceduralPose end_pose;
 
 	if (transition_mode == TO_LEDGE) {
@@ -3167,7 +3234,6 @@ void HBAgentWallTransitionState::enter(const Dictionary &p_args) {
 		end_pose = initial_pose.pose;
 		first_hand = AgentProceduralAnimator::LIMB_RIGHT_HAND;
 	}
-
 
 	for (int i = 0; i < AgentProceduralAnimator::LIMB_MAX; i++) {
 		animator_options.starting_limb_transforms[i] = starting_pose.ik_targets[i];
@@ -3191,14 +3257,14 @@ void HBAgentWallTransitionState::enter(const Dictionary &p_args) {
 	if (first_hand == AgentProceduralAnimator::LIMB_LEFT_HAND) {
 		for (int i = 0; i < 2; i++) {
 			AgentProceduralAnimator::AgentLimb hand = static_cast<AgentProceduralAnimator::AgentLimb>(i);
-			AgentProceduralAnimator::AgentLimb foot = static_cast<AgentProceduralAnimator::AgentLimb>(i+2);
+			AgentProceduralAnimator::AgentLimb foot = static_cast<AgentProceduralAnimator::AgentLimb>(i + 2);
 			for (int j = 0; j < 2; j++) {
-				SWAP(animator_options.limb_animation_timings[hand][j], animator_options.limb_animation_timings[hand+1][j]);
-				SWAP(animator_options.limb_animation_timings[foot][j], animator_options.limb_animation_timings[foot+1][j]);
+				SWAP(animator_options.limb_animation_timings[hand][j], animator_options.limb_animation_timings[hand + 1][j]);
+				SWAP(animator_options.limb_animation_timings[foot][j], animator_options.limb_animation_timings[foot + 1][j]);
 			}
 		}
 	}
-	
+
 	for (int i = 0; i < AgentProceduralAnimator::AgentLimb::LIMB_MAX; i++) {
 		animator_options.limb_position_spring_halflifes[i] = 0.05f;
 	}
@@ -3228,7 +3294,6 @@ void HBAgentWallTransitionState::physics_process(float p_delta) {
 			state_machine->transition_to(ASN()->wall_parkour_state, args);
 		}
 	}
-
 }
 
 void HBAgentCombatMoveState::calculate_desired_movement_velocity(float p_delta) {
@@ -3237,11 +3302,11 @@ void HBAgentCombatMoveState::calculate_desired_movement_velocity(float p_delta) 
 	Vector3 target_desired_velocity = input_vector * agent->get_agent_constants()->get_max_move_velocity();
 	Vector3 current_desired_velocity = agent->get_desired_velocity();
 	HBSprings::velocity_spring_vector3(
-		current_desired_velocity,
-		desired_velocity_spring_acceleration,
-		target_desired_velocity,
-		agent->get_agent_constants()->get_velocity_spring_halflife(),
-		p_delta);
+			current_desired_velocity,
+			desired_velocity_spring_acceleration,
+			target_desired_velocity,
+			agent->get_agent_constants()->get_velocity_spring_halflife(),
+			p_delta);
 	desired_velocity_ws = current_desired_velocity;
 }
 
@@ -3255,11 +3320,11 @@ void HBAgentCombatMoveState::rotate_towards_target(float p_delta) {
 	}
 	Quaternion current_rot = get_agent()->get_graphics_rotation();
 	HBSprings::simple_spring_damper_exact_quat(
-		current_rot,
-		agent_rotation_velocity,
-		agent_rotation_target,
-		agent_rotation_halflife,
-		p_delta);
+			current_rot,
+			agent_rotation_velocity,
+			agent_rotation_target,
+			agent_rotation_halflife,
+			p_delta);
 	get_agent()->set_graphics_rotation(current_rot);
 }
 
@@ -3288,15 +3353,13 @@ bool HBAgentCombatMoveState::handle_attack() {
 	if (agent->is_action_just_pressed(HBAgent::INPUT_ACTION_ATTACK)) {
 		Dictionary root_motion_args;
 
-		root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE] = ASN()->combat_move;
+		root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE] = ASN()->combat_move_state;
 		root_motion_args[HBAgentCombatAttackState::PARAM_ATTACK_NAME] = StringName("Attack1");
 		root_motion_args[HBAgentCombatAttackState::PARAM_TARGET] = target;
 
 		Dictionary next_state_args;
-		next_state_args[HBAgentCombatMoveState::PARAM_TARGET] = target;
-
 		root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE_ARGS] = next_state_args;
-		state_machine->transition_to(ASN()->combat_attack, root_motion_args);
+		state_machine->transition_to(ASN()->combat_attack_state, root_motion_args);
 		return true;
 	}
 
@@ -3309,31 +3372,68 @@ void HBAgentCombatMoveState::reset() {
 }
 
 void HBAgentCombatMoveState::enter(const Dictionary &p_args) {
-	target = Object::cast_to<HBAgent>(p_args.get(PARAM_TARGET, Variant()));
-	DEV_ASSERT(target);
+	HBAgent *agent = get_agent();
+	target = agent->get_target();
+
+	setup_attack_reception();
+
+	get_wheel_locomotion_node()->set_x_blend(0.0f);
+
+	Transform3D graphics_trf = Transform3D(agent->get_graphics_rotation(), agent->get_global_position());
+
+	agent->inertialize_graphics_transform(graphics_trf, 0.2f);
+
+	if (!target) {
+		// Target is somehow gone, return to move state
+		// TODO: Add functionality to find another target if possible
+		state_machine->transition_to(ASN()->move_state);
+		return;
+	}
 
 	reset();
 
-	HBAgent *agent = get_agent();
-
 	agent->set_movement_mode(HBAgent::MOVE_GROUNDED);
-	Transform3D initial_trf;
-	initial_trf.origin = agent->get_global_position();
-	Vector3 aim_direction = initial_trf.origin.direction_to(target->get_global_position());
-	aim_direction.y = 0.0f;
-	aim_direction.normalize();
-	if (!aim_direction.is_normalized()) {
-		aim_direction = Vector3(0.0f, 0.0f, -1.0f);
-	}
-	initial_trf.basis = Basis::looking_at(aim_direction);
 	get_movement_transition_node()->transition_to(HBAgentConstants::MOVEMENT_MOVE);
-	agent->inertialize_graphics_transform(initial_trf, 0.15f);
 	get_inertialization_node()->inertialize(0.5f);
 }
 
+void HBAgentCombatMoveState::exit() {
+	remove_attack_reception();
+}
+
 void HBAgentCombatMoveState::physics_process(float p_delta) {
+	if (handle_parrying()) {
+		return;
+	}
+
 	calculate_desired_movement_velocity(p_delta);
 	HBAgent *agent = get_agent();
+	Vector3 dodge_dir = desired_velocity_ws;
+	dodge_dir.y = 0.0f;
+	dodge_dir.normalize();
+	if (dodge_dir.length_squared() > 0 && agent->is_action_just_pressed(HBAgent::INPUT_ACTION_PARKOUR_UP)) {
+		Dictionary state_args;
+		Dictionary next_state_args;
+		state_args[HBAgentRootMotionState::PARAM_NEXT_STATE] = ASN()->combat_move_state;
+		state_args[HBAgentRootMotionState::PARAM_ANIMATION_NODE_NAME] = ASN()->roll_animation_node;
+		state_args[HBAgentRootMotionState::PARAM_TRANSITION_NODE_INDEX] = HBAgentConstants::MOVEMENT_COMBAT_ROLL;
+		state_args[HBAgentRootMotionState::PARAM_COLLIDE] = true;
+		state_args[HBAgentRootMotionState::PARAM_NEXT_STATE_ARGS] = next_state_args;
+		state_args[HBAgentRootMotionState::PARAM_INVULNERABLE] = true;
+
+		Dictionary warp_points;
+		Transform3D wp_trf;
+		wp_trf.origin = agent->get_global_position();
+		wp_trf.basis = Basis::looking_at(-dodge_dir);
+		warp_points[StringName("start")] = wp_trf;
+		wp_trf.origin += dodge_dir * 1.5f;
+		warp_points[StringName("end")] = wp_trf;
+
+		state_args[HBAgentRootMotionState::PARAM_WARP_POINTS] = warp_points;
+
+		state_machine->transition_to(ASN()->root_motion_state, state_args);
+		return;
+	}
 	agent->set_desired_velocity(desired_velocity_ws);
 	agent->handle_input(desired_velocity_ws.normalized(), 0.0f);
 	agent->update(p_delta);
@@ -3345,7 +3445,6 @@ void HBAgentCombatMoveState::physics_process(float p_delta) {
 	get_wheel_locomotion_node()->set_linear_velocity(linear_vel_horizontal);
 	get_wheel_locomotion_node()->set_x_blend(CLAMP(linear_vel_horizontal.length() / agent->get_agent_constants()->get_max_move_velocity(), 0.0, 1.0));
 
-
 	update_orientation_warp();
 
 	if (handle_attack()) {
@@ -3354,7 +3453,7 @@ void HBAgentCombatMoveState::physics_process(float p_delta) {
 }
 
 bool HBAgentCombatAttackState::handle_attack() {
-	if (attack-> get_cancel_time() == -1.0f) {
+	if (attack->get_cancel_time() == -1.0f) {
 		return false;
 	}
 
@@ -3369,23 +3468,25 @@ bool HBAgentCombatAttackState::handle_attack() {
 
 		root_motion_args[HBAgentCombatAttackState::PARAM_ATTACK_NAME] = attack->get_next_attack();
 		root_motion_args[HBAgentCombatAttackState::PARAM_TARGET] = target;
-		root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE] = ASN()->combat_move;
+		root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE] = ASN()->combat_move_state;
 
-		Dictionary next_state_args;
-		next_state_args[HBAgentCombatMoveState::PARAM_TARGET] = target;
+		Dictionary next_attack_state_args;
 
-		root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE_ARGS] = next_state_args;
-		state_machine->transition_to(ASN()->combat_attack, root_motion_args);
+		root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE_ARGS] = next_attack_state_args;
+		state_machine->transition_to(ASN()->combat_attack_state, root_motion_args);
 		return true;
 	}
 	return false;
 }
 
 void HBAgentCombatAttackState::handle_hitstop(float p_delta) {
+	if (!attack_connected) {
+		return;
+	}
 	if (prev_playback_position < attack->get_hit_time() && animation_node->get_playback_position() > attack->get_hit_time()) {
 		hit_stop_solver.instantiate();
 		Vector3 dir = get_graphics_node()->get_global_basis().xform(Vector3(0.0f, 0.0f, -1.0f));
-		hit_stop_solver->start(dir, attack->get_hitstop_duration()*0.5f);
+		hit_stop_solver->start(dir, attack->get_hitstop_duration() * 0.5f);
 		animation_node->set_speed_scale(0.05f);
 	}
 
@@ -3397,15 +3498,32 @@ void HBAgentCombatAttackState::handle_hitstop(float p_delta) {
 		}
 		hit_stop_solver->advance(1.0f, p_delta);
 		Vector3 offset = hit_stop_solver->get_offset();
-		HBAgent *agent = get_agent();
-		//agent->set_global_position(agent->get_global_position() + offset);
+		Node3D *gn = get_graphics_node();
+		gn->set_position(offset);
 	}
 }
 
 void HBAgentCombatAttackState::handle_sending_attack_to_target() {
+	if (target->get_is_invulnerable()) {
+		return;
+	}
 	if (prev_playback_position < attack->get_hit_time() && animation_node->get_playback_position() > attack->get_hit_time()) {
 		target->receive_attack(get_agent(), attack);
+		attack_connected = true;
+		get_agent()->emit_signal("attack_connected");
 	}
+}
+
+void HBAgentCombatAttackState::_on_attack_parried() {
+	Dictionary state_args;
+	state_args[HBAgentRootMotionState::PARAM_NEXT_STATE] = ASN()->combat_move_state;
+	Dictionary next_state_args;
+	state_args[HBAgentRootMotionState::PARAM_NEXT_STATE_ARGS] = next_state_args;
+	state_args[HBAgentRootMotionState::PARAM_ANIMATION_NODE_NAME] = StringName("HitRight");
+	state_args[HBAgentRootMotionState::PARAM_TRANSITION_NODE_INDEX] = HBAgentConstants::MOVEMENT_COMBAT_HIT_RIGHT;
+	state_machine->transition_to(ASN()->root_motion_state, state_args);
+
+	get_agent()->emit_signal("emit_sword_sparks");
 }
 
 void HBAgentCombatAttackState::enter(const Dictionary &p_args) {
@@ -3450,17 +3568,32 @@ void HBAgentCombatAttackState::enter(const Dictionary &p_args) {
 
 	prev_playback_position = 0.0f;
 	was_attack_repressed = false;
+	attack_connected = true;
+	setup_attack_reception();
+
+	target->connect("parried", callable_mp(this, &HBAgentCombatAttackState::_on_attack_parried));
 }
 
 void HBAgentCombatAttackState::exit() {
 	attack_mesh_instance->hide();
 	hit_stop_solver.unref();
 	animation_node->set_speed_scale(1.0f);
+
+	remove_attack_reception();
+
+	target->disconnect("parried", callable_mp(this, &HBAgentCombatAttackState::_on_attack_parried));
+
+	Node3D *gn = get_graphics_node();
+	gn->set_position(Vector3());
+
+	if (!attack_connected) {
+		get_agent()->emit_signal("attack_aborted");
+	}
 }
 
 void HBAgentCombatAttackState::physics_process(float p_delta) {
 	HBAgentRootMotionState::physics_process(p_delta);
-	
+
 	if (get_agent()->is_action_just_released(HBAgent::AgentInputAction::INPUT_ACTION_ATTACK)) {
 		was_attack_repressed = true;
 	}
@@ -3468,9 +3601,10 @@ void HBAgentCombatAttackState::physics_process(float p_delta) {
 	if (handle_attack()) {
 		return;
 	}
+
 	handle_sending_attack_to_target();
 	handle_hitstop(p_delta);
-	
+
 	const float animation_length = animation_node->get_animation()->get_length();
 	attack_mesh_instance->set_instance_shader_parameter("scroll", animation_node->get_playback_position() / animation_length);
 	prev_playback_position = animation_node->get_playback_position();
@@ -3495,7 +3629,7 @@ void HBAgentCombatHitState::setup_animation() {
 	Dictionary root_motion_args;
 
 	switch (attack->get_attack_direction()) {
-		case HBAttackData::RIGHT:{
+		case HBAttackData::RIGHT: {
 			animation_node_name = StringName("HitRight");
 			transition = HBAgentConstants::MOVEMENT_COMBAT_HIT_RIGHT;
 		} break;
@@ -3503,7 +3637,12 @@ void HBAgentCombatHitState::setup_animation() {
 
 	root_motion_args[HBAgentRootMotionState::PARAM_ANIMATION_NODE_NAME] = animation_node_name;
 	root_motion_args[HBAgentRootMotionState::PARAM_TRANSITION_NODE_INDEX] = transition;
-	root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE] = StringName("Move");
+	root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE] = ASN()->combat_move_state;
+
+	Dictionary combat_move_args;
+
+	root_motion_args[HBAgentRootMotionState::PARAM_NEXT_STATE_ARGS] = combat_move_args;
+
 	root_motion_args[HBAgentRootMotionState::PARAM_COLLIDE] = true;
 
 	get_inertialization_node()->inertialize(0.05f);
@@ -3533,16 +3672,40 @@ void HBAgentCombatHitState::enter(const Dictionary &p_args) {
 
 void HBAgentCombatHitState::exit() {
 	remove_attack_reception();
+	Node3D *gn = get_graphics_node();
+	gn->set_position(Vector3());
 }
 
 void HBAgentCombatHitState::physics_process(float p_delta) {
 	HBAgentRootMotionState::physics_process(p_delta);
 
-	
+	if (handle_parrying()) {
+		return;
+	}
+
 	if (!hit_stop_solver->is_done()) {
 		hit_stop_solver->advance(1.0f, p_delta);
-	
-		Vector3 new_pos = get_agent()->get_global_position() + hit_stop_solver->get_offset();
-		get_agent()->set_global_position(new_pos);
+
+		Node3D *gn = get_graphics_node();
+		gn->set_position(hit_stop_solver->get_offset());
+	}
+}
+
+void HBAgentDeadState::enter(const Dictionary &p_args) {
+	get_epas_controller()->set_playback_process_mode(EPASController::MANUAL);
+	const Vector3 death_force = p_args.get(PARAM_DEATH_FORCE, Vector3());
+	// TODO: Make this configurable
+	Skeleton3D *skel = get_skeleton();
+	skel->physical_bones_start_simulation_on(TypedArray<StringName>());
+	for (int i = 0; i < skel->get_child_count(); i++) {
+		PhysicalBone3D *pb = Object::cast_to<PhysicalBone3D>(skel->get_child(i));
+		if (!pb) {
+			continue;
+		}
+		if (pb->get_bone_name() == "head") {
+			print_line("APPLYING FORCE", death_force);
+			pb->apply_central_impulse(death_force);
+			break;
+		}
 	}
 }

@@ -7,8 +7,8 @@
 #include "modules/jolt/src/spaces/jolt_physics_direct_space_state_3d.gen.hpp"
 #include "modules/jolt/src/spaces/jolt_query_filter_3d.hpp"
 #include "modules/jolt/src/spaces/jolt_space_3d.hpp"
-#include "scene/3d/collision_shape_3d.h"
-#include "scene/resources/capsule_shape_3d.h"
+#include "scene/3d/physics/collision_shape_3d.h"
+#include "scene/resources/3d/capsule_shape_3d.h"
 #include "spaces/jolt_temp_allocator.hpp"
 JoltCharacterBody3D::JoltCharacterBody3D() :
 		PhysicsBody3D(PhysicsServer3D::BODY_MODE_KINEMATIC) {

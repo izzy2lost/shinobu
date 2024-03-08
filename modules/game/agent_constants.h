@@ -7,6 +7,10 @@
 class HBAgentConstants : public Resource {
 	GDCLASS(HBAgentConstants, Resource);
 
+public:
+	static constexpr float AGENT_RADIUS = 0.2f;
+
+private:
 	float max_move_velocity = 2.8f;
 	Vector3 gravity = Vector3(0.0f, -9.81f, 0.0f);
 	float velocity_spring_halflife = 0.175f;
@@ -59,8 +63,13 @@ public:
 		MOVEMENT_WALLPARKOUR_RIGHT_LONG_JUMP = 21,
 		MOVEMENT_COMBAT_ATTACK = 22,
 		MOVEMENT_COMBAT_HIT_RIGHT = 23,
+		MOVEMENT_COMBAT_PARRY = 24,
+		MOVEMENT_COMBAT_PARRIED = 25,
+		MOVEMENT_COMBAT_ROLL = 26,
 		MOVEMENT_MAX
 	};
+
+	static const uint64_t PARRY_WINDOW = 500 * 1000; // In microseconds
 
 	float get_max_move_velocity() const;
 	void set_max_move_velocity(float p_max_move_velocity);

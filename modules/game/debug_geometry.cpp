@@ -1,6 +1,6 @@
 #include "debug_geometry.h"
-#include "scene/resources/primitive_meshes.h"
-#include "scene/resources/shape_3d.h"
+#include "scene/resources/3d/primitive_meshes.h"
+#include "scene/resources/3d/shape_3d.h"
 
 Ref<StandardMaterial3D> HBDebugGeometry::get_debug_material() {
 	if (debug_material.is_valid()) {

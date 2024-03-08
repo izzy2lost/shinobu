@@ -1,23 +1,53 @@
+/**************************************************************************/
+/*  hit_stop.cpp                                                          */
+/**************************************************************************/
+/*                         This file is part of:                          */
+/*                             GODOT ENGINE                               */
+/*                        https://godotengine.org                         */
+/**************************************************************************/
+/* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
+/* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
+/*                                                                        */
+/* Permission is hereby granted, free of charge, to any person obtaining  */
+/* a copy of this software and associated documentation files (the        */
+/* "Software"), to deal in the Software without restriction, including    */
+/* without limitation the rights to use, copy, modify, merge, publish,    */
+/* distribute, sublicense, and/or sell copies of the Software, and to     */
+/* permit persons to whom the Software is furnished to do so, subject to  */
+/* the following conditions:                                              */
+/*                                                                        */
+/* The above copyright notice and this permission notice shall be         */
+/* included in all copies or substantial portions of the Software.        */
+/*                                                                        */
+/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
+/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
+/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
+/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
+/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
+/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
+/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+/**************************************************************************/
+
 #include "hit_stop.h"
 
 void HitStopSolver::start(Vector3 p_direction, float p_duration) {
-    direction = p_direction;
-    duration = p_duration;
-    current_time = 0.0f;
+	direction = p_direction;
+	duration = p_duration;
+	current_time = 0.0f;
 }
 
 void HitStopSolver::advance(float p_camera_distance, float p_delta) {
-    current_time += p_delta;
-    current_time = MIN(current_time, duration);
+	current_time += p_delta;
+	current_time = MIN(current_time, duration);
 
-    float amount = ((Math::randf() * 2.0f) - 1.0f) * (1.0f - current_time/duration) * shake_amount;
-    current_offset = direction * amount;
+	float amount = ((Math::randf() * 2.0f) - 1.0f) * (1.0f - current_time / duration) * shake_amount;
+	current_offset = direction * amount;
 }
 
 Vector3 HitStopSolver::get_offset() const {
-    return current_offset;
+	return current_offset;
 }
 
 bool HitStopSolver::is_done() const {
-    return current_time == duration;
+	return current_time == duration;
 }

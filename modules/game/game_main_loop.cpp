@@ -21,8 +21,11 @@
 #include "modules/steamworks/steamworks.h"
 #endif
 
+#include "modules/game/game_goap.h"
 #include "modules/input_glyphs/input_glyphs_singleton.h"
 #include "modules/input_glyphs/input_glyphs_source.h"
+#include "servers/navigation_server_3d.h"
+
 HBConsole *console = nullptr;
 CCommand HBGameMainLoop::quit_command = CCommand("quit");
 
@@ -41,13 +44,18 @@ HBGameMainLoop::HBGameMainLoop() {
 #endif
 }
 
+HBGameWorld *HBGameMainLoop::get_game_world() const {
+	return game_world;
+}
+
 void HBGameMainLoop::change_scene(Node *p_new_scene) {
 	ERR_FAIL_COND(!p_new_scene);
 	if (get_current_scene()) {
-		get_current_scene()->queue_free();
+		unload_current_scene();
 		set_current_scene(nullptr);
 	}
-	add_current_scene(p_new_scene);
+	get_root()->add_child(p_new_scene);
+	set_current_scene(p_new_scene);
 }
 
 bool HBGameMainLoop::process(double p_time) {
@@ -78,7 +86,14 @@ void HBGameMainLoop::enable_fp_exceptions() {
 }
 
 void HBGameMainLoop::initialize() {
+	game_world = memnew(HBGameWorld);
+	get_root()->add_child(game_world);
 	SceneTree::initialize();
+	if (get_current_scene() && get_current_scene()->get_scene_file_path().begins_with("res://maps")) {
+		game_world->spawn_player();
+	} else {
+		memdelete(game_world);
+	}
 #ifdef DEBUG_ENABLED
 	List<String> args = OS::get_singleton()->get_cmdline_args();
 	for (int i = 0; i < args.size() - 1; i++) {
@@ -103,4 +118,18 @@ void HBGameMainLoop::initialize() {
 	console = memnew(HBConsole);
 	get_root()->add_child(console);
 
+	/*Node *current_scene = get_current_scene();
+	// Maps have to be remapped
+	if (current_scene) {
+		String path = current_scene->get_scene_file_path();
+		if (path.begins_with("res://maps/")) {
+			HBGameWorld *world = memnew(HBGameWorld);
+			get_root()->remove_child(current_scene);
+			world->set_scene_file_path("WORLD:" + path);
+			change_scene(world);
+			world->add_child(current_scene);
+		}
+	}*/
+
+	quit_command.data->get_signaler()->connect("executed", callable_mp((SceneTree *)this, &SceneTree::quit).bind(EXIT_SUCCESS));
 }

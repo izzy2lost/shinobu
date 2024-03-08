@@ -28,11 +28,15 @@ class HBPlayerAgent : public HBAgent {
 	GDCLASS(HBPlayerAgent, HBAgent);
 
 protected:
+	void _notification(int p_what);
 	HBPlayerAgent();
 };
 
 class HBInfoPlayerStart : public Node3D, public TBLoaderEntity {
 	GDCLASS(HBInfoPlayerStart, Node3D);
+
+protected:
+	void _notification(int p_what);
 
 public:
 	static StringName get_entity_name() {

@@ -4,7 +4,7 @@
 #include "modules/game/animation_system/epas_animation.h"
 #include "modules/game/animation_system/epas_controller.h"
 #include "modules/game/physics_layers.h"
-#include "scene/resources/primitive_meshes.h"
+#include "scene/resources/3d/primitive_meshes.h"
 #include <iterator>
 
 static bool test_flag = false;
@@ -659,8 +659,8 @@ void EPASWheelLocomotion::reset_foot_ik() {
 }
 
 EPASWheelLocomotion::EPASWheelLocomotion() {
-	locomotion_sets = Vector<LocomotionSet*>();
-	sorted_locomotion_sets = Vector<LocomotionSet*>();
+	locomotion_sets = Vector<LocomotionSet *>();
+	sorted_locomotion_sets = Vector<LocomotionSet *>();
 }
 
 #ifdef DEBUG_ENABLED

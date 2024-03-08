@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  game_world.h                                                          */
+/*  npc_attack_player_action.h                                            */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,69 +28,30 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#ifndef GAME_WORLD_H
-#define GAME_WORLD_H
+#ifndef NPC_ATTACK_PLAYER_ACTION_H
+#define NPC_ATTACK_PLAYER_ACTION_H
 
-#include "modules/game/console_system.h"
-#include "modules/game/in_game_ui.h"
-#include "scene/3d/node_3d.h"
+#include "modules/game/npc_brains.h"
 
-// The objective of the combat coordinator is to ensure the player is never attacked by two enemies at the same instant
-// he can be attacked by two enemies at the same time, which allows him to interrupt his current attack by parrying
-class GameCombatCoordinator : public RefCounted {
-	// In milliseconds, time since the last attack happened
-	uint64_t last_attack_time = 0;
-};
-class HBAgent;
-class HBPlayerAgent;
-class GameWorldState : public RefCounted {
-	static CCommand trigger_alert_cc;
+class NPCAttackPlayerAction : public GOAPActionNPC {
+	GDCLASS(NPCAttackPlayerAction, GOAPActionNPC);
+	bool attack_aborted = false;
+	bool attack_connected = false;
+	Ref<SceneTreeTimer> delay_timer;
 
 public:
-	enum AlertStatus {
-		ALERT_CLEAR, // Everything is clear
-		ALERT_LOST, // Player has been spotted but isn't in view
-		ALERT_SEEN // Player's location is known
-	};
+	virtual bool is_valid(const Ref<GameWorldState> &p_world_state) const override;
+	virtual void set_prerequisites(actionplanner_t *p_action_planner) const override;
+	virtual void set_effects(actionplanner_t *p_action_planner) const override;
+	virtual const char *get_action_name() const override;
 
-private:
-	AlertStatus alert_status = GameWorldState::ALERT_CLEAR;
-	HBPlayerAgent *player;
+	void on_attack_connected();
+	void on_attack_aborted();
 
-public:
-	AlertStatus get_alert_status() const { return alert_status; }
-	void set_alert_status(const AlertStatus &p_alert_status) { alert_status = p_alert_status; }
-	void set_player(HBPlayerAgent *p_player);
-	HBPlayerAgent *get_player() const { return player; };
-	GameWorldState();
-	friend class HBGameWorld;
+	virtual bool execute(const Ref<GameWorldState> &p_world_state) override;
+	virtual void enter(const Ref<GameWorldState> &p_world_state) override;
+	virtual void exit(const Ref<GameWorldState> &p_world_state) override;
+	using GOAPActionNPC::GOAPActionNPC;
 };
 
-VARIANT_ENUM_CAST(GameWorldState::AlertStatus);
-
-// Central game coordinator
-class HBGameWorld : public Node3D {
-	GDCLASS(HBGameWorld, Node3D);
-
-	Transform3D player_start_transform;
-	CanvasLayer *ui_canvas_layer = nullptr;
-	HBInGameUI *game_ui = nullptr;
-	Ref<GameWorldState> world_state;
-	HBPlayerAgent *player = nullptr;
-
-public:
-	void set_player(HBPlayerAgent *p_player);
-	HBPlayerAgent *get_player() const { return player; };
-
-	void set_player_start_transform(const Transform3D &p_transform);
-	void spawn_player();
-	Ref<GameWorldState> get_game_world_state() const;
-
-protected:
-	void _notification(int p_what);
-
-public:
-	HBGameWorld();
-};
-
-#endif // GAME_WORLD_H
+#endif // NPC_ATTACK_PLAYER_ACTION_H

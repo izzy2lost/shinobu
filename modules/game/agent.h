@@ -7,30 +7,34 @@
 #include "animation_system/epas_oneshot_animation_node.h"
 #include "inertialization.h"
 #include "jolt_character_body.h"
-#include "scene/3d/area_3d.h"
 #include "scene/3d/navigation_agent_3d.h"
-#include "scene/3d/physics_body_3d.h"
+#include "scene/3d/physics/area_3d.h"
 
 class HBAgentParkourLedge;
 
 class HBAttackData : public RefCounted {
 	GDCLASS(HBAttackData, RefCounted);
+
 public:
 	enum AttackDirection {
 		RIGHT
 	};
+
 private:
 	StringName name;
 	Ref<EPASAnimation> animation;
 	Ref<Mesh> mesh;
 	int transition_index;
-	float hit_time;
+	float hit_time = -1.0f;
 	float hitstop_duration = 0.1f;
 	float cancel_time = -1.0f;
 	StringName next_attack;
 	AttackDirection attack_direction = AttackDirection::RIGHT;
+	int damage = 2;
+
 protected:
 	static void _bind_methods();
+
 public:
 	StringName get_name() const { return name; }
 	void set_name(const StringName &p_name) { name = p_name; }
@@ -55,51 +59,53 @@ public:
 	void set_cancel_time(float p_cancel_time);
 
 	StringName get_next_attack() const { return next_attack; }
-	void set_next_attack(const StringName &next_attack_) { next_attack = next_attack_; }
+	void set_next_attack(const StringName &p_next_attack) { next_attack = p_next_attack; }
 
+	int get_damage() const { return damage; }
+	void set_damage(int p_damage) { damage = p_damage; }
 };
 
 VARIANT_ENUM_CAST(HBAttackData::AttackDirection);
 
-#define NODE_CACHE_IMPL(node_name, node_type)																				\
-private:\
-	ObjectID node_name##_cache;																									\
-	NodePath node_name;																										\
-	void _update_##node_name##_cache() { 																						\
-		node_name##_cache = ObjectID(); 																					\
-		if (has_node(node_name)) {																							\
-			Node *node = get_node(node_name);																				\
-			ERR_FAIL_COND_MSG(!node, vformat("Cannot update %s cache: Node cannot be found!", _STR(node_name)));			\
-			node_type *nd = Object::cast_to<node_type>(node);																	\
-			ERR_FAIL_COND_MSG(!nd, "Cannot update actor graphics cache: NodePath does not point to a correctly typed node!");\
-			node_name##_cache = nd->get_instance_id();																		\
-		}																														\
-	}																														\
-public:\
-	NodePath get_##node_name() const {																						\
-		return node_name;																									\
-	}																														\
-	node_type* get_##node_name##_node() 		{			\
-		if (node_name##_cache.is_valid()) {																					\
-			return Object::cast_to<node_type>(ObjectDB::get_instance(node_name##_cache)); 										\
-		} else {																												\
-			_update_##node_name##_cache();																						\
-				if (node_name##_cache.is_valid()) {																				\
-					return Object::cast_to<node_type>(ObjectDB::get_instance(node_name##_cache));								\
-				}																												\
-		}																														\
-		return nullptr; \
-	}																																\
-	void set_##node_name(NodePath p_path) {																					\
-		node_name = p_path;																									\
-		_update_##node_name##_cache();																						\
-	}																														\
-																																																											\
+#define NODE_CACHE_IMPL(node_name, node_type)                                                                                 \
+private:                                                                                                                      \
+	ObjectID node_name##_cache;                                                                                               \
+	NodePath node_name;                                                                                                       \
+	void _update_##node_name##_cache() {                                                                                      \
+		node_name##_cache = ObjectID();                                                                                       \
+		if (has_node(node_name)) {                                                                                            \
+			Node *node = get_node(node_name);                                                                                 \
+			ERR_FAIL_COND_MSG(!node, vformat("Cannot update %s cache: Node cannot be found!", _STR(node_name)));              \
+			node_type *nd = Object::cast_to<node_type>(node);                                                                 \
+			ERR_FAIL_COND_MSG(!nd, "Cannot update actor graphics cache: NodePath does not point to a correctly typed node!"); \
+			node_name##_cache = nd->get_instance_id();                                                                        \
+		}                                                                                                                     \
+	}                                                                                                                         \
+                                                                                                                              \
+public:                                                                                                                       \
+	NodePath get_##node_name() const {                                                                                        \
+		return node_name;                                                                                                     \
+	}                                                                                                                         \
+	node_type *get_##node_name##_node() {                                                                                     \
+		if (node_name##_cache.is_valid()) {                                                                                   \
+			return Object::cast_to<node_type>(ObjectDB::get_instance(node_name##_cache));                                     \
+		} else {                                                                                                              \
+			_update_##node_name##_cache();                                                                                    \
+			if (node_name##_cache.is_valid()) {                                                                               \
+				return Object::cast_to<node_type>(ObjectDB::get_instance(node_name##_cache));                                 \
+			}                                                                                                                 \
+		}                                                                                                                     \
+		return nullptr;                                                                                                       \
+	}                                                                                                                         \
+	void set_##node_name(NodePath p_path) {                                                                                   \
+		node_name = p_path;                                                                                                   \
+		_update_##node_name##_cache();                                                                                        \
+	}
 
-#define NODE_CACHE_BIND(node_name, node_type, class_name)	\
+#define NODE_CACHE_BIND(node_name, node_type, class_name)                                                          \
 	ClassDB::bind_method(D_METHOD("set_" _STR(node_name), _STR(node_name) "_path"), &class_name::set_##node_name); \
-	ClassDB::bind_method(D_METHOD("get_" _STR(node_name)), &class_name::get_##node_name); \
-	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, _STR(node_name), PROPERTY_HINT_NODE_PATH_VALID_TYPES, _STR(node_type)), "set_" _STR(node_name), "get_" _STR(node_name));\
+	ClassDB::bind_method(D_METHOD("get_" _STR(node_name)), &class_name::get_##node_name);                          \
+	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, _STR(node_name), PROPERTY_HINT_NODE_PATH_VALID_TYPES, _STR(node_type)), "set_" _STR(node_name), "get_" _STR(node_name));
 
 class HBAgent : public JoltCharacterBody3D {
 	GDCLASS(HBAgent, JoltCharacterBody3D);
@@ -117,6 +123,7 @@ public:
 		INPUT_ACTION_PARKOUR_UP,
 		INPUT_ACTION_TARGET,
 		INPUT_ACTION_ATTACK,
+		INPUT_ACTION_PARRY,
 		INPUT_ACTION_MAX
 	};
 
@@ -134,6 +141,8 @@ private:
 		Vector3 movement;
 		Quaternion movement_input_rotation;
 		bool action_states[AgentInputAction::INPUT_ACTION_MAX] = {};
+		uint64_t last_action_press_times[AgentInputAction::INPUT_ACTION_MAX] = {};
+		uint64_t last_action_release_times[AgentInputAction::INPUT_ACTION_MAX] = {};
 	};
 
 	InputState current_input_state;
@@ -143,9 +152,6 @@ private:
 	Vector3 inertialization_prev_positions[2];
 	bool inertialization_queued = false;
 	float inertialization_duration;
-
-	Vector3 smoothed_accel = Vector3(0.0, 0.0, 0.0);
-	Vector3 prev_position;
 
 	float starting_heading = 0.0f;
 
@@ -177,10 +183,16 @@ private:
 	Quaternion graphics_rotation;
 	Quaternion prev_graphics_rotation;
 	Vector3 prev_graphics_position;
-	HBAgent *target = nullptr;
+	ObjectID target_agent;
 	bool is_player_controlled = false;
+	bool is_parrying = false;
 
 	HashMap<StringName, Ref<HBAttackData>> attack_datas;
+
+	int health = 10;
+	int max_health = 10;
+
+	bool is_invulnerable = false;
 
 protected:
 	static void _bind_methods();
@@ -200,6 +212,8 @@ public:
 	bool is_action_pressed(AgentInputAction p_action) const;
 	bool is_action_just_pressed(AgentInputAction p_action) const;
 	bool is_action_just_released(AgentInputAction p_action) const;
+	uint64_t get_last_action_press_time(AgentInputAction p_action) const;
+	uint64_t get_last_action_release_time(AgentInputAction p_action) const;
 
 	void flush_inputs();
 	void set_input_action_state(AgentInputAction p_event, bool p_state);
@@ -213,7 +227,8 @@ public:
 	NodePath get_graphics_node() const;
 	void set_movement_mode(MovementMode p_movement_mode);
 	MovementMode get_movement_mode() const;
-	Vector3 get_previous_position() const;
+	// Damage
+	void receive_damage(const int p_damage);
 
 	Ref<HBAgentConstants> get_agent_constants() const;
 	void set_agent_constants(const Ref<HBAgentConstants> &p_agent_constants);
@@ -250,7 +265,7 @@ public:
 
 	float get_starting_heading() const { return starting_heading; }
 	void set_starting_heading(float p_starting_heading) { starting_heading = p_starting_heading; }
-	Vector<HBAgent*> find_nearby_agents(float p_radius) const;
+	Vector<HBAgent *> find_nearby_agents(float p_radius) const;
 
 	HBAgent();
 	virtual ~HBAgent();
@@ -265,6 +280,22 @@ public:
 	void receive_attack(HBAgent *p_attacker, Ref<HBAttackData> p_attack_data);
 
 	void set_outline_mode(AgentOutlineMode p_outline_mode);
+
+	bool get_is_parrying() const { return is_parrying; }
+	void set_is_parrying(bool is_parrying_) { is_parrying = is_parrying_; }
+
+	int get_health() const { return health; }
+	void set_health(int p_health) { health = p_health; }
+
+	int get_max_health() const { return max_health; }
+	void set_max_health(int p_max_health) { max_health = p_max_health; }
+
+	bool get_is_invulnerable() const;
+	void set_is_invulnerable(bool p_is_invulnerable);
+
+	bool is_dead() const {
+		return health == 0;
+	}
 
 	friend class HBAgentState;
 };

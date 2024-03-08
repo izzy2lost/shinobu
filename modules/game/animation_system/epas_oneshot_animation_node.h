@@ -4,7 +4,7 @@
 #include "epas_animation.h"
 #include "epas_node.h"
 #include "scene/3d/multimesh_instance_3d.h"
-#include "scene/resources/primitive_meshes.h"
+#include "scene/resources/3d/primitive_meshes.h"
 
 class EPASOneshotAnimationNodeDebug;
 

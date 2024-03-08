@@ -39,7 +39,7 @@ private:
 	HashMap<ObjectID, ObjectDebugInfo> debug_status;
 	bool debug_active = false;
 	bool show_demo_window = false;
-	bool show_overlay = true;
+	bool show_overlay = false;
 
 	RID framebuffer;
 	RID shader;
@@ -69,6 +69,8 @@ private:
 	ImGuiKey _map_to_imgui_key(const Key &p_key);
 	void _draw_debug_object_tree(ObjectID p_id);
 	Vector<Ref<GodotImGuiTool>> tools;
+	void _on_window_size_changed();
+	virtual Size2 get_minimum_size() const override;
 
 protected:
 	void _notification(int p_what);

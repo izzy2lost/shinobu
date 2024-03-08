@@ -78,7 +78,7 @@ void EPASController::_notification(int p_what) {
 						}
 					}
 
-					ImGui::Text("Node count %d", nodes.size());
+					ImGui::Text("Node count %ld", nodes.size());
 					ImGui::SameLine();
 					if (ImGui::Button("Arrange")) {
 						_arrange_nodes();
@@ -228,7 +228,7 @@ void EPASController::_arrange_nodes() {
 	float depth_width_accumulator = 0.0f;
 	const float VERTICAL_MARGIN = 25.0f;
 	const float HORIZONTAL_MARGIN = 50.0f;
-	for(int i = 0; i < depth_count; i++) {
+	for (int i = 0; i < depth_count; i++) {
 		float this_depth_width = 0.0f;
 		float this_depth_height = 0.0f;
 		float height_accumulator = 0.0f;
@@ -237,7 +237,7 @@ void EPASController::_arrange_nodes() {
 			this_depth_width = MAX(ImNodes::GetNodeDimensions(obj_id).x, this_depth_width);
 			this_depth_height += ImNodes::GetNodeDimensions(obj_id).y;
 
-			if (j != grouped_nodes[i].size()-1) {
+			if (j != grouped_nodes[i].size() - 1) {
 				this_depth_height += VERTICAL_MARGIN;
 			}
 		}
@@ -246,7 +246,7 @@ void EPASController::_arrange_nodes() {
 			node_pos.x -= depth_width_accumulator;
 			node_pos.x -= this_depth_width;
 			int64_t obj_id = grouped_nodes[i][j]->get_instance_id();
-			node_pos.x += (this_depth_width - ImNodes::GetNodeDimensions(obj_id).x)*0.5f;
+			node_pos.x += (this_depth_width - ImNodes::GetNodeDimensions(obj_id).x) * 0.5f;
 
 			node_pos.y = height_accumulator;
 			node_pos.y -= this_depth_height * 0.5f;
@@ -440,7 +440,6 @@ EPASController::EPASController() {
 	root = Ref<EPASRootNode>(memnew(EPASRootNode));
 	nodes.push_back(root);
 	node_name_map.insert("Output", root);
-	print_line("ROOT CREATE");
 #ifdef DEBUG_ENABLED
 	set_process_internal(true);
 	root->set_meta("epas_name", "Output");
@@ -452,5 +451,4 @@ EPASController::EPASController() {
 EPASController::~EPASController() {
 	node_name_map.clear();
 	nodes.clear();
-	print_line("CONTROLLER OUT!");
 }
