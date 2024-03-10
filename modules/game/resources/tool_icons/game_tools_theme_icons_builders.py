@@ -50,7 +50,6 @@ def make_game_tools_theme_icons_action(target, source, env):
 
     s = StringIO()
     s.write("/* THIS FILE IS GENERATED DO NOT EDIT */\n\n")
-    s.write("#ifdef DEBUG_ENABLED\n")
     s.write('#include "modules/modules_enabled.gen.h"\n\n')
     s.write("#ifndef _GAME_TOOLS_THEME_ICONS_H\n")
     s.write("#define _GAME_TOOLS_THEME_ICONS_H\n")
@@ -82,7 +81,6 @@ def make_game_tools_theme_icons_action(target, source, env):
     s.write(enum_string.getvalue())
 
     s.write("#endif\n")
-    s.write("#endif // DEBUG_ENABLED\n")
 
     with open(dst, "w") as f:
         f.write(s.getvalue())

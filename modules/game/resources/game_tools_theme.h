@@ -44,9 +44,8 @@ public:
 	static Ref<ImageTexture> generate_icon(int p_index) {
 		Ref<Image> img = memnew(Image);
 
-		const float scale = 1.0f;
-
 #ifdef MODULE_SVG_ENABLED
+		const float scale = 1.0f;
 		// Upsample icon generation only if the scale isn't an integer multiplier.
 		// Generating upsampled icons is slower, and the benefit is hardly visible
 		// with integer scales.

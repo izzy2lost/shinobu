@@ -35,6 +35,7 @@
 #include "core/math/transform_3d.h"
 
 class HBTransformConversions {
+public:
 	static void trf_to_mat(const Transform3D &p_mat, float *p_out) {
 		p_out[0] = p_mat.basis.rows[0][0];
 		p_out[1] = p_mat.basis.rows[1][0];
