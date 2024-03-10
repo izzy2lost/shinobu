@@ -12,3 +12,6 @@
 	path = modules/input_glyphs
 	url = https://github.com/EIRTeam/EIRTeam.InputGlyphs.git
 	branch = master
+[submodule "modules/jolt"]
+	path = modules/jolt
+	url = https://github.com/EIRTeam/godot-jolt.git
