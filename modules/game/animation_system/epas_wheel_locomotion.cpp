@@ -478,6 +478,7 @@ void EPASWheelLocomotion::_ik_process(LocomotionSet *p_loc_sets[2], float p_foot
 }
 
 float EPASWheelLocomotion::find_next_feet_ground_time(Ref<EPASAnimation> p_anim, float p_times[2]) const {
+	return 0.0f;
 }
 
 bool EPASWheelLocomotion::process_events(LocomotionSet *p_sets[2], float p_time, float p_blend, float p_previous_time, bool p_out_prev_lock_state[2], bool p_out_lock_state[2], float p_out_prev_lock_amount[2], float p_out_lock_amount[2]) {

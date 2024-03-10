@@ -39,7 +39,7 @@
 // he can be attacked by two enemies at the same time, which allows him to interrupt his current attack by parrying
 class GameCombatCoordinator : public RefCounted {
 	// In milliseconds, time since the last attack happened
-	uint64_t last_attack_time = 0;
+	//uint64_t last_attack_time = 0;
 };
 class HBAgent;
 class HBPlayerAgent;
