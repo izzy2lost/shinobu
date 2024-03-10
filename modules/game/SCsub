@@ -19,10 +19,19 @@ sources = [
     Glob("*.cpp"),
     Glob("animation_system/*.cpp"),
     Glob("fabrik/*.cpp"),
-    Glob("thirdparty/goap/*.c"),
-    Glob("thirdparty/clipper2/*.cpp"),
     Glob("npc_brains/*.cpp"),
 ]
+
+thirdparty_obj = []
+thirdparty_sources = [
+    Glob("thirdparty/clipper_3d/*.cpp"),
+    Glob("thirdparty/goap/*.c"),
+]
+
+env_thirdparty = env.Clone()
+env_thirdparty.disable_warnings()
+env_thirdparty.add_source_files(thirdparty_obj, thirdparty_sources)
+env_thirdparty.modules_sources += thirdparty_obj
 
 if ARGUMENTS.get("game_shared", "no") == "yes":
     # Shared lib compilation
@@ -35,5 +44,7 @@ if ARGUMENTS.get("game_shared", "no") == "yes":
 else:
     env_game.add_source_files(module_obj, sources)
     env.modules_sources += module_obj
+
+env_game.Depends(module_obj, thirdparty_obj)
 
 SConscript("resources/SCsub")

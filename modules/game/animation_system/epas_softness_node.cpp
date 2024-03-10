@@ -123,9 +123,7 @@ void EPASSoftnessNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPo
 		StringName child_bone_name = get_skeleton()->get_bone_name(child_idx);
 
 		// Skeleton has the previous transforms of the bones, so we use those
-		const Transform3D prev_parent_global_trf = get_skeleton()->get_global_transform() * get_skeleton()->get_bone_global_pose(parent_bone_idx);
 		const Transform3D prev_child_bone_trf = get_skeleton()->get_global_transform() * get_skeleton()->get_bone_global_pose(child_idx);
-		const Transform3D prev_target_bone_trf = get_skeleton()->get_global_transform() * get_skeleton()->get_bone_global_pose(bone_idx);
 
 		if (!kv.value.has_global_rot) {
 			kv.value.has_global_rot = true;
@@ -137,19 +135,7 @@ void EPASSoftnessNode::process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPo
 		const Transform3D target_bone_trf = get_skeleton()->get_global_transform() * p_target_pose->calculate_bone_global_transform(bone_name, get_skeleton(), p_base_pose);
 		const Transform3D child_bone_trf = get_skeleton()->get_global_transform() * p_target_pose->calculate_bone_global_transform(child_bone_name, get_skeleton(), p_base_pose);
 
-		Vector3 target_accel = HBSprings::tracking_target_acceleration(
-				child_bone_trf.origin,
-				kv.value.child_prev_positions[0],
-				kv.value.child_prev_positions[1],
-				p_delta);
-
-		Vector3 target_vel = HBSprings::tracking_target_velocity(
-				child_bone_trf.origin,
-				kv.value.child_prev_positions[0],
-				p_delta);
-
 		Vector3 new_child_spring_position = kv.value.child_spring_position;
-		Vector3 prev_child_spring_position = new_child_spring_position;
 		/*HBSprings::tracking_spring_update_exact_vector3(
 			new_child_spring_position,
 			kv.value.child_spring_velocity,

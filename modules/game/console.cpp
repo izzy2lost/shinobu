@@ -196,7 +196,7 @@ void HBConsole::_on_autocomplete_index_pressed(int p_idx) {
 bool HBConsole::set_text_from_history(int p_history_delta) {
 	uint32_t prev_history_index = history_index;
 	history_index += p_history_delta;
-	history_index = CLAMP(history_index, 0, MAX((int)history.size() - 1, 0));
+	history_index = CLAMP(history_index, 0u, MAX(history.size() - 1, 0u));
 
 	if (prev_history_index != history_index) {
 		if (history_index < history.size()) {

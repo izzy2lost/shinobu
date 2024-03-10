@@ -74,7 +74,6 @@ void FABRIKSolver::_apply_fabrik() {
 		Vector3 from = pos.direction_to(joint_global_next.origin);
 		Vector3 to = pos.direction_to(joints[i + 1].working_position);
 
-		Quaternion delta = Quaternion(from, to);
 		joint.global_transform = joint_global;
 		joint.global_transform.basis = Basis(Quaternion(from, to) * joint_global.basis.get_rotation_quaternion());
 

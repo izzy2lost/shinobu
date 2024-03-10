@@ -3517,8 +3517,6 @@ void HBAgentCombatAttackState::handle_sending_attack_to_target() {
 void HBAgentCombatAttackState::_on_attack_parried() {
 	Dictionary state_args;
 	state_args[HBAgentRootMotionState::PARAM_NEXT_STATE] = ASN()->combat_move_state;
-	Dictionary next_state_args;
-	state_args[HBAgentRootMotionState::PARAM_NEXT_STATE_ARGS] = next_state_args;
 	state_args[HBAgentRootMotionState::PARAM_ANIMATION_NODE_NAME] = StringName("HitRight");
 	state_args[HBAgentRootMotionState::PARAM_TRANSITION_NODE_INDEX] = HBAgentConstants::MOVEMENT_COMBAT_HIT_RIGHT;
 	state_machine->transition_to(ASN()->root_motion_state, state_args);
@@ -3632,6 +3630,8 @@ void HBAgentCombatHitState::setup_animation() {
 		case HBAttackData::RIGHT: {
 			animation_node_name = StringName("HitRight");
 			transition = HBAgentConstants::MOVEMENT_COMBAT_HIT_RIGHT;
+		} break;
+		case HBAttackData::ATTACK_DIR_MAX: {
 		} break;
 	}
 

@@ -29,12 +29,11 @@
 /**************************************************************************/
 
 #include "level_preprocessor.h"
-#include "clipper2/clipper.h"
-#include "clipper_3d.h"
 #include "modules/csg/csg.h"
 #include "modules/tbloader/src/map/surface_gatherer.h"
 #include "scene/resources/3d/concave_polygon_shape_3d.h"
 #include "scene/resources/mesh_data_tool.h"
+#include "thirdparty/clipper_3d/clipper_3d.h"
 #include <iterator>
 
 struct Group {

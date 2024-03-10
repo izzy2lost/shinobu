@@ -329,8 +329,6 @@ void HBAgent::_rotate_towards_velocity(float p_delta) {
 	dir.normalize();
 
 	if (dir.is_normalized()) {
-		const float angle = get_graphics_rotation().xform(Vector3(0.0f, 0.0f, -1.0f)).angle_to(dir);
-
 		if (movement_input.length() > 0) {
 			Vector3 planar_vel = get_effective_velocity();
 			planar_vel.y = 0.0f;

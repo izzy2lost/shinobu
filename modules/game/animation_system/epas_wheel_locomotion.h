@@ -110,7 +110,7 @@ private:
 		Vector3 prev_positions[2];
 		Ref<PositionInertializer> position_inertializer;
 	} foot_ik[2];
-	Ref<EPASIKNode> _get_foot_ik_node(int p_idx) const;
+	Ref<EPASIKNode> _get_foot_ik_node(uint32_t p_idx) const;
 
 	float foot_ik_pin_recovery_time = 0.15f;
 	bool use_foot_ik = false;
