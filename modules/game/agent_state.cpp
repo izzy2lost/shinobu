@@ -3257,7 +3257,7 @@ void HBAgentWallTransitionState::enter(const Dictionary &p_args) {
 	if (first_hand == AgentProceduralAnimator::LIMB_LEFT_HAND) {
 		for (int i = 0; i < 2; i++) {
 			AgentProceduralAnimator::AgentLimb hand = static_cast<AgentProceduralAnimator::AgentLimb>(i);
-			AgentProceduralAnimator::AgentLimb foot = static_cast<AgentProceduralAnimator::AgentLimb>(i + 2);
+			AgentProceduralAnimator::AgentLimb foot = static_cast<AgentProceduralAnimator::AgentLimb>(AgentProceduralAnimator::AgentLimb::LIMB_LEFT_FOOT);
 			for (int j = 0; j < 2; j++) {
 				SWAP(animator_options.limb_animation_timings[hand][j], animator_options.limb_animation_timings[hand + 1][j]);
 				SWAP(animator_options.limb_animation_timings[foot][j], animator_options.limb_animation_timings[foot + 1][j]);

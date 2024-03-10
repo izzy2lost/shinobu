@@ -59,7 +59,7 @@ private:
 
 public:
 	AlertStatus get_alert_status() const { return alert_status; }
-	void set_alert_status(const AlertStatus &p_alert_status) { alert_status = p_alert_status; }
+	void set_alert_status(const AlertStatus p_alert_status) { alert_status = p_alert_status; }
 	void set_player(HBPlayerAgent *p_player);
 	HBPlayerAgent *get_player() const { return player; };
 	GameWorldState();

@@ -3,6 +3,9 @@
 #include "modules/game/animation_system/epas_ik_node.h"
 #include "modules/game/debug_geometry.h"
 #include "modules/game/springs.h"
+
+#include <iterator>
+
 void EPASOrientationWarpNode::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_spine_bones"), &EPASOrientationWarpNode::get_spine_bones);
 	ClassDB::bind_method(D_METHOD("set_spine_bones", "spine_bones"), &EPASOrientationWarpNode::set_spine_bones);

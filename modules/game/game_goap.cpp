@@ -133,7 +133,7 @@ void GOAPActionPlanner::update() {
 			}
 		}
 	}
-
+#ifdef DEBUG_ENABLED
 	if (goap_debugger_enabled.get()) {
 		if (ImGui::Begin("GOAP")) {
 			if (ImGui::BeginTabBar("##Planners")) {
@@ -182,6 +182,7 @@ void GOAPActionPlanner::update() {
 		}
 		ImGui::End();
 	}
+#endif
 }
 
 void GOAPActionPlanner::register_action(const Ref<GOAPAction> &p_goap_action) {
