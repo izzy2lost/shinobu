@@ -1,3 +1,33 @@
+/**************************************************************************/
+/*  game_goap.cpp                                                         */
+/**************************************************************************/
+/*                         This file is part of:                          */
+/*                             GODOT ENGINE                               */
+/*                        https://godotengine.org                         */
+/**************************************************************************/
+/* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
+/* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
+/*                                                                        */
+/* Permission is hereby granted, free of charge, to any person obtaining  */
+/* a copy of this software and associated documentation files (the        */
+/* "Software"), to deal in the Software without restriction, including    */
+/* without limitation the rights to use, copy, modify, merge, publish,    */
+/* distribute, sublicense, and/or sell copies of the Software, and to     */
+/* permit persons to whom the Software is furnished to do so, subject to  */
+/* the following conditions:                                              */
+/*                                                                        */
+/* The above copyright notice and this permission notice shall be         */
+/* included in all copies or substantial portions of the Software.        */
+/*                                                                        */
+/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
+/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
+/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
+/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
+/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
+/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
+/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+/**************************************************************************/
+
 #include "game_goap.h"
 #include "modules/game/player_agent.h"
 #include "modules/imgui/godot_imgui.h"
@@ -18,7 +48,7 @@ void GOAPActionPlanner::get_goap_state_from_game_state(worldstate_t *p_state) {
 	goap_worldstate_set(&action_planner, p_state, NPCBrainConstants::IN_ATTACK_RANGE_TO_PLAYER, is_in_attack_range);
 	bool is_in_combat_range = player_pos.distance_to(agent_pos) < NPCBrainConstants::COMBAT_RANGE_TARGET_DISTANCE;
 	goap_worldstate_set(&action_planner, p_state, NPCBrainConstants::IN_COMBAT_RANGE_TO_PLAYER, is_in_combat_range);
-	bool is_player_dead = false;
+	bool is_player_dead = world_state->get_player()->is_dead();
 	goap_worldstate_set(&action_planner, p_state, NPCBrainConstants::PLAYER_DEAD_ATOM, is_player_dead);
 }
 
