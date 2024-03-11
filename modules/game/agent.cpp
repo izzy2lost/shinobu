@@ -31,6 +31,8 @@
 #include "agent.h"
 #include "core/math/transform_3d.h"
 #include "modules/game/agent_parkour.h"
+#include "modules/game/game_main_loop.h"
+#include "modules/game/game_world.h"
 #include "physics_layers.h"
 #include "springs.h"
 
@@ -305,6 +307,8 @@ void HBAgent::_bind_methods() {
 
 	ADD_SIGNAL(MethodInfo("attack_connected"));
 	ADD_SIGNAL(MethodInfo("attack_aborted"));
+	ADD_SIGNAL(MethodInfo("entered_combat"));
+	ADD_SIGNAL(MethodInfo("exited_combat"));
 
 	BIND_ENUM_CONSTANT(INPUT_ACTION_RUN);
 	BIND_ENUM_CONSTANT(INPUT_ACTION_PARKOUR_DOWN);
@@ -561,13 +565,21 @@ void HBAgent::_notification(int p_what) {
 		case NOTIFICATION_PHYSICS_PROCESS: {
 			_physics_process(get_physics_process_delta_time());
 		} break;
-#ifdef DEBUG_ENABLED
 		case NOTIFICATION_ENTER_TREE: {
+			HBGameWorld *gw = Object::cast_to<HBGameMainLoop>(get_tree())->get_game_world();
+			gw->get_game_world_state()->agent_entered_tree(this);
+#ifdef DEBUG_ENABLED
 			REGISTER_DEBUG(this);
+#endif
 		} break;
 		case NOTIFICATION_EXIT_TREE: {
+			HBGameWorld *gw = Object::cast_to<HBGameMainLoop>(get_tree())->get_game_world();
+			gw->get_game_world_state()->agent_exited_tree(this);
+#ifdef DEBUG_ENABLED
 			UNREGISTER_DEBUG(this);
+#endif
 		} break;
+#ifdef DEBUG_ENABLED
 		case NOTIFICATION_INTERNAL_PROCESS: {
 			GodotImGui *gim = GodotImGui::get_singleton();
 			if (gim && gim->is_debug_enabled(this)) {

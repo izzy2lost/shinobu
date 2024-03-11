@@ -10,6 +10,14 @@
 
 CCommand GameWorldState::trigger_alert_cc = CCommand("trigger_alert");
 
+void HBGameWorld::_on_node_added(Node *p_node) {
+	p_node->notification(NOTIFICATION_HB_ENTER_GAME_WORLD);
+}
+
+void HBGameWorld::_on_node_removed(Node *p_node) {
+	p_node->notification(NOTIFICATION_HB_EXIT_GAME_WORLD);
+}
+
 void HBGameWorld::set_player(HBPlayerAgent *p_player) {
 	DEV_ASSERT(p_player != nullptr);
 	player = p_player;
@@ -55,10 +63,26 @@ void HBGameWorld::_notification(int p_what) {
 		return;
 	}
 
+#ifdef DEBUG_ENABLED
+	_debug_notification(p_what);
+#endif
+
 	switch (p_what) {
 		case NOTIFICATION_READY: {
 		} break;
+		case NOTIFICATION_ENTER_TREE: {
+			SceneTree::get_singleton()->connect("node_added", callable_mp(this, &HBGameWorld::_on_node_added));
+			SceneTree::get_singleton()->connect("node_removed", callable_mp(this, &HBGameWorld::_on_node_removed));
+		} break;
+		case NOTIFICATION_EXIT_TREE: {
+			SceneTree::get_singleton()->disconnect("node_added", callable_mp(this, &HBGameWorld::_on_node_added));
+			SceneTree::get_singleton()->disconnect("node_removed", callable_mp(this, &HBGameWorld::_on_node_removed));
+		} break;
+	}
+}
 #ifdef DEBUG_ENABLED
+void HBGameWorld::_debug_notification(int p_what) {
+	switch (p_what) {
 		case NOTIFICATION_ENTER_TREE: {
 			REGISTER_DEBUG(this);
 		} break;
@@ -93,9 +117,9 @@ void HBGameWorld::_notification(int p_what) {
 				ImGui::End();
 			}
 		} break;
-#endif
 	}
 }
+#endif
 
 HBGameWorld::HBGameWorld() {
 	world_state.instantiate();
@@ -113,6 +137,36 @@ HBGameWorld::HBGameWorld() {
 	add_child(ui_canvas_layer);
 	ui_canvas_layer->add_child(game_ui_candidate);
 	game_ui = game_ui_candidate;
+}
+
+void GameWorldState::_bind_methods() {
+	ADD_SIGNAL(MethodInfo("agent_entered_combat", PropertyInfo(Variant::OBJECT, "agent", PROPERTY_HINT_NODE_TYPE, "HBAgent")));
+	ADD_SIGNAL(MethodInfo("agent_exited_combat", PropertyInfo(Variant::OBJECT, "agent", PROPERTY_HINT_NODE_TYPE, "HBAgent")));
+}
+
+void GameWorldState::_on_agent_entered_combat(HBAgent *p_agent) {
+	agents_in_combat.insert(p_agent->get_instance_id());
+	emit_signal(SNAME("agent_entered_combat"), p_agent);
+}
+
+void GameWorldState::_on_agent_exited_combat(HBAgent *p_agent) {
+	if (agents_in_combat.has(p_agent->get_instance_id())) {
+		agents_in_combat.erase(p_agent->get_instance_id());
+	}
+	emit_signal(SNAME("agent_exited_combat"), p_agent);
+}
+
+void GameWorldState::agent_entered_tree(HBAgent *p_agent) {
+	p_agent->connect("entered_combat", callable_mp(this, &GameWorldState::_on_agent_entered_combat).bind(p_agent));
+	p_agent->connect("exited_combat", callable_mp(this, &GameWorldState::_on_agent_exited_combat).bind(p_agent));
+}
+
+void GameWorldState::agent_exited_tree(HBAgent *p_agent) {
+	p_agent->disconnect("entered_combat", callable_mp(this, &GameWorldState::_on_agent_entered_combat).bind(p_agent));
+	p_agent->disconnect("exited_combat", callable_mp(this, &GameWorldState::_on_agent_exited_combat).bind(p_agent));
+	if (agents_in_combat.has(p_agent->get_instance_id())) {
+		agents_in_combat.erase(p_agent->get_instance_id());
+	}
 }
 
 void GameWorldState::set_player(HBPlayerAgent *p_player) {

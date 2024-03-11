@@ -1,6 +1,58 @@
 #include "player_camera_arm.h"
+#include "game_main_loop.h"
+#include "game_world.h"
+#include "modules/game/player_agent.h"
 #include "scene/main/viewport.h"
 #include "springs.h"
+
+void HBPlayerCameraArm::_process_inertialization(float p_delta) {
+	if (inertialization_queued) {
+		_inertialize(arm_transform, length, 0.75f, p_delta);
+		inertialization_queued = false;
+	}
+
+	Vector3 pos_offset;
+	if (pos_inertializer.is_valid()) {
+		pos_offset = pos_inertializer->advance(p_delta);
+		if (pos_inertializer->is_done()) {
+			pos_inertializer.unref();
+		}
+	}
+
+	Quaternion rot_offset;
+	if (rot_inertializer.is_valid()) {
+		rot_offset = rot_inertializer->advance(p_delta);
+		if (rot_inertializer->is_done()) {
+			rot_inertializer.unref();
+		}
+	}
+
+	float len_offset = 0.0f;
+	if (len_inertializer.is_valid()) {
+		len_offset = len_inertializer->advance(p_delta);
+		if (len_inertializer->is_done()) {
+			len_inertializer.unref();
+		}
+	}
+
+	set_global_position(arm_transform.origin + pos_offset);
+	set_global_basis(arm_transform.basis.get_rotation_quaternion() * rot_offset);
+	set_length(length + len_offset);
+
+	prev_transform = get_global_transform();
+	prev_length = get_length();
+}
+
+void HBPlayerCameraArm::_inertialize(Transform3D &p_new_transform, float p_new_len, float p_duration, float p_delta) {
+	pos_inertializer = PositionInertializer::create(prev_transform.origin, get_global_position(), p_new_transform.origin, p_duration, p_delta);
+	rot_inertializer = RotationInertializer::create(
+			prev_transform.basis.get_rotation_quaternion(),
+			get_global_basis().get_rotation_quaternion(),
+			p_new_transform.basis.get_rotation_quaternion(),
+			p_duration,
+			p_delta);
+	len_inertializer = ScalarInertializer::create(prev_length, get_length(), p_new_len, p_duration, p_delta);
+}
 
 void HBPlayerCameraArm::_update_target_skeleton_node_cache() {
 	target_skeleton_node_cache = ObjectID();
@@ -42,11 +94,13 @@ Vector3 HBPlayerCameraArm::get_target_position() const {
 		target_pos = parent->get_global_position();
 		target_pos += Vector3(0.0f, 0.75f, 0.0f);
 	}
+
 	return target_pos;
 }
 
 void HBPlayerCameraArm::unhandled_input(const Ref<InputEvent> &p_event) {
 	const InputEventMouseMotion *ev_mouse_mot = Object::cast_to<InputEventMouseMotion>(*p_event);
+
 	if (ev_mouse_mot) {
 		if (Input::get_singleton()->get_mouse_mode() != Input::MOUSE_MODE_CAPTURED) {
 			return;
@@ -59,26 +113,21 @@ void HBPlayerCameraArm::unhandled_input(const Ref<InputEvent> &p_event) {
 
 		relative *= sensitivity;
 
-		Vector3 rotation = get_rotation();
+		Vector3 rotation = arm_transform.basis.get_euler();
 		rotation.y += -relative.x;
 		rotation.x += -relative.y;
 
 		rotation.x = CLAMP(rotation.x, Math::deg_to_rad(min_pitch_degrees), Math::deg_to_rad(max_pitch_degrees));
 
-		set_rotation(rotation);
+		arm_transform.basis = Basis::from_euler(rotation);
+
 		velocity = Vector2();
 	}
 }
 
 void HBPlayerCameraArm::_notification(int p_what) {
 	switch (p_what) {
-		case NOTIFICATION_READY: {
-			debug_geo = memnew(HBDebugGeometry);
-			add_child(debug_geo);
-			debug_geo->set_as_top_level(true);
-			debug_geo->set_global_transform(Transform3D());
-		} break;
-		case NOTIFICATION_INTERNAL_PHYSICS_PROCESS: {
+		case NOTIFICATION_INTERNAL_PROCESS: {
 			float delta = get_physics_process_delta_time();
 			_process_rotation(delta);
 
@@ -91,6 +140,25 @@ void HBPlayerCameraArm::_notification(int p_what) {
 				} break;
 			}
 
+			_process_inertialization(delta);
+
+		} break;
+		case HBGameWorld::NOTIFICATION_HB_ENTER_GAME_WORLD: {
+			HBGameMainLoop::get_singleton()->get_game_world()->get_game_world_state()->connect(SNAME("agent_entered_combat"), callable_mp(this, &HBPlayerCameraArm::_on_agent_entered_combat));
+			HBGameMainLoop::get_singleton()->get_game_world()->get_game_world_state()->connect(SNAME("agent_exited_combat"), callable_mp(this, &HBPlayerCameraArm::_on_agent_exited_combat));
+		} break;
+		case HBGameWorld::NOTIFICATION_HB_EXIT_GAME_WORLD: {
+			HBGameMainLoop::get_singleton()->get_game_world()->get_game_world_state()->disconnect(SNAME("agent_entered_combat"), callable_mp(this, &HBPlayerCameraArm::_on_agent_entered_combat));
+			HBGameMainLoop::get_singleton()->get_game_world()->get_game_world_state()->disconnect(SNAME("agent_exited_combat"), callable_mp(this, &HBPlayerCameraArm::_on_agent_exited_combat));
+
+		} break;
+		case NOTIFICATION_PARENTED: {
+			if (HBPlayerAgent *player = Object::cast_to<HBPlayerAgent>(get_parent()); player) {
+				player_parent = player;
+			}
+		} break;
+		case NOTIFICATION_UNPARENTED: {
+			player_parent = nullptr;
 		} break;
 	}
 }
@@ -112,35 +180,48 @@ void HBPlayerCameraArm::_bind_methods() {
 
 	BIND_ENUM_CONSTANT(CameraTargetMode::BONE);
 	BIND_ENUM_CONSTANT(CameraTargetMode::TRACK_NODES);
+
+	ClassDB::bind_method(D_METHOD("set_node_tracking_radius", "tracking_radius"), &HBPlayerCameraArm::set_node_tracking_radius);
+	ClassDB::bind_method(D_METHOD("get_node_tracking_radius"), &HBPlayerCameraArm::get_node_tracking_radius);
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "node_tracking_radius"), "set_node_tracking_radius", "get_node_tracking_radius");
+
+	ClassDB::bind_method(D_METHOD("set_transition_duration", "transition_duration"), &HBPlayerCameraArm::set_transition_duration);
+	ClassDB::bind_method(D_METHOD("get_transition_duration"), &HBPlayerCameraArm::get_transition_duration);
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "transition_duration"), "set_transition_duration", "get_transition_duration");
 }
 
 void HBPlayerCameraArm::_process_rotation(float p_delta) {
 	Vector2 camera_look = Input::get_singleton()->get_vector("look_left", "look_right", "look_down", "look_up");
 	Vector2 target_velocity = Vector2(Math::deg_to_rad(max_velocity), Math::deg_to_rad(max_velocity)) * camera_look;
 	HBSprings::velocity_spring_vector2(velocity, acceleration, target_velocity, 0.025f, p_delta);
-	Vector3 rotation = get_rotation();
+	Vector3 rotation = arm_transform.basis.get_euler();
 	rotation.y = rotation.y - velocity.x * p_delta;
 	rotation.x = CLAMP(rotation.x + velocity.y * p_delta, Math::deg_to_rad(min_pitch_degrees), Math::deg_to_rad(max_pitch_degrees));
-	set_rotation(rotation);
+	arm_transform.basis = Basis::from_euler(rotation);
 }
 
 void HBPlayerCameraArm::_track_bone(float p_delta) {
+	length = target_length;
+
 	Vector3 target_pos = get_target_position();
 	target_pos.x = 0.0f;
 	target_pos.z = 0.0f;
-	Vector3 pos = get_global_position();
+	Vector3 pos = arm_transform.origin;
 	pos.x = 0.0f;
 	pos.z = 0.0f;
 	HBSprings::critical_spring_damper_exact_vector3(pos, position_spring_velocity, target_pos, .25, p_delta);
 	pos.x = get_target_position().x;
 	pos.z = get_target_position().z;
-	set_global_position(pos);
+	arm_transform.origin = pos;
 }
 
 void HBPlayerCameraArm::_track_nodes(float p_delta) {
+	if (tracked_nodes_update_queued) {
+		tracked_nodes = HBGameMainLoop::get_singleton()->get_game_world()->get_game_world_state()->get_agents_in_combat();
+		tracked_nodes_update_queued = false;
+	}
+
 	// Find midpoint of all nodes
-	debug_geo->set_global_transform(Transform3D());
-	debug_geo->clear();
 	Camera3D *camera = nullptr;
 	for (int i = get_child_count() - 1; 0 <= i; --i) {
 		camera = Object::cast_to<Camera3D>(get_child(i));
@@ -154,8 +235,8 @@ void HBPlayerCameraArm::_track_nodes(float p_delta) {
 	Vector3 midpoint = Vector3();
 	int node_count = 0;
 
-	for (size_t i = 0; i < tracked_nodes.size(); i++) {
-		Node3D *node = Object::cast_to<Node3D>(ObjectDB::get_instance(tracked_nodes[i]));
+	for (ObjectID obj_id : tracked_nodes) {
+		Node3D *node = Object::cast_to<Node3D>(ObjectDB::get_instance(obj_id));
 		DEV_ASSERT(node);
 		node_count++;
 		midpoint += node->get_global_position();
@@ -166,80 +247,51 @@ void HBPlayerCameraArm::_track_nodes(float p_delta) {
 	}
 
 	midpoint /= (float)node_count;
+	midpoint.y += height_offset;
 
-	Vector3 target_position = midpoint + Vector3(0.0f, height_offset, 0.0f);
+	Vector3 target_position = midpoint;
 
-	set_global_position(target_position);
-
-	const Vector3 camera_forward = -get_global_basis().get_column(2);
-	const Vector3 camera_right = get_global_basis().get_column(0);
-
-	Vector3 camera_position = get_global_position() + get_global_basis().xform(Vector3(0.0f, 0.0f, get_length()));
-
-	std::vector<float> differences;
-
-	debug_geo->debug_sphere(camera_position, 0.05f, Color("GREEN"));
-	for (size_t i = 0; i < tracked_nodes.size(); i++) {
-		Node3D *node_to_track = Object::cast_to<Node3D>(ObjectDB::get_instance(tracked_nodes[i]));
-		// Figure out if the node to track is to the right or to the left of the camera
-		float side = camera_right.dot(node_to_track->get_global_position() - camera_position);
-
-		if (side == 0.0) {
-			print_line("NO SIDE!");
-			continue;
-		}
-
-		// depending on the side we offset character radius a bit
-		Vector3 tracked_pos = node_to_track->get_global_position(); // + camera_right * (SIGN(side));
-
-		// Plane using character position and camera right
-		Plane tracked_plane = Plane(camera_right, tracked_pos);
-
-		// Now, we fire a ray from the right/leftmost side of the screen to the tracked position
-		Vector2 ray_origin_screen_pos = get_window()->get_size();
-		ray_origin_screen_pos.y = 0.0f;
-		ray_origin_screen_pos.x *= side < 0.0f ? 0.0f : 1.0f;
-		Vector3 ray_normal = camera->project_ray_normal(ray_origin_screen_pos);
-		Vector3 ray_origin = camera->project_ray_origin(ray_origin_screen_pos);
-
-		debug_geo->debug_line(ray_origin, ray_origin + ray_normal, Color("RED"));
-
-		// Intersect the ray with the plane
-		Vector3 intersection;
-		if (!tracked_plane.intersects_ray(ray_origin, ray_normal, &intersection)) {
-			print_line("NOINTERSECT");
-			continue;
-		}
-
-		// Now project it on the camera forward and that is our offset
-		Vector3 difference = (tracked_pos - intersection);
-		float fwd_diff = difference.dot(camera_forward);
-		differences.push_back(fwd_diff);
-
-		print_line(i, fwd_diff);
+	float max_radius = 0.0f;
+	for (ObjectID obj_id : tracked_nodes) {
+		Node3D *node_to_track = Object::cast_to<Node3D>(ObjectDB::get_instance(obj_id));
+		max_radius = MAX(max_radius, midpoint.distance_to(node_to_track->get_global_position()));
 	}
 
-	if (differences.size() == 0) {
-		return;
-	}
+	const float half_fov = Math::deg_to_rad(camera->get_fov() * 0.5f);
 
-	float min_diff = *std::min_element(differences.begin(), differences.end());
-	Vector3 pos = get_global_position();
-	pos += (camera_forward)*min_diff;
-	pos -= (camera_forward)*forward_offset;
-	set_global_position(pos);
+	arm_transform.origin = target_position;
+
+	length = max_radius / sin(half_fov);
+	length = MAX(length, target_length);
+}
+
+void HBPlayerCameraArm::_on_agent_entered_combat(HBAgent *p_agent) {
+	if (p_agent == player_parent) {
+		set_target_mode(CameraTargetMode::TRACK_NODES);
+	}
+	if (target_mode == HBPlayerCameraArm::TRACK_NODES) {
+		inertialization_queued = true;
+	}
+	tracked_nodes_update_queued = true;
+}
+
+void HBPlayerCameraArm::_on_agent_exited_combat(HBAgent *p_agent) {
+	if (p_agent == player_parent) {
+		set_target_mode(CameraTargetMode::BONE);
+	}
+	tracked_nodes_update_queued = true;
 }
 
 void HBPlayerCameraArm::track_node(Node3D *p_node) {
 	DEV_ASSERT(p_node);
-	tracked_nodes.push_back(p_node->get_instance_id());
+	tracked_nodes.insert(p_node->get_instance_id());
 }
 
 HBPlayerCameraArm::HBPlayerCameraArm() :
 		SpringArm3D() {
 	if (!Engine::get_singleton()->is_editor_hint()) {
 		set_process_unhandled_input(true);
-		set_physics_process_internal(true);
+		set_process_internal(true);
 		set_as_top_level(true);
 	}
 }
@@ -258,6 +310,7 @@ HBPlayerCameraArm::CameraTargetMode HBPlayerCameraArm::get_target_mode() const {
 
 void HBPlayerCameraArm::set_target_mode(CameraTargetMode p_target_mode) {
 	target_mode = p_target_mode;
+	inertialization_queued = true;
 }
 
 void HBPlayerCameraArm::set_target_skeleton_path(const NodePath &p_skeleton_path) {

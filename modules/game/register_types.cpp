@@ -127,6 +127,9 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(EPASEditorAnimation);
 	GDREGISTER_CLASS(RotationInertializer);
 
+	// World
+	GDREGISTER_CLASS(GameWorldState);
+
 	GLOBAL_DEF_BASIC(PropertyInfo(Variant::STRING, "game/ingame_ui_scene", PROPERTY_HINT_FILE, "*.tscn,*.scn,*.res"), "");
 
 	TBLoaderSingleton::register_entity_type<HBAgentParkourPoint>();

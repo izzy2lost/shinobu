@@ -236,3 +236,35 @@ Ref<EPASPoseInertializer> EPASPoseInertializer::create(const Ref<EPASPose> p_pos
 	in->transition_infos = transition_infos;
 	return in;
 }
+
+float ScalarInertializer::advance(float p_delta) {
+	current_transition_time += p_delta;
+	current_transition_time = MIN(transition_duration, current_transition_time);
+	float scalar_x = inertialize(Math::abs(scalar_offset), scalar_velocity, transition_duration, current_transition_time);
+	float scalar_off = Math::abs(scalar_offset) * scalar_x;
+	return scalar_off;
+}
+
+bool ScalarInertializer::is_done() const {
+	return current_transition_time >= transition_duration;
+}
+
+float ScalarInertializer::get_offset() const {
+	return scalar_offset;
+}
+
+Ref<ScalarInertializer> ScalarInertializer::create(const float &p_prev_prev, const float &p_prev, const float &p_target, float p_duration, float p_delta) {
+	Ref<ScalarInertializer> in;
+	in.instantiate();
+
+	// Position info
+	float x_prev = p_prev - p_target;
+	float x_prev_prev = p_prev_prev - p_target;
+	in->scalar_velocity = MIN((x_prev - x_prev_prev) / p_delta, 0.0f);
+	in->scalar_offset = x_prev;
+	in->transition_duration = p_duration;
+	if (in->scalar_velocity != 0.0f) {
+		in->transition_duration = MIN(p_duration, -5.0f * (Math::abs(x_prev) / in->scalar_velocity));
+	}
+	return in;
+}

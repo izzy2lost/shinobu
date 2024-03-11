@@ -359,6 +359,10 @@ HBAgent *HBAgentState::get_highlighted_agent() const {
 	const Vector2 viewport_center_normalized = Vector2(0.5f, 0.5f);
 	// First we discard agents we cannot target
 	for (int i = 0; i < candidate_agents.size(); i++) {
+		// Target must be alive
+		if (candidate_agents[i]->is_dead()) {
+			continue;
+		}
 		// Agent must be in frustrum
 		const Vector3 agent_position = candidate_agents[i]->get_global_position();
 		if (!camera->is_position_in_frustum(agent_position)) {
@@ -380,6 +384,13 @@ HBAgent *HBAgentState::get_highlighted_agent() const {
 	targeteable_agents.sort_custom<TargetComparator>();
 
 	return targeteable_agents[0].agent;
+}
+
+void HBAgentState::exit_combat() {
+	HBAgent *agent = get_agent();
+	agent->set_target(nullptr);
+	agent->emit_signal("exited_combat");
+	state_machine->transition_to(ASN()->move_state);
 }
 
 #ifdef DEBUG_ENABLED
@@ -2331,19 +2342,24 @@ void HBAgentRootMotionState::physics_process(float p_delta) {
 	}
 
 	if (!animation_node->is_playing()) {
-		switch (velocity_mode) {
-			case ANIMATION_DRIVEN: {
-				get_agent()->reset_desired_input_velocity_to((get_agent()->get_global_position() - prev_pos) / p_delta);
-			} break;
-			case CONSERVE: {
-				get_agent()->set_velocity(get_agent()->get_desired_movement_input_transformed() * get_agent()->get_agent_constants()->get_max_move_velocity());
-				get_agent()->reset_desired_input_velocity_to(get_agent()->get_desired_movement_input_transformed() * get_agent()->get_agent_constants()->get_max_move_velocity());
-			} break;
-		}
-		state_machine->transition_to(next_state, next_state_args);
+		animation_finished(p_delta);
+		return;
 	}
 	prev_pos = get_agent()->get_global_position();
 }
+
+void HBAgentRootMotionState::animation_finished(float p_delta) {
+	switch (velocity_mode) {
+		case ANIMATION_DRIVEN: {
+			get_agent()->reset_desired_input_velocity_to((get_agent()->get_global_position() - prev_pos) / get_physics_process_delta_time());
+		} break;
+		case CONSERVE: {
+			get_agent()->set_velocity(get_agent()->get_desired_movement_input_transformed() * get_agent()->get_agent_constants()->get_max_move_velocity());
+			get_agent()->reset_desired_input_velocity_to(get_agent()->get_desired_movement_input_transformed() * get_agent()->get_agent_constants()->get_max_move_velocity());
+		} break;
+	}
+	state_machine->transition_to(next_state, next_state_args);
+};
 
 #ifdef DEBUG_ENABLED
 void HBAgentRootMotionState::debug_ui_draw() {
@@ -3373,6 +3389,7 @@ void HBAgentCombatMoveState::reset() {
 
 void HBAgentCombatMoveState::enter(const Dictionary &p_args) {
 	HBAgent *agent = get_agent();
+	agent->emit_signal("entered_combat");
 	target = agent->get_target();
 
 	setup_attack_reception();
@@ -3395,6 +3412,7 @@ void HBAgentCombatMoveState::enter(const Dictionary &p_args) {
 	agent->set_movement_mode(HBAgent::MOVE_GROUNDED);
 	get_movement_transition_node()->transition_to(HBAgentConstants::MOVEMENT_MOVE);
 	get_inertialization_node()->inertialize(0.5f);
+	emit_signal("entered_combat");
 }
 
 void HBAgentCombatMoveState::exit() {
@@ -3511,6 +3529,9 @@ void HBAgentCombatAttackState::handle_sending_attack_to_target() {
 		target->receive_attack(get_agent(), attack);
 		attack_connected = true;
 		get_agent()->emit_signal("attack_connected");
+		if (target->is_dead()) {
+			_on_target_died();
+		}
 	}
 }
 
@@ -3522,6 +3543,10 @@ void HBAgentCombatAttackState::_on_attack_parried() {
 	state_machine->transition_to(ASN()->root_motion_state, state_args);
 
 	get_agent()->emit_signal("emit_sword_sparks");
+}
+
+void HBAgentCombatAttackState::_on_target_died() {
+	// TODO: Handle execution animations
 }
 
 void HBAgentCombatAttackState::enter(const Dictionary &p_args) {
@@ -3596,7 +3621,7 @@ void HBAgentCombatAttackState::physics_process(float p_delta) {
 		was_attack_repressed = true;
 	}
 
-	if (handle_attack()) {
+	if (!target->is_dead() && handle_attack()) {
 		return;
 	}
 
@@ -3606,6 +3631,14 @@ void HBAgentCombatAttackState::physics_process(float p_delta) {
 	const float animation_length = animation_node->get_animation()->get_length();
 	attack_mesh_instance->set_instance_shader_parameter("scroll", animation_node->get_playback_position() / animation_length);
 	prev_playback_position = animation_node->get_playback_position();
+}
+
+void HBAgentCombatAttackState::animation_finished(float p_delta) {
+	if (target->is_dead()) {
+		exit_combat();
+	} else {
+		HBAgentRootMotionState::animation_finished(p_delta);
+	}
 }
 
 void HBAgentCombatHitState::look_towards_attacker() {
@@ -3703,7 +3736,6 @@ void HBAgentDeadState::enter(const Dictionary &p_args) {
 			continue;
 		}
 		if (pb->get_bone_name() == "head") {
-			print_line("APPLYING FORCE", death_force);
 			pb->apply_central_impulse(death_force);
 			break;
 		}

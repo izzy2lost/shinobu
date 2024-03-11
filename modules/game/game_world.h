@@ -44,6 +44,7 @@ class GameCombatCoordinator : public RefCounted {
 class HBAgent;
 class HBPlayerAgent;
 class GameWorldState : public RefCounted {
+	GDCLASS(GameWorldState, RefCounted);
 	static CCommand trigger_alert_cc;
 
 public:
@@ -53,17 +54,28 @@ public:
 		ALERT_SEEN // Player's location is known
 	};
 
+protected:
+	static void _bind_methods();
+
 private:
 	AlertStatus alert_status = GameWorldState::ALERT_CLEAR;
 	HBPlayerAgent *player;
+	HashSet<ObjectID> agents_in_combat;
+
+	void _on_agent_entered_combat(HBAgent *p_agent);
+	void _on_agent_exited_combat(HBAgent *p_agent);
+	void agent_entered_tree(HBAgent *p_agent);
+	void agent_exited_tree(HBAgent *p_agent);
 
 public:
 	AlertStatus get_alert_status() const { return alert_status; }
 	void set_alert_status(const AlertStatus p_alert_status) { alert_status = p_alert_status; }
 	void set_player(HBPlayerAgent *p_player);
+	HashSet<ObjectID> get_agents_in_combat() const { return agents_in_combat; };
 	HBPlayerAgent *get_player() const { return player; };
 	GameWorldState();
 	friend class HBGameWorld;
+	friend class HBAgent;
 };
 
 VARIANT_ENUM_CAST(GameWorldState::AlertStatus);
@@ -79,6 +91,14 @@ class HBGameWorld : public Node3D {
 	HBPlayerAgent *player = nullptr;
 
 public:
+	enum {
+		NOTIFICATION_HB_ENTER_GAME_WORLD = 4000,
+		NOTIFICATION_HB_EXIT_GAME_WORLD = 4001,
+	};
+
+	void _on_node_added(Node *p_node);
+	void _on_node_removed(Node *p_node);
+
 	void set_player(HBPlayerAgent *p_player);
 	HBPlayerAgent *get_player() const { return player; };
 
@@ -88,7 +108,9 @@ public:
 
 protected:
 	void _notification(int p_what);
-
+#ifdef DEBUG_ENABLED
+	void _debug_notification(int p_what);
+#endif
 public:
 	HBGameWorld();
 };

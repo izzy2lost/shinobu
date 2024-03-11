@@ -83,6 +83,7 @@ public:
 	Ref<EPASSoftnessNode> get_softness_node() const;
 	Ref<EPASWheelLocomotion> get_wheel_locomotion_node() const;
 	HBAgent *get_highlighted_agent() const;
+	void exit_combat();
 #ifdef DEBUG_ENABLED
 	virtual void debug_ui_draw() override;
 #endif
@@ -308,6 +309,7 @@ public:
 	virtual void enter(const Dictionary &p_args) override;
 	virtual void exit() override;
 	virtual void physics_process(float p_delta) override;
+	virtual void animation_finished(float p_delta);
 #ifdef DEBUG_ENABLED
 	virtual void debug_ui_draw() override;
 #endif
@@ -399,6 +401,7 @@ private:
 	void handle_hitstop(float p_delta);
 	void handle_sending_attack_to_target();
 	void _on_attack_parried();
+	void _on_target_died();
 
 public:
 	enum CombatAttackParams {
@@ -408,6 +411,7 @@ public:
 	virtual void enter(const Dictionary &p_args) override;
 	virtual void exit() override;
 	virtual void physics_process(float p_delta) override;
+	virtual void animation_finished(float p_delta) override;
 };
 
 class HBAgentCombatHitState : public HBAgentRootMotionState {
