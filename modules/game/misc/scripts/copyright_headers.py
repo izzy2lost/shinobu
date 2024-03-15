@@ -35,8 +35,8 @@ header = """\
 /**************************************************************************/
 """
 
-if len(sys.argv) <= 2:
-    print("Invalid usage of copyright_headers.py, it should be called with a path to one or multiple files.")
+if len(sys.argv) < 2:
+    print("Invalid usage of copyright_headers.py, it should be called with a path to one or multiple files2.")
     sys.exit(1)
 
 for f in sys.argv[1:]:
