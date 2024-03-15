@@ -2,11 +2,10 @@
 /*  agent_state.cpp                                                       */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                             GODOT ENGINE                               */
-/*                        https://godotengine.org                         */
+/*                               SWANSONG                                 */
+/*                          https://eirteam.moe                           */
 /**************************************************************************/
-/* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
-/* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
+/* Copyright (c) 2023-present Álex Román Núñez (EIRTeam).                 */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
 /* a copy of this software and associated documentation files (the        */
@@ -439,7 +438,7 @@ void HBAgentMoveState::enter(const Dictionary &p_args) {
 	torso_lookat_node->set_influence(0.0f);
 	head_lookat_node->set_influence(0.0f);
 	get_softness_node()->set_influence(1.0f);
-	get_wheel_locomotion_node()->set_use_foot_ik(false);
+	get_wheel_locomotion_node()->set_use_foot_ik(true);
 	Ref<EPASIKNode> left_foot_ik_node = get_epas_controller()->get_epas_node(ASN()->left_foot_ik_node);
 	Ref<EPASIKNode> right_foot_ik_node = get_epas_controller()->get_epas_node(ASN()->right_foot_ik_node);
 

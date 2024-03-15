@@ -42,12 +42,30 @@ repos:
             .*thirdparty.*|
             .*-so_wrap.*|
             core/math/bvh_.*\.inc$|
+            modules\/game.*|
+            modules\/imgui.*|
             platform/android/java/lib/src/com.*|
             platform/android/java/lib/src/org/godotengine/godot/gl/GLSurfaceView.*|
             platform/android/java/lib/src/org/godotengine/godot/gl/EGLLogWrapper.*|
             platform/android/java/lib/src/org/godotengine/godot/utils/ProcessPhoenix.*
           )
 
+      - id: copyright-headers-swansong
+        name: copyright-headers-swansong
+        language: python
+        verbose: true
+        files: modules\/game\/.*\.(c|h|cpp|hpp|cc|cxx|m|mm|inc|java)$
+        entry: python3 modules/game/misc/scripts/copyright_headers.py
+        exclude: |
+          (?x)^(
+            tests/python_build.*|
+            .*thirdparty.*|
+            .*platform/android/java/lib/src/com.*|
+            .*-so_wrap.*|
+            platform/android/java/lib/src/org/godotengine/godot/gl/GLSurfaceView.*|
+            platform/android/java/lib/src/org/godotengine/godot/gl/EGLLogWrapper.*|
+            platform/android/java/lib/src/org/godotengine/godot/utils/ProcessPhoenix.*
+          )
       - id: dotnet-format
         name: dotnet-format
         language: python

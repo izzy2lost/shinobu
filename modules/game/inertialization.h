@@ -2,11 +2,10 @@
 /*  inertialization.h                                                     */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                             GODOT ENGINE                               */
-/*                        https://godotengine.org                         */
+/*                               SWANSONG                                 */
+/*                          https://eirteam.moe                           */
 /**************************************************************************/
-/* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
-/* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
+/* Copyright (c) 2023-present Álex Román Núñez (EIRTeam).                 */
 /*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
 /* a copy of this software and associated documentation files (the        */
@@ -66,19 +65,6 @@ public:
 	bool is_done() const;
 	Vector3 get_offset() const;
 	static Ref<PositionInertializer> create(const Vector3 &p_prev_prev, const Vector3 &p_prev, const Vector3 &p_target, float p_duration, float p_delta);
-};
-
-class ScalarInertializer : public RefCounted {
-	float current_transition_time = 0.0f;
-	float scalar_offset;
-	float scalar_velocity = 0.0f;
-	float transition_duration = 0.0f;
-
-public:
-	float advance(float p_delta);
-	bool is_done() const;
-	float get_offset() const;
-	static Ref<ScalarInertializer> create(const float &p_prev_prev, const float &p_prev, const float &p_target, float p_duration, float p_delta);
 };
 
 class EPASPoseInertializer : public RefCounted {

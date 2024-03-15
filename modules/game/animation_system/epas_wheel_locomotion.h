@@ -1,3 +1,32 @@
+/**************************************************************************/
+/*  epas_wheel_locomotion.h                                               */
+/**************************************************************************/
+/*                         This file is part of:                          */
+/*                               SWANSONG                                 */
+/*                          https://eirteam.moe                           */
+/**************************************************************************/
+/* Copyright (c) 2023-present Álex Román Núñez (EIRTeam).                 */
+/*                                                                        */
+/* Permission is hereby granted, free of charge, to any person obtaining  */
+/* a copy of this software and associated documentation files (the        */
+/* "Software"), to deal in the Software without restriction, including    */
+/* without limitation the rights to use, copy, modify, merge, publish,    */
+/* distribute, sublicense, and/or sell copies of the Software, and to     */
+/* permit persons to whom the Software is furnished to do so, subject to  */
+/* the following conditions:                                              */
+/*                                                                        */
+/* The above copyright notice and this permission notice shall be         */
+/* included in all copies or substantial portions of the Software.        */
+/*                                                                        */
+/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
+/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
+/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
+/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
+/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
+/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
+/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+/**************************************************************************/
+
 #ifndef EPAS_WHEEL_LOCOMOTION_H
 #define EPAS_WHEEL_LOCOMOTION_H
 
@@ -115,6 +144,7 @@ private:
 	float foot_ik_pin_recovery_time = 0.15f;
 	bool use_foot_ik = false;
 	bool foot_ik_init = false;
+	float max_velocity = 2.8f;
 
 	void _ik_process_foot(LocomotionSet *p_loc_set, float p_foot_ik_grounded[2], Transform3D p_ankle_ik_targets[2], Transform3D p_ankle_pinned_ik_targets[2], const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose);
 	void _ik_process(LocomotionSet *p_loc_sets[2], float p_foot_ik_grounded[2][2], Ref<EPASPose> p_target_pose, Ref<EPASPose> p_second_pose, Ref<EPASPose> p_base_pose, float p_x, float p_delta);
@@ -131,6 +161,7 @@ public:
 #endif
 	virtual void process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) override;
 	float get_wheel_angle() const;
+	void set_max_velocity(float p_max_velocity);
 	void set_linear_velocity(const Vector3 &p_linear_velocity);
 	void set_x_blend(float p_x_blend);
 	float get_x_blend() const;

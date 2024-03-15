@@ -1,3 +1,32 @@
+/**************************************************************************/
+/*  inertialization.cpp                                                   */
+/**************************************************************************/
+/*                         This file is part of:                          */
+/*                               SWANSONG                                 */
+/*                          https://eirteam.moe                           */
+/**************************************************************************/
+/* Copyright (c) 2023-present Álex Román Núñez (EIRTeam).                 */
+/*                                                                        */
+/* Permission is hereby granted, free of charge, to any person obtaining  */
+/* a copy of this software and associated documentation files (the        */
+/* "Software"), to deal in the Software without restriction, including    */
+/* without limitation the rights to use, copy, modify, merge, publish,    */
+/* distribute, sublicense, and/or sell copies of the Software, and to     */
+/* permit persons to whom the Software is furnished to do so, subject to  */
+/* the following conditions:                                              */
+/*                                                                        */
+/* The above copyright notice and this permission notice shall be         */
+/* included in all copies or substantial portions of the Software.        */
+/*                                                                        */
+/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
+/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
+/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
+/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
+/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
+/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
+/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+/**************************************************************************/
+
 #include "inertialization.h"
 #include "animation_system/epas_animation.h"
 #include "core/error/error_macros.h"
@@ -234,37 +263,5 @@ Ref<EPASPoseInertializer> EPASPoseInertializer::create(const Ref<EPASPose> p_pos
 	}
 
 	in->transition_infos = transition_infos;
-	return in;
-}
-
-float ScalarInertializer::advance(float p_delta) {
-	current_transition_time += p_delta;
-	current_transition_time = MIN(transition_duration, current_transition_time);
-	float scalar_x = inertialize(Math::abs(scalar_offset), scalar_velocity, transition_duration, current_transition_time);
-	float scalar_off = Math::abs(scalar_offset) * scalar_x;
-	return scalar_off;
-}
-
-bool ScalarInertializer::is_done() const {
-	return current_transition_time >= transition_duration;
-}
-
-float ScalarInertializer::get_offset() const {
-	return scalar_offset;
-}
-
-Ref<ScalarInertializer> ScalarInertializer::create(const float &p_prev_prev, const float &p_prev, const float &p_target, float p_duration, float p_delta) {
-	Ref<ScalarInertializer> in;
-	in.instantiate();
-
-	// Position info
-	float x_prev = p_prev - p_target;
-	float x_prev_prev = p_prev_prev - p_target;
-	in->scalar_velocity = MIN((x_prev - x_prev_prev) / p_delta, 0.0f);
-	in->scalar_offset = x_prev;
-	in->transition_duration = p_duration;
-	if (in->scalar_velocity != 0.0f) {
-		in->transition_duration = MIN(p_duration, -5.0f * (Math::abs(x_prev) / in->scalar_velocity));
-	}
 	return in;
 }
