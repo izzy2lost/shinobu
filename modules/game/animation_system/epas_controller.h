@@ -34,6 +34,9 @@
 #include "scene/3d/mesh_instance_3d.h"
 #include "scene/3d/skeleton_3d.h"
 #include "scene/main/node.h"
+#include "scene/resources/audio_stream_polyphonic.h"
+
+class AudioStreamPlayer3D;
 
 class EPASRootNode : public EPASNode {
 public:
@@ -48,6 +51,8 @@ public:
 
 class EPASController : public Node {
 	GDCLASS(EPASController, Node);
+
+	AudioStreamPlayer3D *audio_player = nullptr;
 
 #ifdef DEBUG_ENABLED
 	Vector<float> hip_plot_lines_y;
@@ -100,9 +105,13 @@ private:
 
 protected:
 	void _notification(int p_what);
+#ifdef DEBUG_ENABLED
+	void _notification_debug(int p_what);
+#endif
 	static void _bind_methods();
 
 public:
+	Ref<AudioStreamPlaybackPolyphonic> get_audio_stream_playback() const;
 	Skeleton3D *get_skeleton();
 	Ref<EPASPose> get_base_pose();
 	void set_playback_process_mode(PlaybackProcessMode p_playback_process_mode);

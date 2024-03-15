@@ -28,7 +28,16 @@
 /**************************************************************************/
 
 #include "epas_oneshot_animation_node.h"
+#include "epas_controller.h"
 #include "modules/imgui/godot_imgui.h"
+#include "scene/3d/audio_stream_player_3d.h"
+
+void EPASOneshotAnimationNode::_on_animation_event_fired(const Ref<EPASAnimationEvent> &p_event) {
+	if (Ref<EPASSoundAnimationEvent> sound = p_event; sound.is_valid()) {
+		Ref<AudioStreamPlaybackPolyphonic> playback = get_epas_controller()->get_audio_stream_playback();
+		playback->play_stream(sound->get_stream());
+	}
+}
 
 void EPASOneshotAnimationNode::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_root_bone", "root_bone"), &EPASOneshotAnimationNode::set_root_bone);
@@ -91,10 +100,12 @@ void EPASOneshotAnimationNode::process_node(const Ref<EPASPose> &p_base_pose, Re
 		float sample_time = MIN(time, sample_end_time);
 
 		animation->interpolate(sample_time, p_base_pose, p_target_pose, interpolation_method, &playback_info);
+
 		if (time >= sample_end_time) {
 			emit_signal(SNAME("playback_finished"));
 			playing = false;
 		}
+		playback_info.last_time = time;
 	}
 }
 
@@ -102,6 +113,7 @@ void EPASOneshotAnimationNode::play() {
 	time = 0.0f;
 	playing = true;
 	playback_info.root_motion_trf = Transform3D();
+	playback_info.last_time = 0.0f;
 }
 
 bool EPASOneshotAnimationNode::is_playing() const {
@@ -117,7 +129,11 @@ Ref<EPASAnimation> EPASOneshotAnimationNode::get_animation() const {
 }
 
 void EPASOneshotAnimationNode::set_animation(const Ref<EPASAnimation> &p_animation) {
+	if (animation.is_valid()) {
+		animation->disconnect(SNAME("event_fired"), callable_mp(this, &EPASOneshotAnimationNode::_on_animation_event_fired));
+	}
 	animation = p_animation;
+	animation->connect(SNAME("event_fired"), callable_mp(this, &EPASOneshotAnimationNode::_on_animation_event_fired));
 }
 
 bool EPASOneshotAnimationNode::get_use_root_motion() const {
@@ -176,4 +192,5 @@ Transform3D EPASOneshotAnimationNode::get_root_motion_transform() const {
 
 void EPASOneshotAnimationNode::seek(float p_time) {
 	time = p_time;
+	playback_info.last_time = p_time;
 }

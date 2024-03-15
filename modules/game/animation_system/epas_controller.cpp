@@ -32,6 +32,7 @@
 #include "core/variant/array.h"
 #include "core/variant/variant.h"
 #include "modules/game/animation_system/epas_animation_node.h"
+#include "scene/3d/audio_stream_player_3d.h"
 #ifdef DEBUG_ENABLED
 #include "imgui.h"
 #include "implot.h"
@@ -68,23 +69,45 @@ void EPASController::_update_process_mode() {
 }
 
 void EPASController::_notification(int p_what) {
+#ifdef DEBUG_ENABLED
+	_notification_debug(p_what);
+#endif
 	switch (p_what) {
 		case NOTIFICATION_INTERNAL_PHYSICS_PROCESS: {
 			advance(get_physics_process_delta_time());
 		} break;
 		case NOTIFICATION_ENTER_TREE: {
 			_update_process_mode();
-#ifdef DEBUG_ENABLED
-			REGISTER_DEBUG(this);
-#endif
+			audio_player = memnew(AudioStreamPlayer3D);
+			Ref<AudioStreamPolyphonic> polyphonic;
+			polyphonic.instantiate();
+			audio_player->set_stream(polyphonic);
+			add_child(audio_player);
+			audio_player->play();
 		} break;
+		case NOTIFICATION_EXIT_TREE: {
+			audio_player->queue_free();
+			audio_player = nullptr;
+		} break;
+		case NOTIFICATION_INTERNAL_PROCESS: {
+			if (playback_process_mode != PlaybackProcessMode::IDLE) {
+				return;
+			}
+			advance(get_process_delta_time());
+		} break;
+	}
+}
+
 #ifdef DEBUG_ENABLED
+void EPASController::_notification_debug(int p_what) {
+	switch (p_what) {
+		case NOTIFICATION_ENTER_TREE: {
+			REGISTER_DEBUG(this);
+		} break;
 		case NOTIFICATION_EXIT_TREE: {
 			UNREGISTER_DEBUG(this);
 		} break;
-#endif
 		case NOTIFICATION_INTERNAL_PROCESS: {
-#ifdef DEBUG_ENABLED
 			GodotImGui *gim = GodotImGui::get_singleton();
 			if (gim && gim->is_debug_enabled(this)) {
 				if (gim->begin_debug_window(this)) {
@@ -128,14 +151,10 @@ void EPASController::_notification(int p_what) {
 				}
 				ImGui::End();
 			}
-#endif
-			if (playback_process_mode != PlaybackProcessMode::IDLE) {
-				return;
-			}
-			advance(get_process_delta_time());
 		} break;
 	}
 }
+#endif
 
 #ifdef DEBUG_ENABLED
 void EPASController::_debug_draw_node(Ref<EPASNode> p_node, int *p_output_attrib_id) {
@@ -421,6 +440,11 @@ void EPASController::_bind_methods() {
 	BIND_ENUM_CONSTANT(IDLE);
 	BIND_ENUM_CONSTANT(PHYSICS_PROCESS);
 	BIND_ENUM_CONSTANT(MANUAL);
+}
+
+Ref<AudioStreamPlaybackPolyphonic> EPASController::get_audio_stream_playback() const {
+	DEV_ASSERT(audio_player != nullptr);
+	return audio_player->get_stream_playback();
 }
 
 void EPASController::_update_skeleton_node_cache() {

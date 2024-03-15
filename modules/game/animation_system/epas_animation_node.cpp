@@ -30,11 +30,21 @@
 #include "epas_animation_node.h"
 #include "core/object/class_db.h"
 #include "core/object/object.h"
+#include "scene/resources/audio_stream_polyphonic.h"
 #ifdef DEBUG_ENABLED
 #include "imgui.h"
 #endif
+#include "epas_controller.h"
 #include "modules/game/animation_system/epas_node.h"
 #include "scene/resources/animation.h"
+
+void EPASAnimationNode::_on_animation_event_fired(const Ref<EPASAnimationEvent> &p_event) {
+	print_line("PLAY SOUND");
+	if (Ref<EPASSoundAnimationEvent> sound = p_event; sound.is_valid()) {
+		Ref<AudioStreamPlaybackPolyphonic> playback = get_epas_controller()->get_audio_stream_playback();
+		playback->play_stream(sound->get_stream());
+	}
+}
 
 void EPASAnimationNode::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_animation", "animation"), &EPASAnimationNode::set_animation);
@@ -112,7 +122,11 @@ void EPASAnimationNode::interpolate(const Ref<EPASPose> &p_base_pose, Ref<EPASPo
 }
 
 void EPASAnimationNode::set_animation(Ref<EPASAnimation> p_animation) {
+	if (animation.is_valid()) {
+		animation->disconnect(SNAME("event_fired"), callable_mp(this, &EPASAnimationNode::_on_animation_event_fired));
+	}
 	animation = p_animation;
+	animation->connect(SNAME("event_fired"), callable_mp(this, &EPASAnimationNode::_on_animation_event_fired));
 }
 
 Ref<EPASAnimation> EPASAnimationNode::get_animation() const {

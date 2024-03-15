@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  epas_animation_node.h                                                 */
+/*  epas_animation_event.cpp                                              */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                               SWANSONG                                 */
@@ -27,54 +27,37 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#ifndef EPAS_ANIMATION_NODE_H
-#define EPAS_ANIMATION_NODE_H
+#include "epas_animation_event.h"
 
-#include "core/variant/binder_common.h"
-#include "modules/game/animation_system/epas_animation.h"
-#include "modules/game/animation_system/epas_node.h"
+#include "servers/audio/audio_stream.h"
 
-class EPASAnimationNode : public EPASNode {
-	GDCLASS(EPASAnimationNode, EPASNode);
+void EPASSoundAnimationEvent::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("set_stream", "stream"), &EPASSoundAnimationEvent::set_stream);
+	ClassDB::bind_method(D_METHOD("get_stream"), &EPASSoundAnimationEvent::get_stream);
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "stream", PROPERTY_HINT_RESOURCE_TYPE, "AudioStream"), "set_stream", "get_stream");
 
-public:
-	enum PlaybackMode {
-		AUTOMATIC = 0,
-		MANUAL,
-		GLOBAL_TIME
-	};
+	ClassDB::bind_method(D_METHOD("set_time", "time"), &EPASSoundAnimationEvent::set_time);
+	ClassDB::bind_method(D_METHOD("get_time"), &EPASSoundAnimationEvent::get_time);
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "time"), "set_time", "get_time");
+}
 
-private:
-	PlaybackMode playback_mode = PlaybackMode::AUTOMATIC;
-	Ref<EPASAnimation> animation;
-	EPASAnimation::InterpolationMethod interpolation_method = EPASAnimation::InterpolationMethod::LINEAR;
+Ref<AudioStream> EPASSoundAnimationEvent::get_stream() const {
+	return stream;
+}
 
-	float time = 0.0f;
-	bool looping_enabled = false;
+void EPASSoundAnimationEvent::set_stream(const Ref<AudioStream> &p_stream) {
+	stream = p_stream;
+}
 
-protected:
-	void _on_animation_event_fired(const Ref<EPASAnimationEvent> &p_event);
-	static void _bind_methods();
+void EPASAnimationEvent::_bind_methods() {
+	ADD_SIGNAL(MethodInfo("time_changed"));
+}
 
-public:
-#ifdef DEBUG_ENABLED
-	virtual void _debug_node_draw() const override;
-#endif
-	virtual void process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) override;
-	virtual void interpolate(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_time);
-	void set_animation(Ref<EPASAnimation> p_animation);
-	Ref<EPASAnimation> get_animation() const;
-	void set_playback_mode(PlaybackMode p_playback_mode);
-	PlaybackMode get_playback_mode() const;
-	void set_interpolation_method(EPASAnimation::InterpolationMethod p_interpolation_method);
-	EPASAnimation::InterpolationMethod get_interpolation_method() const;
-	void seek(float p_time);
-	float get_time();
+float EPASAnimationEvent::get_time() const {
+	return time;
+}
 
-	bool get_looping_enabled() const;
-	void set_looping_enabled(bool p_looping_enabled);
-};
-
-VARIANT_ENUM_CAST(EPASAnimationNode::PlaybackMode);
-
-#endif // EPAS_ANIMATION_NODE_H
+void EPASAnimationEvent::set_time(float p_time) {
+	time = p_time;
+	emit_signal("time_changed");
+}

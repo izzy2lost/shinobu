@@ -32,6 +32,11 @@
 #include "core/object/callable_method_pointer.h"
 #include "core/object/class_db.h"
 #include "core/object/object.h"
+#include "epas_animation_event.h"
+
+struct EPASAnimationEventComparator {
+	_FORCE_INLINE_ bool operator()(const Ref<EPASAnimationEvent> &a, const Ref<EPASAnimationEvent> &b) const { return (a->get_time() < b->get_time()); }
+};
 
 void EPASKeyframe::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_pose", "pose"), &EPASKeyframe::set_pose);
@@ -63,10 +68,36 @@ void EPASKeyframe::set_time(float p_time) {
 }
 
 Array EPASAnimation::_get_keyframes() const {
+	if (keyframe_order_dirty) {
+		const_cast<EPASAnimation *>(this)->_sort_keyframes();
+	}
 	Array out;
 	out.resize(keyframes.size());
 	for (int i = 0; i < keyframes.size(); i++) {
 		out.set(i, keyframes[i]);
+	}
+	return out;
+}
+
+void EPASAnimation::_set_events(const Array &p_events) {
+	clear_events();
+	// _set_events is only called when the resource is (re)loaded and replaces all events
+	for (int i = 0; i < p_events.size(); i++) {
+		Ref<EPASAnimationEvent> ev = p_events[i];
+		if (ev.is_valid()) {
+			add_event(ev);
+		}
+	}
+}
+
+Array EPASAnimation::_get_events() const {
+	if (event_order_dirty) {
+		const_cast<EPASAnimation *>(this)->_sort_events();
+	}
+	Array out;
+	out.resize(events.size());
+	for (int i = 0; i < events.size(); i++) {
+		out.set(i, events[i]);
 	}
 	return out;
 }
@@ -114,6 +145,10 @@ void EPASAnimation::_keyframe_time_changed() {
 	length_cache_dirty = true;
 }
 
+void EPASAnimation::_event_time_changed() {
+	event_order_dirty = true;
+}
+
 void EPASAnimation::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("add_keyframe", "keyframe"), &EPASAnimation::add_keyframe);
 	ClassDB::bind_method(D_METHOD("_set_keyframes", "keyframes"), &EPASAnimation::_set_keyframes);
@@ -134,11 +169,23 @@ void EPASAnimation::_bind_methods() {
 	BIND_ENUM_CONSTANT(LINEAR);
 	BIND_ENUM_CONSTANT(BICUBIC_SPLINE);
 	BIND_ENUM_CONSTANT(BICUBIC_SPLINE_CLAMPED);
+
+	ClassDB::bind_method(D_METHOD("add_event", "event"), &EPASAnimation::add_event);
+	ClassDB::bind_method(D_METHOD("_set_events", "events"), &EPASAnimation::_set_events);
+	ClassDB::bind_method(D_METHOD("_get_events"), &EPASAnimation::_get_events);
+	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "events", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR | PROPERTY_USAGE_INTERNAL), "_set_events", "_get_events");
+
+	ADD_SIGNAL(MethodInfo("event_fired", PropertyInfo(Variant::OBJECT, "event", PROPERTY_HINT_RESOURCE_TYPE, "EPASAnimationEvent")));
 }
 
 void EPASAnimation::_sort_keyframes() {
 	keyframes.sort_custom<EPASKeyframeComparator>();
 	keyframe_order_dirty = false;
+}
+
+void EPASAnimation::_sort_events() {
+	events.sort_custom<EPASAnimationEventComparator>();
+	event_order_dirty = false;
 }
 
 void EPASAnimation::_update_length_cache() {
@@ -188,6 +235,28 @@ int EPASAnimation::get_keyframe_count() const {
 Ref<EPASKeyframe> EPASAnimation::get_keyframe(int p_idx) const {
 	ERR_FAIL_INDEX_V_MSG(p_idx, keyframes.size(), Ref<EPASKeyframe>(), "Keyframe index is out of range");
 	return keyframes[p_idx];
+}
+
+void EPASAnimation::add_event(Ref<EPASAnimationEvent> p_event) {
+	ERR_FAIL_COND_MSG(events.has(p_event), "Event is already in animation");
+	events.push_back(p_event);
+	p_event->connect("time_changed", callable_mp(this, &EPASAnimation::_event_time_changed));
+	event_order_dirty = true;
+}
+
+void EPASAnimation::erase_event(Ref<EPASAnimationEvent> p_event) {
+	ERR_FAIL_COND_MSG(!events.has(p_event), "Event was not in this animation");
+	p_event->disconnect("time_changed", callable_mp(this, &EPASAnimation::_event_time_changed));
+	events.erase(p_event);
+}
+
+int EPASAnimation::get_event_count() const {
+	return events.size();
+}
+
+Ref<EPASAnimationEvent> EPASAnimation::get_event(int p_idx) const {
+	ERR_FAIL_INDEX_V_MSG(p_idx, events.size(), Ref<EPASAnimationEvent>(), "Event index is out of range");
+	return events[p_idx];
 }
 
 struct EPASWPComparator {
@@ -383,6 +452,18 @@ void EPASAnimation::interpolate(float p_time, const Ref<EPASPose> &p_base_pose, 
 				p_target_pose->set_bone_scale(root_bone_name, p_base_pose->get_bone_scale(root_bone_name));
 			}
 		}
+		if (event_order_dirty) {
+			const_cast<EPASAnimation *>(this)->_sort_events();
+		}
+		for (int i = 0; i < events.size(); i++) {
+			const Ref<EPASAnimationEvent> &ev = events[i];
+			if (ev->get_time() > p_playback_info->last_time && ev->get_time() <= p_time) {
+				const_cast<EPASAnimation *>(this)->emit_signal(SNAME("event_fired"), ev);
+				print_line("FIRE EV!", ev);
+			} else if (ev->get_time() <= p_time) {
+				break;
+			}
+		}
 	}
 }
 
@@ -459,6 +540,13 @@ void EPASAnimation::clear_keyframes() {
 		keyframes.get(i)->disconnect("time_changed", callable_mp(this, &EPASAnimation::_keyframe_time_changed));
 	}
 	keyframes.clear();
+}
+
+void EPASAnimation::clear_events() {
+	for (int i = 0; i < events.size(); i++) {
+		events.get(i)->disconnect("time_changed", callable_mp(this, &EPASAnimation::_event_time_changed));
+	}
+	events.clear();
 }
 
 void EPASWarpPoint::_bind_methods() {

@@ -67,6 +67,23 @@ public:
 #include "scene/3d/skeleton_3d.h"
 #include "scene/gui/file_dialog.h"
 
+class EPASAnimationEditor;
+
+class EPASAnimationEventsEditor : public RefCounted {
+	GDCLASS(EPASAnimationEventsEditor, RefCounted);
+	bool open = false;
+	Ref<EPASAnimationEvent> current_event;
+	FileDialog *sound_file_dialog = nullptr;
+	String get_event_name(const Ref<EPASAnimationEvent> &ev) const;
+	void _on_sound_file_selected(String p_file);
+
+public:
+	void draw(Ref<EPASAnimation> p_animation, float p_playback_position);
+	EPASAnimationEventsEditor();
+	~EPASAnimationEventsEditor();
+	friend class EPASAnimationEditor;
+};
+
 class EPASAnimationCurvesEditor : public RefCounted {
 	GDCLASS(EPASAnimationCurvesEditor, RefCounted);
 	StringName current_curve;
@@ -104,7 +121,7 @@ public:
 
 class EPASEditorAnimationNode : public EPASAnimationNode {
 	GDCLASS(EPASEditorAnimationNode, EPASAnimationNode);
-
+	EPASAnimationPlaybackInfo playback_info;
 	virtual void interpolate(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_time) override;
 };
 
@@ -206,6 +223,7 @@ private:
 	Ref<EPASPoseNode> epas_pose_node;
 	Ref<Font> label_font;
 	Ref<EPASAnimationCurvesEditor> curves_editor;
+	Ref<EPASAnimationEventsEditor> events_editor;
 	int currently_hovered_selection_handle = -1;
 
 	struct ui_info_t {

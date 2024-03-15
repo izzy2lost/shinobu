@@ -36,6 +36,7 @@
 #include "scene/resources/3d/primitive_meshes.h"
 
 class EPASOneshotAnimationNodeDebug;
+class AudioStreamPlayer3D;
 
 class EPASOneshotAnimationNode : public EPASNode {
 	GDCLASS(EPASOneshotAnimationNode, EPASNode);
@@ -48,6 +49,7 @@ class EPASOneshotAnimationNode : public EPASNode {
 	EPASAnimationPlaybackInfo playback_info;
 
 	Ref<EPASAnimation> animation;
+	void _on_animation_event_fired(const Ref<EPASAnimationEvent> &p_event);
 
 protected:
 	static void _bind_methods();

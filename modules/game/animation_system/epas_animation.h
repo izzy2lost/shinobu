@@ -33,7 +33,9 @@
 #include "core/io/resource.h"
 #include "core/variant/binder_common.h"
 #include "core/variant/typed_array.h"
+#include "epas_animation_event.h"
 #include "modules/game/animation_system/epas_pose.h"
+#include "servers/audio/audio_stream.h"
 
 class EPASKeyframe : public Resource {
 	GDCLASS(EPASKeyframe, Resource);
@@ -53,6 +55,7 @@ public:
 
 struct EPASAnimationPlaybackInfo {
 public:
+	float last_time = 0.0f;
 	bool use_root_motion = false;
 	StringName root_bone;
 	Transform3D root_motion_trf; // output trf
@@ -64,6 +67,7 @@ public:
 struct EPASKeyframeComparator {
 	_FORCE_INLINE_ bool operator()(const Ref<EPASKeyframe> &a, const Ref<EPASKeyframe> &b) const { return (a->get_time() < b->get_time()); }
 };
+
 class EPASWarpPoint : public Resource {
 	GDCLASS(EPASWarpPoint, Resource);
 	StringName point_name;
@@ -113,18 +117,26 @@ class EPASAnimation : public Resource {
 	float length_cache = 0.0f;
 
 	Vector<Ref<EPASKeyframe>> keyframes;
+	Vector<Ref<EPASAnimationEvent>> events;
 	bool keyframe_order_dirty = true;
+	bool event_order_dirty = true;
 	bool length_cache_dirty = true;
 
 	void _sort_keyframes();
+	void _sort_events();
 	void _update_length_cache();
 	void _set_keyframes(const Array &p_keyframes);
 	Array _get_keyframes() const;
+	void _set_events(const Array &p_events);
+	Array _get_events() const;
+
 	void _set_warp_points(const Array &p_warp_points);
 	Array _get_warp_points() const;
 	void _set_animation_curves(const Dictionary &p_animation_curves);
 	Dictionary _get_animation_curves() const;
+
 	void _keyframe_time_changed();
+	void _event_time_changed();
 
 	Vector<Ref<EPASWarpPoint>> warp_points;
 	HashMap<StringName, Ref<Curve>> animation_curves;
@@ -143,6 +155,12 @@ public:
 	void erase_keyframe(Ref<EPASKeyframe> p_keyframe);
 	int get_keyframe_count() const;
 	Ref<EPASKeyframe> get_keyframe(int p_idx) const;
+
+	void add_event(Ref<EPASAnimationEvent> p_event);
+	void erase_event(Ref<EPASAnimationEvent> p_event);
+	int get_event_count() const;
+	Ref<EPASAnimationEvent> get_event(int p_idx) const;
+
 	void interpolate(float p_time, const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, InterpolationMethod p_interp_method, EPASAnimationPlaybackInfo *p_playback_info = nullptr) const;
 	float get_length() const;
 	bool has_warp_point(const StringName &p_name) const;
@@ -155,7 +173,9 @@ public:
 	void insert_animation_curve(StringName p_name, Ref<Curve> p_curve);
 	bool has_animation_curve(StringName p_curve_name) const;
 	Ref<Curve> get_animation_curve(StringName p_curve_name) const;
+
 	void clear_keyframes();
+	void clear_events();
 };
 
 VARIANT_ENUM_CAST(EPASAnimation::InterpolationMethod);

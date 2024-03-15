@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  epas_animation_node.h                                                 */
+/*  epas_animation_event.h                                                */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                               SWANSONG                                 */
@@ -27,54 +27,37 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#ifndef EPAS_ANIMATION_NODE_H
-#define EPAS_ANIMATION_NODE_H
+#ifndef EPAS_ANIMATION_EVENT_H
+#define EPAS_ANIMATION_EVENT_H
 
-#include "core/variant/binder_common.h"
-#include "modules/game/animation_system/epas_animation.h"
-#include "modules/game/animation_system/epas_node.h"
+#include "core/io/resource.h"
 
-class EPASAnimationNode : public EPASNode {
-	GDCLASS(EPASAnimationNode, EPASNode);
+class AudioStream;
 
-public:
-	enum PlaybackMode {
-		AUTOMATIC = 0,
-		MANUAL,
-		GLOBAL_TIME
-	};
-
-private:
-	PlaybackMode playback_mode = PlaybackMode::AUTOMATIC;
-	Ref<EPASAnimation> animation;
-	EPASAnimation::InterpolationMethod interpolation_method = EPASAnimation::InterpolationMethod::LINEAR;
-
+class EPASAnimationEvent : public Resource {
+	GDCLASS(EPASAnimationEvent, Resource);
 	float time = 0.0f;
-	bool looping_enabled = false;
 
 protected:
-	void _on_animation_event_fired(const Ref<EPASAnimationEvent> &p_event);
 	static void _bind_methods();
 
 public:
-#ifdef DEBUG_ENABLED
-	virtual void _debug_node_draw() const override;
-#endif
-	virtual void process_node(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_delta) override;
-	virtual void interpolate(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_time);
-	void set_animation(Ref<EPASAnimation> p_animation);
-	Ref<EPASAnimation> get_animation() const;
-	void set_playback_mode(PlaybackMode p_playback_mode);
-	PlaybackMode get_playback_mode() const;
-	void set_interpolation_method(EPASAnimation::InterpolationMethod p_interpolation_method);
-	EPASAnimation::InterpolationMethod get_interpolation_method() const;
-	void seek(float p_time);
-	float get_time();
-
-	bool get_looping_enabled() const;
-	void set_looping_enabled(bool p_looping_enabled);
+	float get_time() const;
+	void set_time(float p_time);
 };
 
-VARIANT_ENUM_CAST(EPASAnimationNode::PlaybackMode);
+class EPASSoundAnimationEvent : public EPASAnimationEvent {
+	GDCLASS(EPASSoundAnimationEvent, EPASAnimationEvent);
 
-#endif // EPAS_ANIMATION_NODE_H
+private:
+	Ref<AudioStream> stream;
+
+protected:
+	static void _bind_methods();
+
+public:
+	Ref<AudioStream> get_stream() const;
+	void set_stream(const Ref<AudioStream> &p_stream);
+};
+
+#endif // EPAS_ANIMATION_EVENT_H

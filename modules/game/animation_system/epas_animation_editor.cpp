@@ -87,6 +87,7 @@ void EPASAnimationEditor::_notification(int p_what) {
 			_draw_ui();
 			if (current_animation.is_valid() && current_animation->get_editor_animation().is_valid()) {
 				curves_editor->draw(current_animation, epas_animation_node->get_time() / current_animation->get_editor_animation()->get_length());
+				events_editor->draw(current_animation, epas_animation_node->get_time());
 			}
 			if (!_is_playing()) {
 				epas_animation_node->seek(current_frame / (float)FPS);
@@ -551,6 +552,10 @@ void EPASAnimationEditor::_draw_ui() {
 			ImGui::EndMenu();
 		}
 		if (ImGui::BeginMenu("Tools")) {
+			if (ImGui::MenuItem("Event editor", nullptr, events_editor->open)) {
+				events_editor->open = !events_editor->open;
+			}
+			ImGui::Separator();
 			if (ImGui::MenuItem("Run test map")) {
 				Ref<PackedScene> test_map = ResourceLoader::load("res://test2.tscn");
 				if (test_map.is_valid()) {
@@ -1789,6 +1794,7 @@ EPASAnimationEditor::EPASAnimationEditor() {
 		editor_animation->set_editor_animation(memnew(EPASAnimation));
 		set_animation(editor_animation);
 		curves_editor.instantiate();
+		events_editor.instantiate();
 	}
 }
 
@@ -1937,7 +1943,113 @@ void EPASAnimationCurvesEditor::draw(Ref<EPASAnimation> p_animation, float p_pla
 void EPASEditorAnimationNode::interpolate(const Ref<EPASPose> &p_base_pose, Ref<EPASPose> p_target_pose, float p_time) {
 	Ref<EPASEditorAnimation> anim = get_animation();
 	ERR_FAIL_COND(!anim.is_valid());
-	anim->get_editor_animation()->interpolate(p_time, p_base_pose, p_target_pose, get_interpolation_method());
+
+	// UGLY HACK: So events work... maybe we have to rethink the whole editor animation system or something.
+	if (anim->get_event_count() != anim->get_editor_animation()->get_event_count()) {
+		anim->get_editor_animation()->clear_events();
+		for (int i = 0; i < anim->get_event_count(); i++) {
+			anim->get_editor_animation()->add_event(anim->get_event(i));
+		}
+	}
+
+	if (!anim->get_editor_animation()->is_connected(SNAME("event_fired"), callable_mp((EPASAnimationNode *)this, &EPASEditorAnimationNode::_on_animation_event_fired))) {
+		anim->get_editor_animation()->connect(SNAME("event_fired"), callable_mp((EPASAnimationNode *)this, &EPASEditorAnimationNode::_on_animation_event_fired));
+	}
+	anim->get_editor_animation()->interpolate(p_time, p_base_pose, p_target_pose, get_interpolation_method(), &playback_info);
+	playback_info.last_time = p_time;
+}
+
+String EPASAnimationEventsEditor::get_event_name(const Ref<EPASAnimationEvent> &ev) const {
+	if (!ev.is_valid()) {
+		return "None";
+	}
+	Ref<EPASSoundAnimationEvent> sound_ev = ev;
+	if (sound_ev.is_valid()) {
+		Ref<AudioStream> stream = sound_ev->get_stream();
+		if (stream.is_valid()) {
+			return vformat("Sound event %s", stream->get_path().get_file());
+		} else {
+			return "Sound event";
+		}
+	}
+
+	return ev->get_class();
+}
+
+void EPASAnimationEventsEditor::_on_sound_file_selected(String p_file) {
+	if (Ref<EPASSoundAnimationEvent> sev = current_event; sev.is_valid()) {
+		sev->set_stream(ResourceLoader::load(p_file));
+	}
+}
+
+void EPASAnimationEventsEditor::draw(Ref<EPASAnimation> p_animation, float p_playback_position) {
+	if (!p_animation.is_valid()) {
+		return;
+	}
+
+	if (!open) {
+		return;
+	}
+
+	if (ImGui::Begin("Events Editor", &open)) {
+		if (ImGui::BeginCombo("Events", get_event_name(current_event).utf8().get_data())) {
+			for (int i = 0; i < p_animation->get_event_count(); i++) {
+				if (ImGui::Selectable(get_event_name(p_animation->get_event(i)).utf8().get_data())) {
+					current_event = p_animation->get_event(i);
+				}
+			}
+			ImGui::EndCombo();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Add sound")) {
+			Ref<EPASSoundAnimationEvent> sound_ev;
+			sound_ev.instantiate();
+			p_animation->add_event(sound_ev);
+		}
+
+		if (current_event.is_valid()) {
+			float time = current_event->get_time();
+			if (ImGui::InputFloat("Time", &time)) {
+				current_event->set_time(time);
+			}
+
+			ImGui::SameLine();
+
+			if (ImGui::Button("Set current")) {
+				current_event->set_time(p_playback_position);
+			}
+
+			Ref<EPASSoundAnimationEvent> sound_ev = current_event;
+			if (sound_ev.is_valid()) {
+				Ref<AudioStream> as = sound_ev->get_stream();
+				if (!as.is_valid()) {
+					ImGui::TextUnformatted("No audio");
+				} else {
+					ImGui::TextUnformatted(as->get_path().utf8().get_data());
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Select...")) {
+					sound_file_dialog->popup_centered_ratio();
+				}
+			}
+		}
+	}
+	ImGui::End();
+}
+
+EPASAnimationEventsEditor::EPASAnimationEventsEditor() {
+	sound_file_dialog = memnew(FileDialog);
+	Vector<String> filters;
+	filters.push_back("*.wav; Audio files");
+	sound_file_dialog->set_filters(filters);
+	sound_file_dialog->connect("file_selected", callable_mp(this, &EPASAnimationEventsEditor::_on_sound_file_selected));
+	sound_file_dialog->set_file_mode(FileDialog::FILE_MODE_OPEN_FILE);
+	SceneTree::get_singleton()->get_root()->add_child(sound_file_dialog);
+}
+
+EPASAnimationEventsEditor::~EPASAnimationEventsEditor() {
+	sound_file_dialog->queue_free();
+	sound_file_dialog = nullptr;
 }
 
 #endif
