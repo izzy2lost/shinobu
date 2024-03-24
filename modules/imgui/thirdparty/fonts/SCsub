@@ -2,14 +2,13 @@
 
 Import("env")
 
-from platform_methods import run_in_subprocess
 import imgui_fonts_generate
 
 env.add_source_files(env.scene_sources, "*.cpp")
 
 env["BUILDERS"]["MakeImguiFontsBuilder"] = Builder(
     action=env.Run(
-        imgui_fonts_generate.make_imgui_fonts_action, "Generating imgui fonts header."
+        imgui_fonts_generate.make_imgui_fonts_action
     ),
     suffix=".h",
     src_suffix=".ttf",

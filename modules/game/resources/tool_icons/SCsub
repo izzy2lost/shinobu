@@ -2,16 +2,13 @@
 
 Import("env")
 
-from platform_methods import run_in_subprocess
 import default_theme_builders
 import game_tools_theme_icons_builders
 
 env.add_source_files(env.scene_sources, "*.cpp")
 
 env["BUILDERS"]["MakeGameThemeIconsBuilder"] = Builder(
-    action=env.Run(
-        game_tools_theme_icons_builders.make_game_tools_theme_icons_action, "Generating game tools theme icons header."
-    ),
+    action=env.Run(game_tools_theme_icons_builders.make_game_tools_theme_icons_action),
     suffix=".h",
     src_suffix=".svg",
 )

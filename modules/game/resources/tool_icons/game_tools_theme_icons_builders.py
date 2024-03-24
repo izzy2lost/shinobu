@@ -6,7 +6,6 @@ All such functions are invoked in a subprocess on Windows to prevent build flaki
 
 import os
 from io import StringIO
-from platform_methods import subprocess_main
 from re import sub
 
 
@@ -82,12 +81,8 @@ def make_game_tools_theme_icons_action(target, source, env):
 
     s.write("#endif\n")
 
-    with open(dst, "w") as f:
+    with open(str(dst), "w") as f:
         f.write(s.getvalue())
 
     s.close()
     icons_string.close()
-
-
-if __name__ == "__main__":
-    subprocess_main(globals())
