@@ -45,6 +45,8 @@
 #include "modules/game/animation_system/epas_ik_node.h"
 #include "modules/game/animation_system/epas_lookat_node.h"
 #include "modules/game/animation_system/epas_orientation_warp_node.h"
+#include "modules/game/decal_ex.h"
+
 #include "modules/game/level_preprocessor.h"
 #include "modules/game/map_compile_hooks.h"
 #include "modules/game/npc_agent.h"
@@ -158,6 +160,8 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 
 	// World
 	GDREGISTER_CLASS(GameWorldState);
+
+	GDREGISTER_CLASS(DecalEX);
 
 	GLOBAL_DEF_BASIC(PropertyInfo(Variant::STRING, "game/ingame_ui_scene", PROPERTY_HINT_FILE, "*.tscn,*.scn,*.res"), "");
 

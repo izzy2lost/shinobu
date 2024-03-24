@@ -1222,6 +1222,9 @@ void fragment_shader(in SceneData scene_data) {
 					}
 					decal_albedo *= decals.data[decal_index].modulate;
 					decal_albedo.a *= fade;
+					// EIRTEAM BEGIN
+					decal_albedo.a *= smoothstep(decals.data[decal_index].alpha_clip_threshold_low, decals.data[decal_index].alpha_clip_threshold_high, decal_albedo.a);
+					// EIRTEAM END
 					albedo = mix(albedo, decal_albedo.rgb, decal_albedo.a * decals.data[decal_index].albedo_mix);
 
 					if (decals.data[decal_index].normal_rect != vec4(0.0)) {

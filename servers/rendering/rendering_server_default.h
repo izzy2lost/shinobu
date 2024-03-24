@@ -452,6 +452,9 @@ public:
 	FUNC4(decal_set_distance_fade, RID, bool, float, float)
 	FUNC3(decal_set_fade, RID, float, float)
 	FUNC2(decal_set_normal_fade, RID, float)
+	// EIRTEAM CHANGES BEGIN
+	FUNC3(decal_set_alpha_clip_threshold, RID, float, float)
+	//EIRTEAM CHANGES END
 
 	/* BAKED LIGHT API */
 

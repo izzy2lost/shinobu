@@ -607,7 +607,9 @@ public:
 	virtual void decal_set_distance_fade(RID p_decal, bool p_enabled, float p_begin, float p_length) = 0;
 	virtual void decal_set_fade(RID p_decal, float p_above, float p_below) = 0;
 	virtual void decal_set_normal_fade(RID p_decal, float p_fade) = 0;
-
+	// EIRTEAM CHANGES BEGIN
+	virtual void decal_set_alpha_clip_threshold(RID p_decal, float p_min, float p_max) = 0;
+	// EIRTEAM CHANGES END
 	enum DecalFilter {
 		DECAL_FILTER_NEAREST,
 		DECAL_FILTER_LINEAR,

@@ -107,6 +107,12 @@ public:
 	void set_cull_mask(uint32_t p_layers);
 	uint32_t get_cull_mask() const;
 
+	// EIRTEAM CHANGES BEGIN
+	RID get_rid() const {
+		return decal;
+	}
+	// EIRTEAM CHANGES END
+
 	virtual AABB get_aabb() const override;
 
 	Decal();

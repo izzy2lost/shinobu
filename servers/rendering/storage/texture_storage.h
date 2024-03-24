@@ -120,7 +120,9 @@ public:
 	virtual void decal_set_distance_fade(RID p_decal, bool p_enabled, float p_begin, float p_length) = 0;
 	virtual void decal_set_fade(RID p_decal, float p_above, float p_below) = 0;
 	virtual void decal_set_normal_fade(RID p_decal, float p_fade) = 0;
-
+	// EIRTEAM BEGIN
+	virtual void decal_set_alpha_clip_threshold(RID p_decal, float p_min, float p_max) = 0;
+	// EIRTEAM END
 	virtual AABB decal_get_aabb(RID p_decal) const = 0;
 	virtual uint32_t decal_get_cull_mask(RID p_decal) const = 0;
 

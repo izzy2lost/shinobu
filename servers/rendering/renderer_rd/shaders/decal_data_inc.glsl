@@ -15,4 +15,8 @@ struct DecalData {
 	mediump mat3x4 normal_xform;
 	mediump vec3 normal;
 	mediump float normal_fade;
+	// EIRTEAM BEGIN
+	mediump float alpha_clip_threshold_low;
+	mediump float alpha_clip_threshold_high;
+	// EIRTEAM END
 };

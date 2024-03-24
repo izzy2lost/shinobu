@@ -2493,6 +2493,13 @@ void TextureStorage::decal_set_normal_fade(RID p_decal, float p_fade) {
 	decal->normal_fade = p_fade;
 }
 
+void RendererRD::TextureStorage::decal_set_alpha_clip_threshold(RID p_decal, float p_min, float p_max) {
+	Decal *decal = decal_owner.get_or_null(p_decal);
+	ERR_FAIL_NULL(decal);
+	decal->alpha_clip_threshold_low = p_min;
+	decal->alpha_clip_threshold_high = p_max;
+}
+
 void TextureStorage::decal_atlas_mark_dirty_on_texture(RID p_texture) {
 	if (decal_atlas.textures.has(p_texture)) {
 		//belongs to decal atlas..
@@ -2965,7 +2972,7 @@ void TextureStorage::update_decal_buffer(const PagedArray<RID> &p_decals, const 
 			dd.emission_rect[3] = 0;
 		}
 
-		Color modulate = decal->modulate;
+		Color modulate = decal->modulate.srgb_to_linear();
 		dd.modulate[0] = modulate.r;
 		dd.modulate[1] = modulate.g;
 		dd.modulate[2] = modulate.b;
@@ -2975,6 +2982,8 @@ void TextureStorage::update_decal_buffer(const PagedArray<RID> &p_decals, const 
 		dd.mask = decal->cull_mask;
 		dd.upper_fade = decal->upper_fade;
 		dd.lower_fade = decal->lower_fade;
+		dd.alpha_clip_threshold_low = decal->alpha_clip_threshold_low;
+		dd.alpha_clip_threshold_high = decal->alpha_clip_threshold_high;
 
 		// hook for subclass to do further processing.
 		RendererSceneRenderRD::get_singleton()->setup_added_decal(xform, decal_extents);
