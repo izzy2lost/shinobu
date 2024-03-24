@@ -81,6 +81,9 @@
 
 #include "modules/game/console_system.h"
 
+#include "flipbook.h"
+#include "hb_geometry.h"
+
 AgentStringNames *agent_string_names = nullptr;
 
 void initialize_game_module(ModuleInitializationLevel p_level) {
@@ -163,6 +166,9 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 
 	// World
 	GDREGISTER_CLASS(GameWorldState);
+
+	GDREGISTER_CLASS(HBFlipbook);
+	GDREGISTER_CLASS(HBGeometry);
 
 	GDREGISTER_CLASS(DecalEX);
 

@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  physics_layers.h                                                      */
+/*  flipbook.h                                                            */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                               SWANSONG                                 */
@@ -27,15 +27,35 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#ifndef PHYSICS_LAYERS_H
-#define PHYSICS_LAYERS_H
+#ifndef FLIPBOOK_H
+#define FLIPBOOK_H
 
-namespace HBPhysicsLayers {
-const int LAYER_WORLD_GEO = 1;
-const int LAYER_PLAYER = 1 << 1;
-const int LAYER_PARKOUR_NODES = 1 << 2;
-const int LAYER_NPC = 1 << 3;
-const int LAYER_DECORATIVE = 1 << 4;
-} //namespace HBPhysicsLayers
+#include "scene/resources/texture.h"
 
-#endif // PHYSICS_LAYERS_H
+class HBFlipbook : public Resource {
+	GDCLASS(HBFlipbook, Resource);
+	Ref<Texture2D> texture;
+
+	struct FlipbookFrame {
+		Rect2 region;
+		Rect2 margin;
+	};
+
+	Vector<FlipbookFrame> frames;
+	TypedArray<Rect2> _get_frames();
+	void _set_frames(TypedArray<Rect2> p_frames);
+
+protected:
+	static void _bind_methods();
+
+public:
+	void add_frame(Rect2 p_region, Rect2 p_margin);
+
+	PackedVector2Array calculate_shader_data() const;
+
+	Ref<Texture2D> get_texture() const;
+	void set_texture(const Ref<Texture2D> &p_texture);
+	int get_frame_count() const;
+};
+
+#endif // FLIPBOOK_H

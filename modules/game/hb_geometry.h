@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  physics_layers.h                                                      */
+/*  hb_geometry.h                                                         */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                               SWANSONG                                 */
@@ -27,15 +27,23 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#ifndef PHYSICS_LAYERS_H
-#define PHYSICS_LAYERS_H
+#ifndef HB_GEOMETRY_H
+#define HB_GEOMETRY_H
 
-namespace HBPhysicsLayers {
-const int LAYER_WORLD_GEO = 1;
-const int LAYER_PLAYER = 1 << 1;
-const int LAYER_PARKOUR_NODES = 1 << 2;
-const int LAYER_NPC = 1 << 3;
-const int LAYER_DECORATIVE = 1 << 4;
-} //namespace HBPhysicsLayers
+#include "core/object/class_db.h"
 
-#endif // PHYSICS_LAYERS_H
+class HBGeometry : public Object {
+	GDCLASS(HBGeometry, Object);
+	enum PackHeuristic {
+		BL_SORT_HEIGHT,
+		BF_SORT_HEIGHT
+	};
+
+protected:
+	static void _bind_methods();
+
+public:
+	static Dictionary pack_rects(Vector2i p_dimensions, TypedArray<Vector2i> p_rects);
+};
+
+#endif // HB_GEOMETRY_H
