@@ -66,6 +66,7 @@
 
 #include "animation_system/epas_add_node.h"
 #include "animation_system/epas_animation_editor.h"
+#include "animation_system/epas_animation_event.h"
 #include "animation_system/epas_animation_node.h"
 #include "animation_system/epas_blend_node.h"
 #include "animation_system/epas_controller.h"
@@ -143,6 +144,8 @@ void initialize_game_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(EPASIKNode);
 	GDREGISTER_CLASS(EPASOrientationWarpNode);
 	GDREGISTER_CLASS(FABRIKSolver);
+	GDREGISTER_ABSTRACT_CLASS(EPASAnimationEvent);
+	GDREGISTER_CLASS(EPASSoundAnimationEvent);
 
 	GDREGISTER_CLASS(HBDebugGeometry);
 	GDREGISTER_CLASS(HBInfoPlayerStart);
