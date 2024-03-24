@@ -34,6 +34,7 @@
 #include "thirdparty/goap/astar.h"
 
 CVar GOAPActionPlanner::goap_debugger_enabled = CVar("goap_debugger_enabled", Variant::BOOL, false);
+CVar GOAPActionPlanner::ai_disabled = CVar("ai_disabled", Variant::BOOL, false);
 
 void GOAPActionPlanner::get_goap_state_from_game_state(worldstate_t *p_state) {
 	goap_worldstate_clear(p_state);
@@ -112,6 +113,13 @@ void GOAPActionPlanner::update_goal_priorities() {
 }
 
 void GOAPActionPlanner::update() {
+	if (ai_disabled.get()) {
+		if (is_plan_valid) {
+			is_plan_valid = false;
+			current_plan[current_plan_action]->exit(world_state);
+		}
+		return;
+	}
 	// Update and sort goals by priority
 	update_goal_priorities();
 

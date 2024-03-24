@@ -101,6 +101,7 @@ public:
 };
 
 class GOAPActionPlanner : public RefCounted {
+	static CVar ai_disabled;
 	static CVar goap_debugger_enabled;
 
 	Vector<Ref<GOAPAction>> actions;

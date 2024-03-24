@@ -69,6 +69,10 @@ void GOAPPatrolAction::enter(const Ref<GameWorldState> &p_world_state) {
 	get_brains()->get_agent()->set_navigation_target_position(path->get_point_position(target_point));
 }
 
+void GOAPPatrolAction::exit(const Ref<GameWorldState> &p_world_state) {
+	get_brains()->get_agent()->set_movement_input(Vector3());
+}
+
 bool GOAPPatrolAction::is_valid(const Ref<GameWorldState> &p_world_state) const {
 	// Patrolling should always be possible, if we have a patrol route
 	HBRoute *patrol_route_node = get_brains()->get_agent()->get_patrol_route_node();

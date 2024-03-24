@@ -85,4 +85,5 @@ void GOAPApproachPlayerAction::enter(const Ref<GameWorldState> &p_world_state) {
 
 void GOAPApproachPlayerAction::exit(const Ref<GameWorldState> &p_world_state) {
 	get_brains()->get_agent()->set_target(nullptr);
+	get_brains()->get_agent()->set_movement_input(Vector3());
 }

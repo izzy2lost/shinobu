@@ -47,6 +47,7 @@ public:
 
 	virtual bool execute(const Ref<GameWorldState> &p_world_state) override;
 	virtual void enter(const Ref<GameWorldState> &p_world_state) override;
+	virtual void exit(const Ref<GameWorldState> &p_world_state) override;
 	using GOAPActionNPC::GOAPActionNPC;
 };
 
