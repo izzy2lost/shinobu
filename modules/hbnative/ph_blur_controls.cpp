@@ -50,7 +50,7 @@ void HBStyleboxBlurDrawer::set_stylebox_original(Ref<StyleBox> p_stylebox) {
 		stylebox_original->disconnect(SNAME("changed"), callable_mp(this, &HBStyleboxBlurDrawer::_update_stylebox));
 	}
 
-	Ref<StyleBox> old_original = p_stylebox;
+	Ref<StyleBox> old_original = stylebox_original;
 	stylebox_original = p_stylebox;
 
 	stylebox_original->connect(SNAME("changed"), callable_mp(this, &HBStyleboxBlurDrawer::_update_stylebox));
