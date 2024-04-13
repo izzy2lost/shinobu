@@ -174,6 +174,15 @@ Vector2 StyleBoxFlat::get_skew() const {
 	return skew;
 }
 
+bool StyleBoxFlat::get_shadow_draw_center() const {
+	return shadow_draw_center;
+}
+
+void StyleBoxFlat::set_shadow_draw_center(bool p_shadow_draw_center) {
+	shadow_draw_center = p_shadow_draw_center;
+	emit_changed();
+}
+
 void StyleBoxFlat::set_shadow_color(const Color &p_color) {
 	shadow_color = p_color;
 	emit_changed();
@@ -441,7 +450,7 @@ void StyleBoxFlat::draw(RID p_canvas_item, const Rect2 &p_rect) const {
 		draw_rounded_rectangle(verts, indices, colors, shadow_inner_rect, adapted_corner,
 				shadow_rect, shadow_inner_rect, shadow_color, shadow_color_transparent, corner_detail, skew);
 
-		if (draw_center) {
+		if (draw_center && shadow_draw_center) {
 			draw_rounded_rectangle(verts, indices, colors, shadow_inner_rect, adapted_corner,
 					shadow_inner_rect, shadow_inner_rect, shadow_color, shadow_color, corner_detail, skew, true);
 		}
@@ -579,6 +588,9 @@ void StyleBoxFlat::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_skew", "skew"), &StyleBoxFlat::set_skew);
 	ClassDB::bind_method(D_METHOD("get_skew"), &StyleBoxFlat::get_skew);
 
+	ClassDB::bind_method(D_METHOD("set_shadow_draw_center", "shadow_draw_center"), &StyleBoxFlat::set_shadow_draw_center);
+	ClassDB::bind_method(D_METHOD("get_shadow_draw_center"), &StyleBoxFlat::get_shadow_draw_center);
+
 	ClassDB::bind_method(D_METHOD("set_shadow_color", "color"), &StyleBoxFlat::set_shadow_color);
 	ClassDB::bind_method(D_METHOD("get_shadow_color"), &StyleBoxFlat::get_shadow_color);
 
@@ -628,6 +640,7 @@ void StyleBoxFlat::_bind_methods() {
 	ADD_PROPERTYI(PropertyInfo(Variant::FLOAT, "expand_margin_bottom", PROPERTY_HINT_RANGE, "0,2048,1,suffix:px"), "set_expand_margin", "get_expand_margin", SIDE_BOTTOM);
 
 	ADD_GROUP("Shadow", "shadow_");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "shadow_draw_center"), "set_shadow_draw_center", "get_shadow_draw_center");
 	ADD_PROPERTY(PropertyInfo(Variant::COLOR, "shadow_color"), "set_shadow_color", "get_shadow_color");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "shadow_size", PROPERTY_HINT_RANGE, "0,100,1,or_greater,suffix:px"), "set_shadow_size", "get_shadow_size");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "shadow_offset", PROPERTY_HINT_NONE, "suffix:px"), "set_shadow_offset", "get_shadow_offset");

@@ -3,6 +3,7 @@
 #include "register_types.h"
 
 #include "core/config/engine.h"
+#include "modules/hbnative/ph_blur_controls.h"
 #include "multi_spin_box.h"
 #include "ph_audio_stream_editor.h"
 #include "ph_audio_stream_preview.h"
@@ -22,6 +23,15 @@
 static PHAudioStreamPreviewGenerator *preview_generator_ptr = NULL;
 static PHNative *ph_ptr = NULL;
 
+const char *blur_shader_code =
+		"shader_type canvas_item;"
+		"uniform sampler2D SCREEN_TEXTURE : hint_screen_texture, filter_linear_mipmap;"
+		"uniform float blur_amount = 2.5;"
+		"void fragment() {"
+		"	COLOR = texture(SCREEN_TEXTURE, SCREEN_UV, blur_amount);"
+		"	COLOR.a = 1.0;"
+		"}";
+
 void initialize_hbnative_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
@@ -40,6 +50,20 @@ void initialize_hbnative_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(PHAudioStreamPreviewGenerator);
 	GDREGISTER_CLASS(PHAudioStreamEditor);
 	GDREGISTER_CLASS(PHAudioStreamPreview);
+
+	GDREGISTER_CLASS(HBButtonBlurEX);
+	GDREGISTER_CLASS(HBPanelContainerBlurEX);
+	GDREGISTER_CLASS(HBPanelBlurEX);
+
+	Ref<Shader> blur_shader;
+	blur_shader.instantiate();
+	blur_shader->set_code(blur_shader_code);
+
+	Ref<ShaderMaterial> blur_shader_mat;
+	blur_shader_mat.instantiate();
+	blur_shader_mat->set_shader(blur_shader);
+	HBStyleboxBlurDrawer::blur_material = blur_shader_mat;
+
 	GDREGISTER_CLASS(Threen);
 	GDREGISTER_ABSTRACT_CLASS(Process);
 	GDREGISTER_ABSTRACT_CLASS(PHNative);
@@ -54,4 +78,5 @@ void uninitialize_hbnative_module(ModuleInitializationLevel p_level) {
 	}
 	memdelete(preview_generator_ptr);
 	memdelete(ph_ptr);
+	HBStyleboxBlurDrawer::blur_material.unref();
 }
