@@ -1,7 +1,6 @@
 #ifndef MULTI_SPIN_BOX
 #define MULTI_SPIN_BOX
 
-#include "core/math/math_defs.h"
 #include "scene/gui/line_edit.h"
 
 class MultiSpinBox : public Control {
@@ -46,7 +45,7 @@ class MultiSpinBox : public Control {
 
 	void _text_entered(const String &p_string);
 
-	inline void _adjust_width_for_icon(const Ref<Texture2D> &updown, const Ref<Texture2D> &error_warning);
+	_FORCE_INLINE_ void _adjust_width_for_icon(const Ref<Texture2D> &updown, const Ref<Texture2D> &error_warning);
 
 protected:
 	void _gui_input(const Ref<InputEvent> &p_event);

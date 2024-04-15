@@ -3,7 +3,6 @@
 #include "core/math/expression.h"
 #include "core/os/keyboard.h"
 
-#include "core/string/print_string.h"
 #include "modules/modules_enabled.gen.h" // For csg, gridmap, regex.
 
 #ifdef MODULE_REGEX_ENABLED
@@ -54,10 +53,10 @@ String MultiSpinBox::get_range_string() const {
 		// Using %.*f with a precision of 0 decimal places seems to silently fail
 		if (precision > 0) {
 			// HACK: The maximum amount of params for vformat is 5 ._.
-			String min_rs = vformat("%.*f%s", precision, range[0], suffix);
-			String max_rs = vformat("%.*f%s", precision, range[1], suffix);
+			String min_s = vformat("%.*f%s", precision, range[0], suffix);
+			String max_s = vformat("%.*f%s", precision, range[1], suffix);
 
-			range_string = vformat("(%s %s %s)", min_rs, String::utf8("⋯"), max_rs);
+			range_string = vformat("(%s %s %s)", min_s, String::utf8("⋯"), max_s);
 		} else {
 			range_string = vformat("(%d%s %s %d%s)", range[0], suffix, String::utf8("⋯"), range[1], suffix);
 		}
@@ -142,14 +141,18 @@ void MultiSpinBox::_text_entered(const String &p_string) {
 		if (value.get_type() == Variant::FLOAT || value.get_type() == Variant::INT) {
 			value = CLAMP((double)value, min, max);
 
-			bool valid;
 			if (inner_property_name.size() != 0) {
+				bool valid;
 				Variant original_property = input.get_named(property_name, valid);
+				ERR_FAIL_COND(!valid);
 				original_property.set_named(inner_property_name, value, valid);
-
+				ERR_FAIL_COND(!valid);
 				inputs_copy[i].set_named(property_name, original_property, valid);
+				ERR_FAIL_COND(!valid);
 			} else {
+				bool valid;
 				inputs_copy[i].set_named(property_name, value, valid);
+				ERR_FAIL_COND(!valid);
 			}
 
 			values[i] = value;
@@ -185,7 +188,7 @@ Ref<Texture2D> MultiSpinBox::get_error_or_warning_icon() {
 		return get_theme_icon("warning");
 	}
 
-	return Ref<Texture2D>(NULL);
+	return Ref<Texture>(NULL);
 }
 
 Dictionary MultiSpinBox::get_values() const {
@@ -200,11 +203,15 @@ void MultiSpinBox::change_values(double by) {
 		bool valid;
 		if (inner_property_name.size() != 0) {
 			Variant original_property = input.get_named(property_name, valid);
+			ERR_FAIL_COND(!valid);
 			original_property.set_named(inner_property_name, value, valid);
+			ERR_FAIL_COND(!valid);
 
 			inputs[i].set_named(property_name, original_property, valid);
+			ERR_FAIL_COND(!valid);
 		} else {
 			inputs[i].set_named(property_name, value, valid);
+			ERR_FAIL_COND(!valid);
 		}
 	}
 
@@ -217,8 +224,10 @@ void MultiSpinBox::reset_values() {
 		Variant input = inputs[i];
 		bool valid;
 		Variant property = input.get_named(property_name, valid);
+		ERR_FAIL_COND(!valid);
 		if (inner_property_name.size() != 0) {
 			values[i] = property.get_named(inner_property_name, valid);
+			ERR_FAIL_COND(!valid);
 		} else {
 			values[i] = property;
 		}
@@ -360,7 +369,7 @@ void MultiSpinBox::_line_edit_focus_exit() {
 	_text_entered(line_edit->get_text());
 }
 
-inline void MultiSpinBox::_adjust_width_for_icon(const Ref<Texture2D> &updown, const Ref<Texture2D> &warning_error) {
+_FORCE_INLINE_ void MultiSpinBox::_adjust_width_for_icon(const Ref<Texture2D> &updown, const Ref<Texture2D> &warning_error) {
 	updown_w = updown->get_width();
 	error_w = warning_error.is_valid() ? warning_error->get_width() : 0;
 	int w = updown_w + error_w;
@@ -373,7 +382,7 @@ inline void MultiSpinBox::_adjust_width_for_icon(const Ref<Texture2D> &updown, c
 
 void MultiSpinBox::_notification(int p_what) {
 	if (p_what == NOTIFICATION_DRAW) {
-		Ref<Texture2D> updown = get_theme_icon("updown");
+		Ref<Texture2D> updown = get_theme_icon(SNAME("updown"), SNAME("SpinBox"));
 		Ref<Texture2D> error_warning = get_error_or_warning_icon();
 
 		_adjust_width_for_icon(updown, error_warning);
@@ -392,7 +401,7 @@ void MultiSpinBox::_notification(int p_what) {
 
 		updown->draw(ci, Point2i(updown_pos, (size.height - updown->get_height()) / 2));
 	} else if (p_what == NOTIFICATION_ENTER_TREE) {
-		_adjust_width_for_icon(get_theme_icon("updown"), get_error_or_warning_icon());
+		_adjust_width_for_icon(get_theme_icon(SNAME("updown"), SNAME("SpinBox")), get_error_or_warning_icon());
 	} else if (p_what == NOTIFICATION_THEME_CHANGED) {
 		call_deferred("minimum_size_changed");
 		get_line_edit()->call_deferred("minimum_size_changed");
@@ -483,7 +492,7 @@ MultiSpinBox::MultiSpinBox() {
 
 	line_edit->set_anchors_and_offsets_preset(LayoutPreset::PRESET_FULL_RECT);
 	line_edit->set_mouse_filter(MOUSE_FILTER_PASS);
-	line_edit->connect("text_entered", callable_mp(this, &MultiSpinBox::_text_entered), CONNECT_DEFERRED);
+	line_edit->connect("text_submitted", callable_mp(this, &MultiSpinBox::_text_entered), CONNECT_DEFERRED);
 	line_edit->connect("focus_entered", callable_mp(this, &MultiSpinBox::_line_edit_focus_enter), CONNECT_DEFERRED);
 	line_edit->connect("focus_exited", callable_mp(this, &MultiSpinBox::_line_edit_focus_exit), CONNECT_DEFERRED);
 	line_edit->connect("gui_input", callable_mp(this, &MultiSpinBox::_line_edit_input));
