@@ -16,8 +16,8 @@
 /* clang-format on */
 
 #include "core/os/os.h"
-#include "shinobu_macros.h"
 #include "miniaudio/extras/miniaudio_libvorbis.h"
+#include "shinobu_macros.h"
 
 Shinobu *Shinobu::singleton = nullptr;
 SafeNumeric<uint64_t> Shinobu::sound_source_uid;
@@ -181,9 +181,9 @@ Error Shinobu::initialize(ma_backend forced_backend) {
 	ma_backend *backends = NULL;
 	uint64_t backend_count = 0;
 
-	if (forced_backend != ma_backend_null) {
+	if (backend_to_force != ma_backend_null) {
 		backend_count = 1;
-		backends = new ma_backend[1]{ forced_backend };
+		backends = new ma_backend[1]{ backend_to_force };
 	}
 
 	result = ma_context_init(backends, 1, NULL, &context);
