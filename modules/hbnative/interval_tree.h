@@ -11,19 +11,13 @@ class HBIntervalTree : public RefCounted {
 	typedef Intervals::IntervalTree<int64_t, ObjectID> IntervalTree;
 	IntervalTree tree;
 
-	// a bit hacky, but hey, it works...
-	HashMap<ObjectID, Pair<IntervalTree::Interval::interval_type, IntervalTree::Interval::interval_type>> values_to_intervals;
-
 protected:
 	static void _bind_methods();
 
 public:
 	void insert(int64_t p_low, int64_t p_high, ObjectID p_value);
-
-	void erase(ObjectID p_value);
-
+	void erase(int64_t p_low, int64_t p_high, ObjectID p_value);
 	TypedArray<Object> query_point(int64_t p_point) const;
-
 	void clear();
 };
 
