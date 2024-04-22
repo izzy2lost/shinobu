@@ -2,11 +2,14 @@
 
 #include "register_types.h"
 
+#include "canvas_layer_3d.h"
 #include "core/config/engine.h"
 #include "modules/hbnative/ph_blur_controls.h"
+#include "interval_tree.h"
 #include "multi_spin_box.h"
 #include "ph_audio_stream_editor.h"
 #include "ph_audio_stream_preview.h"
+#include "ph_blur_controls.h"
 #include "ph_singleton.h"
 
 #include "process/process.h"
@@ -68,6 +71,7 @@ void initialize_hbnative_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(Process);
 	GDREGISTER_ABSTRACT_CLASS(PHNative);
 	GDREGISTER_CLASS(MultiSpinBox);
+	GDREGISTER_CLASS(HBIntervalTree);
 	Engine::get_singleton()->add_singleton(Engine::Singleton("PHAudioStreamPreviewGenerator", PHAudioStreamPreviewGenerator::get_singleton()));
 	Engine::get_singleton()->add_singleton(Engine::Singleton("PHNative", PHNative::get_singleton()));
 }
