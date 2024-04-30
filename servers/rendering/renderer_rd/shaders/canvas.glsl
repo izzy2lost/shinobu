@@ -118,6 +118,7 @@ void main() {
 	mat4 model_matrix = mat4(vec4(draw_data.world_x, 0.0, 0.0), vec4(draw_data.world_y, 0.0, 0.0), vec4(0.0, 0.0, 1.0, 0.0), vec4(draw_data.world_ofs, 0.0, 1.0));
 
 #define FLAGS_INSTANCING_MASK 0x7F
+#define FLAG_DEBUG_DISABLE_PROJ (1 << 6)
 #define FLAGS_INSTANCING_HAS_COLORS (1 << 7)
 #define FLAGS_INSTANCING_HAS_CUSTOM_DATA (1 << 8)
 
@@ -225,8 +226,11 @@ void main() {
 
 	vertex_interp = vertex;
 	uv_interp = uv;
-
-	gl_Position = canvas_data.screen_transform * vec4(vertex, 0.0, 1.0);
+	if (!bool(draw_data.flags & FLAG_DEBUG_DISABLE_PROJ) && bool(canvas_data.use_3d_transform)) {
+		gl_Position = canvas_data.projection_matrix * canvas_data.view_matrix * canvas_data.canvas_transform_for_3d * canvas_data.screen_transform_for_3d * vec4(vertex, 0.0, 1.0);
+	} else {
+		gl_Position = canvas_data.screen_transform * vec4(vertex, 0.0, 1.0);
+	}
 
 #ifdef USE_POINT_SIZE
 	gl_PointSize = point_size;
@@ -568,6 +572,12 @@ void main() {
 	vec2 screen_uv = gl_FragCoord.xy * canvas_data.screen_pixel_size;
 #else
 	vec2 screen_uv = vec2(0.0);
+#endif
+
+#if defined(CANVAS_COORD_USED)
+	vec2 canvas_coord = (inverse(canvas_data.canvas_transform) * vec4(vertex_interp, 0.0, 1.0)).xy;
+#else
+	vec2 canvas_coord = vec2(0.0);
 #endif
 
 	vec3 light_vertex = vec3(vertex, 0.0);

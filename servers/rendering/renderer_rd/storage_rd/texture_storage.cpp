@@ -3008,9 +3008,9 @@ RID TextureStorage::RenderTarget::get_framebuffer() {
 	// this is where our framebuffer cache comes in clutch..
 
 	if (msaa != RS::VIEWPORT_MSAA_DISABLED) {
-		return FramebufferCacheRD::get_singleton()->get_cache_multiview(view_count, color_multisample, overridden.color.is_valid() ? overridden.color : color);
+		return FramebufferCacheRD::get_singleton()->get_cache_multiview(view_count, color_multisample, overridden.color.is_valid() ? overridden.color : color, depth_stencil_multisample);
 	} else {
-		return FramebufferCacheRD::get_singleton()->get_cache_multiview(view_count, overridden.color.is_valid() ? overridden.color : color);
+		return FramebufferCacheRD::get_singleton()->get_cache_multiview(view_count, overridden.color.is_valid() ? overridden.color : color, depth_stencil);
 	}
 }
 
@@ -3033,6 +3033,16 @@ void TextureStorage::_clear_render_target(RenderTarget *rt) {
 
 	if (rt->color_multisample.is_valid()) {
 		RD::get_singleton()->free(rt->color_multisample);
+	}
+
+	if (rt->depth_stencil.is_valid()) {
+		RD::get_singleton()->free(rt->depth_stencil);
+		rt->depth_stencil = RID();
+	}
+
+	if (rt->depth_stencil_multisample.is_valid()) {
+		RD::get_singleton()->free(rt->depth_stencil_multisample);
+		rt->depth_stencil_multisample = RID();
 	}
 
 	if (rt->backbuffer.is_valid()) {
@@ -3101,6 +3111,17 @@ void TextureStorage::_update_render_target(RenderTarget *rt) {
 		}
 	}
 
+	RD::TextureFormat tf_depth;
+	tf_depth.format = RD::DATA_FORMAT_D32_SFLOAT_S8_UINT;
+	tf_depth.width = rt->size.width;
+	tf_depth.height = rt->size.height;
+	tf_depth.usage_bits = RD::TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | RD::TEXTURE_USAGE_SAMPLING_BIT | RD::TEXTURE_USAGE_CAN_COPY_TO_BIT;
+	tf_depth.texture_type = RD::TEXTURE_TYPE_2D;
+
+	rt->depth_stencil = RD::get_singleton()->texture_create(tf_depth, RD::TextureView());
+	RD::get_singleton()->set_resource_name(rt->depth_stencil, "Render Target Stencil");
+	ERR_FAIL_COND(rt->depth_stencil.is_null());
+
 	// TODO see if we can lazy create this once we actually use it as we may not need to create this if we have an overridden color buffer...
 	rt->color = RD::get_singleton()->texture_create(rd_color_attachment_format, rd_view);
 	ERR_FAIL_COND(rt->color.is_null());
@@ -3120,6 +3141,12 @@ void TextureStorage::_update_render_target(RenderTarget *rt) {
 		rd_color_multisample_format.is_resolve_buffer = false;
 		rt->color_multisample = RD::get_singleton()->texture_create(rd_color_multisample_format, rd_view_multisample);
 		ERR_FAIL_COND(rt->color_multisample.is_null());
+
+		RD::TextureFormat rd_stencil_multisample_format = tf_depth;
+		rd_stencil_multisample_format.samples = texture_samples[rt->msaa];
+		rd_stencil_multisample_format.usage_bits = RD::TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		rt->depth_stencil_multisample = RD::get_singleton()->texture_create(rd_stencil_multisample_format, rd_view_multisample);
+		ERR_FAIL_COND(rt->depth_stencil_multisample.is_null());
 	}
 
 	{ //update texture

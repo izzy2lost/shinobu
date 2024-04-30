@@ -2,7 +2,6 @@
 
 #include "register_types.h"
 
-#include "canvas_layer_3d.h"
 #include "core/config/engine.h"
 #include "modules/hbnative/ph_blur_controls.h"
 #include "interval_tree.h"

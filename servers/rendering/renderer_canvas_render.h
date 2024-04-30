@@ -355,6 +355,7 @@ public:
 		Color final_modulate;
 		Transform2D final_transform;
 		Rect2 final_clip_rect;
+		Rect2 final_clip_rect_3d;
 		Item *final_clip_owner = nullptr;
 		Item *material_owner = nullptr;
 		Item *canvas_group_owner = nullptr;
@@ -366,6 +367,7 @@ public:
 		int repeat_times = 1;
 
 		Rect2 global_rect_cache;
+		Rect2 global_rect_cache_3d;
 
 		const Rect2 &get_rect() const;
 
@@ -497,7 +499,22 @@ public:
 		}
 	};
 
-	virtual void canvas_render_items(RID p_to_render_target, Item *p_item_list, const Color &p_modulate, Light *p_light_list, Light *p_directional_list, const Transform2D &p_canvas_transform, RS::CanvasItemTextureFilter p_default_filter, RS::CanvasItemTextureRepeat p_default_repeat, bool p_snap_2d_vertices_to_pixel, bool &r_sdf_used, RenderingMethod::RenderInfo *r_render_info = nullptr) = 0;
+	struct Canvas3DInfo {
+		bool use_3d = false;
+		Projection projection;
+		Transform3D view;
+		Transform3D screen_transform_3d;
+		Transform3D screen_transform;
+		Transform2D canvas_transform;
+		Transform3D canvas_transform_3d;
+		bool is_point_behind(const Vector3 &p_point) {
+			Transform3D t = view.affine_inverse();
+			Vector3 eyedir = -t.basis.get_column(2).normalized();
+			return eyedir.dot(p_point - (t.origin)) < projection.get_z_near();
+		}
+	};
+
+	virtual void canvas_render_items(RID p_to_render_target, Item *p_item_list, const Color &p_modulate, Light *p_light_list, Light *p_directional_list, const Transform2D &p_canvas_transform, Canvas3DInfo *p_canvas_3d_info, RS::CanvasItemTextureFilter p_default_filter, RS::CanvasItemTextureRepeat p_default_repeat, bool p_snap_2d_vertices_to_pixel, bool &r_sdf_used, RenderingMethod::RenderInfo *r_render_info = nullptr) = 0;
 
 	struct LightOccluderInstance {
 		bool enabled : 1;
@@ -544,6 +561,7 @@ public:
 	virtual void update() = 0;
 
 	virtual void set_debug_redraw(bool p_enabled, double p_time, const Color &p_color) = 0;
+	virtual void set_debug_cull(bool p_enabled) = 0;
 
 	RendererCanvasRender() {
 		ERR_FAIL_COND_MSG(singleton != nullptr, "A RendererCanvasRender singleton already exists.");

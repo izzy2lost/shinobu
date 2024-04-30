@@ -232,6 +232,7 @@ static bool debug_paths = false;
 static bool debug_navigation = false;
 static bool debug_avoidance = false;
 static bool debug_canvas_item_redraw = false;
+static bool debug_canvas_item_cull = false;
 #endif
 static int max_fps = -1;
 static int frame_delay = 0;
@@ -1621,6 +1622,8 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 			debug_navigation = true;
 		} else if (arg == "--debug-avoidance") {
 			debug_avoidance = true;
+		} else if (arg == "--debug-canvas-item-cull") {
+			debug_canvas_item_cull = true;
 		} else if (arg == "--debug-canvas-item-redraw") {
 			debug_canvas_item_redraw = true;
 		} else if (arg == "--debug-stringnames") {
@@ -3606,6 +3609,9 @@ int Main::start() {
 		if (debug_navigation || debug_avoidance) {
 			NavigationServer3D::get_singleton()->set_active(true);
 			NavigationServer3D::get_singleton()->set_debug_enabled(true);
+		}
+		if (debug_canvas_item_cull) {
+			RenderingServer::get_singleton()->canvas_item_set_debug_cull(true);
 		}
 		if (debug_canvas_item_redraw) {
 			RenderingServer::get_singleton()->canvas_item_set_debug_redraw(true);

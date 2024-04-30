@@ -330,8 +330,10 @@ private:
 		Size2i size;
 		uint32_t view_count;
 		RID color;
+		RID depth_stencil;
 		Vector<RID> color_slices;
 		RID color_multisample; // Needed when 2D MSAA is enabled.
+		RID depth_stencil_multisample; // Needed when 2D MSAA is enabled.
 
 		RS::ViewportMSAA msaa = RS::VIEWPORT_MSAA_DISABLED; // 2D MSAA mode
 		bool msaa_needs_resolve = false; // 2D MSAA needs resolved

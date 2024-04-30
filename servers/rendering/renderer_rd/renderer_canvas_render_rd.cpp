@@ -401,13 +401,53 @@ void RendererCanvasRenderRD::_bind_canvas_texture(RD::DrawListID p_draw_list, RI
 	r_last_texture = p_texture;
 }
 
+void RendererCanvasRenderRD::_write_to_stencil(RD::DrawListID p_draw_list, const Rect2 &p_rect, const Transform2D &p_canvas_transform_inverse, RenderingDevice::FramebufferFormatID p_framebuffer_format) {
+	PushConstant push_constant;
+	_update_transform_2d_to_mat2x3(p_canvas_transform_inverse, push_constant.world);
+	push_constant.src_rect[0] = 0.0f;
+	push_constant.src_rect[1] = 0.0f;
+	push_constant.src_rect[2] = 1.0f;
+	push_constant.src_rect[3] = 1.0f;
+
+	push_constant.dst_rect[0] = p_rect.position.x;
+	push_constant.dst_rect[1] = p_rect.position.y;
+	push_constant.dst_rect[2] = p_rect.size.x;
+	push_constant.dst_rect[3] = p_rect.size.y;
+
+	push_constant.flags = 0;
+
+	for (int i = 0; i < 4; i++) {
+		push_constant.modulation[i] = 0;
+		push_constant.ninepatch_margins[i] = 0;
+	}
+	push_constant.color_texture_pixel_size[0] = 0;
+	push_constant.color_texture_pixel_size[1] = 0;
+
+	push_constant.pad[0] = 0;
+	push_constant.pad[1] = 0;
+
+	push_constant.lights[0] = 0;
+	push_constant.lights[1] = 0;
+	push_constant.lights[2] = 0;
+	push_constant.lights[3] = 0;
+
+	RID pipeline = stencil_write.pipeline.get_render_pipeline(RD::INVALID_ID, p_framebuffer_format);
+	RenderingDevice::get_singleton()->draw_list_bind_render_pipeline(p_draw_list, pipeline);
+	RID last_texture;
+	Size2 texel_size = Size2(1, 1);
+	_bind_canvas_texture(p_draw_list, RID(), default_filter, default_repeat, last_texture, push_constant, texel_size);
+	RenderingDevice::get_singleton()->draw_list_set_push_constant(p_draw_list, &push_constant, sizeof(PushConstant));
+	RenderingDevice::get_singleton()->draw_list_bind_index_array(p_draw_list, shader.quad_index_array);
+	RenderingDevice::get_singleton()->draw_list_draw(p_draw_list, true);
+}
+
 _FORCE_INLINE_ static uint32_t _indices_to_primitives(RS::PrimitiveType p_primitive, uint32_t p_indices) {
 	static const uint32_t divisor[RS::PRIMITIVE_MAX] = { 1, 2, 1, 3, 1 };
 	static const uint32_t subtractor[RS::PRIMITIVE_MAX] = { 0, 0, 1, 0, 1 };
 	return (p_indices - subtractor[p_primitive]) / divisor[p_primitive];
 }
 
-void RendererCanvasRenderRD::_render_item(RD::DrawListID p_draw_list, RID p_render_target, const Item *p_item, RD::FramebufferFormatID p_framebuffer_format, const Transform2D &p_canvas_transform_inverse, Item *&current_clip, Light *p_lights, PipelineVariants *p_pipeline_variants, bool &r_sdf_used, const Point2 &p_offset, RenderingMethod::RenderInfo *r_render_info) {
+void RendererCanvasRenderRD::_render_item(RD::DrawListID p_draw_list, RID p_render_target, const Item *p_item, RD::FramebufferFormatID p_framebuffer_format, const Transform2D &p_canvas_transform_inverse, RendererCanvasRender::Canvas3DInfo *p_3d_info, Item *&current_clip, Light *p_lights, PipelineVariants *p_pipeline_variants, bool &r_sdf_used, const Point2 &p_offset, const uint8_t p_clip_stencil_reference, RenderingMethod::RenderInfo *r_render_info) {
 	//create an empty push constant
 	RendererRD::TextureStorage *texture_storage = RendererRD::TextureStorage::get_singleton();
 	RendererRD::MeshStorage *mesh_storage = RendererRD::MeshStorage::get_singleton();
@@ -443,7 +483,6 @@ void RendererCanvasRenderRD::_render_item(RD::DrawListID p_draw_list, RID p_rend
 		push_constant.src_rect[i] = 0;
 		push_constant.dst_rect[i] = 0;
 	}
-	push_constant.flags = 0;
 	push_constant.color_texture_pixel_size[0] = 0;
 	push_constant.color_texture_pixel_size[1] = 0;
 
@@ -985,10 +1024,19 @@ void RendererCanvasRenderRD::_render_item(RD::DrawListID p_draw_list, RID p_rend
 				if (current_clip) {
 					if (ci->ignore != reclip) {
 						if (ci->ignore) {
-							RD::get_singleton()->draw_list_disable_scissor(p_draw_list);
+							if (p_3d_info->use_3d) {
+								RD::get_singleton()->draw_list_set_stencil_reference(p_draw_list, 0xFF);
+							} else {
+								RD::get_singleton()->draw_list_disable_scissor(p_draw_list);
+							}
+
 							reclip = true;
 						} else {
-							RD::get_singleton()->draw_list_enable_scissor(p_draw_list, current_clip->final_clip_rect);
+							if (p_3d_info->use_3d) {
+								RD::get_singleton()->draw_list_set_stencil_reference(p_draw_list, p_clip_stencil_reference);
+							} else {
+								RD::get_singleton()->draw_list_enable_scissor(p_draw_list, current_clip->final_clip_rect);
+							}
 							reclip = false;
 						}
 					}
@@ -1008,6 +1056,47 @@ void RendererCanvasRenderRD::_render_item(RD::DrawListID p_draw_list, RID p_rend
 		c = c->next;
 	}
 #ifdef DEBUG_ENABLED
+	/*if (debug_redraw && p_item->debug_redraw_time > 0.0) {
+		Color dc = Color("GREEN");
+		dc.a *= p_item->debug_redraw_time / debug_redraw_time;
+
+		RID pipeline = pipeline_variants->variants[PIPELINE_LIGHT_MODE_DISABLED][PIPELINE_VARIANT_QUAD].get_render_pipeline(RD::INVALID_ID, p_framebuffer_format);
+		RD::get_singleton()->draw_list_bind_render_pipeline(p_draw_list, pipeline);
+
+		//bind textures
+
+		_bind_canvas_texture(p_draw_list, RID(), current_filter, current_repeat, last_texture, push_constant, texpixel_size);
+
+		Rect2 src_rect;
+		Rect2 dst_rect;
+
+		dst_rect = Rect2(Vector2(), p_item->rect.size);
+		src_rect = Rect2(0, 0, 1, 1);
+
+		push_constant.modulation[0] = dc.r;
+		push_constant.modulation[1] = dc.g;
+		push_constant.modulation[2] = dc.b;
+		push_constant.modulation[3] = dc.a;
+
+		push_constant.world[4] =
+		push_constant.src_rect[0] = src_rect.position.x;
+		push_constant.src_rect[1] = src_rect.position.y;
+		push_constant.src_rect[2] = src_rect.size.width;
+		push_constant.src_rect[3] = src_rect.size.height;
+
+		push_constant.dst_rect[0] = dst_rect.position.x;
+		push_constant.dst_rect[1] = dst_rect.position.y;
+		push_constant.dst_rect[2] = dst_rect.size.width;
+		push_constant.dst_rect[3] = dst_rect.size.height;
+
+		RD::get_singleton()->draw_list_set_push_constant(p_draw_list, &push_constant, sizeof(PushConstant));
+		RD::get_singleton()->draw_list_bind_index_array(p_draw_list, shader.quad_index_array);
+		RD::get_singleton()->draw_list_draw(p_draw_list, true);
+
+		p_item->debug_redraw_time -= RSG::rasterizer->get_frame_delta_time();
+
+		RenderingServerDefault::redraw_request();
+	}*/
 	if (debug_redraw && p_item->debug_redraw_time > 0.0) {
 		Color dc = debug_redraw_color;
 		dc.a *= p_item->debug_redraw_time / debug_redraw_time;
@@ -1148,7 +1237,7 @@ RID RendererCanvasRenderRD::_create_base_uniform_set(RID p_to_render_target, boo
 	return uniform_set;
 }
 
-void RendererCanvasRenderRD::_render_items(RID p_to_render_target, int p_item_count, const Transform2D &p_canvas_transform_inverse, Light *p_lights, bool &r_sdf_used, bool p_to_backbuffer, RenderingMethod::RenderInfo *r_render_info) {
+void RendererCanvasRenderRD::_render_items(RID p_to_render_target, int p_item_count, const Transform2D &p_canvas_transform, const Transform2D &p_canvas_transform_inverse, RendererCanvasRender::Canvas3DInfo *p_3d_info, Light *p_lights, bool &r_sdf_used, bool p_to_backbuffer, RenderingMethod::RenderInfo *r_render_info) {
 	RendererRD::MaterialStorage *material_storage = RendererRD::MaterialStorage::get_singleton();
 	RendererRD::TextureStorage *texture_storage = RendererRD::TextureStorage::get_singleton();
 
@@ -1183,7 +1272,7 @@ void RendererCanvasRenderRD::_render_items(RID p_to_render_target, int p_item_co
 
 	RD::FramebufferFormatID fb_format = RD::get_singleton()->framebuffer_get_format(framebuffer);
 
-	RD::DrawListID draw_list = RD::get_singleton()->draw_list_begin(framebuffer, clear ? RD::INITIAL_ACTION_CLEAR : RD::INITIAL_ACTION_LOAD, RD::FINAL_ACTION_STORE, RD::INITIAL_ACTION_LOAD, RD::FINAL_ACTION_DISCARD, clear_colors);
+	RD::DrawListID draw_list = RD::get_singleton()->draw_list_begin(framebuffer, clear ? RD::INITIAL_ACTION_CLEAR : RD::INITIAL_ACTION_LOAD, RD::FINAL_ACTION_STORE, RD::INITIAL_ACTION_CLEAR, RD::FINAL_ACTION_STORE, clear_colors, 1.0f, 0xFF);
 
 	RD::get_singleton()->draw_list_bind_uniform_set(draw_list, fb_uniform_set, BASE_UNIFORM_SET);
 	RD::get_singleton()->draw_list_bind_uniform_set(draw_list, state.default_transforms_uniform_set, TRANSFORMS_UNIFORM_SET);
@@ -1191,6 +1280,8 @@ void RendererCanvasRenderRD::_render_items(RID p_to_render_target, int p_item_co
 	RID prev_material;
 
 	PipelineVariants *pipeline_variants = &shader.pipeline_variants;
+	uint8_t stencil_ref = 0xFF;
+	RD::get_singleton()->draw_list_set_stencil_reference(draw_list, 0xFF);
 
 	for (int i = 0; i < p_item_count; i++) {
 		Item *ci = items[i];
@@ -1200,10 +1291,19 @@ void RendererCanvasRenderRD::_render_items(RID p_to_render_target, int p_item_co
 
 			//setup clip
 			if (current_clip) {
-				RD::get_singleton()->draw_list_enable_scissor(draw_list, current_clip->final_clip_rect);
+				if (p_3d_info->use_3d) {
+					RD::get_singleton()->draw_list_set_stencil_reference(draw_list, --stencil_ref);
+					_write_to_stencil(draw_list, current_clip->final_clip_rect, p_canvas_transform_inverse, fb_format);
+				} else {
+					RD::get_singleton()->draw_list_enable_scissor(draw_list, current_clip->final_clip_rect);
+				}
 
 			} else {
-				RD::get_singleton()->draw_list_disable_scissor(draw_list);
+				if (p_3d_info->use_3d) {
+					RD::get_singleton()->draw_list_set_stencil_reference(draw_list, 0xFF);
+				} else {
+					RD::get_singleton()->draw_list_disable_scissor(draw_list);
+				}
 			}
 		}
 
@@ -1247,7 +1347,7 @@ void RendererCanvasRenderRD::_render_items(RID p_to_render_target, int p_item_co
 		}
 
 		if (!ci->repeat_size.x && !ci->repeat_size.y) {
-			_render_item(draw_list, p_to_render_target, ci, fb_format, canvas_transform_inverse, current_clip, p_lights, pipeline_variants, r_sdf_used, Point2(), r_render_info);
+			_render_item(draw_list, p_to_render_target, ci, fb_format, canvas_transform_inverse, p_3d_info, current_clip, p_lights, pipeline_variants, r_sdf_used, Point2(), stencil_ref, r_render_info);
 		} else {
 			Point2 start_pos = ci->repeat_size * -(ci->repeat_times / 2);
 			Point2 end_pos = ci->repeat_size * ci->repeat_times + ci->repeat_size + start_pos;
@@ -1255,7 +1355,7 @@ void RendererCanvasRenderRD::_render_items(RID p_to_render_target, int p_item_co
 
 			do {
 				do {
-					_render_item(draw_list, p_to_render_target, ci, fb_format, canvas_transform_inverse, current_clip, p_lights, pipeline_variants, r_sdf_used, pos, r_render_info);
+					_render_item(draw_list, p_to_render_target, ci, fb_format, canvas_transform_inverse, p_3d_info, current_clip, p_lights, pipeline_variants, r_sdf_used, pos, stencil_ref, r_render_info);
 					pos.y += ci->repeat_size.y;
 				} while (pos.y < end_pos.y);
 
@@ -1267,10 +1367,127 @@ void RendererCanvasRenderRD::_render_items(RID p_to_render_target, int p_item_co
 		prev_material = material;
 	}
 
+	if (!debug_cull) {
+		RD::get_singleton()->draw_list_end();
+		return;
+	}
+
+	CanvasMaterialData *debug_clip_mat_data = static_cast<CanvasMaterialData *>(material_storage->material_get_data(default_clip_debug_material, RendererRD::MaterialStorage::SHADER_TYPE_2D));
+	pipeline_variants = &debug_clip_mat_data->shader_data->pipeline_variants;
+
+	Color dc = Color("GREEN");
+	dc.a *= 0.05f;
+	Color dc2 = Color("RED");
+	dc2.a *= 0.5f;
+	RID pipeline = pipeline_variants->variants[PIPELINE_LIGHT_MODE_DISABLED][PIPELINE_VARIANT_QUAD].get_render_pipeline(RD::INVALID_ID, fb_format);
+	RD::get_singleton()->draw_list_bind_render_pipeline(draw_list, pipeline);
+
+	//bind textures
+
+	RID last_texture;
+	Size2 texel_size = Size2(1.0, 1.0);
+	PushConstant push_constant;
+	push_constant.world[0] = 1.0f;
+	push_constant.world[1] = 0.0f;
+	push_constant.world[2] = 0.0f;
+	push_constant.world[3] = 1.0f;
+	RD::get_singleton()->draw_list_disable_scissor(draw_list);
+
+	Projection debug_proj = p_3d_info->projection;
+	Projection debug_proj_inv;
+	Transform3D debug_view = p_3d_info->view;
+	Transform3D debug_view_inv;
+
+	debug_proj_inv = debug_proj.inverse();
+	debug_view_inv = debug_view.affine_inverse();
+
+	for (Item *clip : RendererCanvasCull::clip_items) {
+		Rect2 out = Rect2(
+				clip->final_clip_rect.position,
+				clip->final_clip_rect.size);
+
+		_update_transform_2d_to_mat2x3(p_canvas_transform_inverse, push_constant.world);
+
+		_bind_canvas_texture(draw_list, RID(), default_filter, default_repeat, last_texture, push_constant, texel_size);
+
+		Rect2 src_rect;
+		Rect2 dst_rect;
+
+		dst_rect = Rect2(out.position, out.size);
+		src_rect = Rect2(0, 0, 1, 1);
+
+		push_constant.modulation[0] = dc2.r;
+		push_constant.modulation[1] = dc2.g;
+		push_constant.modulation[2] = dc2.b;
+		push_constant.modulation[3] = dc2.a;
+
+		push_constant.src_rect[0] = src_rect.position.x;
+		push_constant.src_rect[1] = src_rect.position.y;
+		push_constant.src_rect[2] = src_rect.size.width;
+		push_constant.src_rect[3] = src_rect.size.height;
+
+		push_constant.dst_rect[0] = dst_rect.position.x;
+		push_constant.dst_rect[1] = dst_rect.position.y;
+		push_constant.dst_rect[2] = dst_rect.size.width;
+		push_constant.dst_rect[3] = dst_rect.size.height;
+
+		push_constant.flags = 0;
+
+		RD::get_singleton()->draw_list_set_push_constant(draw_list, &push_constant, sizeof(PushConstant));
+		RD::get_singleton()->draw_list_bind_index_array(draw_list, shader.quad_index_array);
+		RD::get_singleton()->draw_list_draw(draw_list, true);
+
+		RenderingServerDefault::redraw_request();
+	}
+	push_constant.world[0] = 1.0f;
+	push_constant.world[1] = 0.0f;
+	push_constant.world[2] = 0.0f;
+	push_constant.world[3] = 1.0f;
+	for (int i = 0; i < p_item_count; i++) {
+		Item *clip = items[i];
+		Rect2 out = clip->global_rect_cache_3d;
+
+		push_constant.world[4] = 0.0f;
+		push_constant.world[5] = 0.0f;
+
+		_bind_canvas_texture(draw_list, RID(), default_filter, default_repeat, last_texture, push_constant, texel_size);
+
+		Rect2 src_rect;
+		Rect2 dst_rect;
+
+		dst_rect = Rect2(
+				canvas_transform_inverse.xform(out.position),
+				canvas_transform_inverse.basis_xform_inv(out.size));
+		src_rect = Rect2(0, 0, 1, 1);
+
+		push_constant.modulation[0] = dc.r;
+		push_constant.modulation[1] = dc.g;
+		push_constant.modulation[2] = dc.b;
+		push_constant.modulation[3] = dc.a;
+
+		push_constant.src_rect[0] = src_rect.position.x;
+		push_constant.src_rect[1] = src_rect.position.y;
+		push_constant.src_rect[2] = src_rect.size.width;
+		push_constant.src_rect[3] = src_rect.size.height;
+
+		push_constant.dst_rect[0] = dst_rect.position.x;
+		push_constant.dst_rect[1] = dst_rect.position.y;
+		push_constant.dst_rect[2] = dst_rect.size.width;
+		push_constant.dst_rect[3] = dst_rect.size.height;
+
+		push_constant.flags = FLAG_DEBUG_DISABLE_PROJ;
+
+		RD::get_singleton()->draw_list_set_push_constant(draw_list, &push_constant, sizeof(PushConstant));
+		RD::get_singleton()->draw_list_bind_index_array(draw_list, shader.quad_index_array);
+		RD::get_singleton()->draw_list_draw(draw_list, true);
+
+		RenderingServerDefault::redraw_request();
+	}
+
 	RD::get_singleton()->draw_list_end();
 }
 
-void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p_item_list, const Color &p_modulate, Light *p_light_list, Light *p_directional_light_list, const Transform2D &p_canvas_transform, RenderingServer::CanvasItemTextureFilter p_default_filter, RenderingServer::CanvasItemTextureRepeat p_default_repeat, bool p_snap_2d_vertices_to_pixel, bool &r_sdf_used, RenderingMethod::RenderInfo *r_render_info) {
+void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p_item_list, const Color &p_modulate, Light *p_light_list, Light *p_directional_light_list, const Transform2D &p_canvas_transform, RendererCanvasRender::Canvas3DInfo *p_3d_info, RenderingServer::CanvasItemTextureFilter p_default_filter, RenderingServer::CanvasItemTextureRepeat p_default_repeat, bool p_snap_2d_vertices_to_pixel, bool &r_sdf_used, RenderingMethod::RenderInfo *r_render_info) {
 	RendererRD::TextureStorage *texture_storage = RendererRD::TextureStorage::get_singleton();
 	RendererRD::MaterialStorage *material_storage = RendererRD::MaterialStorage::get_singleton();
 	RendererRD::MeshStorage *mesh_storage = RendererRD::MeshStorage::get_singleton();
@@ -1444,6 +1661,8 @@ void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p
 		screen_transform.scale(Vector3(2.0f / ssize.width, 2.0f / ssize.height, 1.0f));
 		_update_transform_to_mat4(screen_transform, state_buffer.screen_transform);
 		_update_transform_2d_to_mat4(p_canvas_transform, state_buffer.canvas_transform);
+		_update_transform_to_mat4(p_3d_info->screen_transform_3d, state_buffer.screen_transform_for_3d);
+		_update_transform_to_mat4(p_3d_info->canvas_transform_3d, state_buffer.canvas_transform_for_3d);
 
 		Transform2D normal_transform = p_canvas_transform;
 		normal_transform.columns[0].normalize();
@@ -1462,6 +1681,7 @@ void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p
 
 		state_buffer.time = state.time;
 		state_buffer.use_pixel_snap = p_snap_2d_vertices_to_pixel;
+		state_buffer.use_3d_transform = p_3d_info->use_3d;
 
 		state_buffer.directional_light_count = directional_light_count;
 
@@ -1483,6 +1703,9 @@ void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p
 
 		//print_line("w: " + itos(ssize.width) + " s: " + rtos(canvas_scale));
 		state_buffer.tex_to_sdf = 1.0 / ((canvas_scale.x + canvas_scale.y) * 0.5);
+
+		RendererRD::MaterialStorage::store_transform(p_3d_info->view, state_buffer.camera_view);
+		RendererRD::MaterialStorage::store_camera(p_3d_info->projection, state_buffer.camera_projection);
 
 		RD::get_singleton()->buffer_update(state.canvas_state_buffer, 0, sizeof(State::Buffer), &state_buffer);
 	}
@@ -1569,11 +1792,11 @@ void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p
 					update_skeletons = false;
 				}
 
-				_render_items(p_to_render_target, item_count, canvas_transform_inverse, p_light_list, r_sdf_used, false, r_render_info);
+				_render_items(p_to_render_target, item_count, p_canvas_transform, canvas_transform_inverse, p_3d_info, p_light_list, r_sdf_used, false, r_render_info);
 				item_count = 0;
 
 				if (ci->canvas_group_owner->canvas_group->mode != RS::CANVAS_GROUP_MODE_TRANSPARENT) {
-					Rect2i group_rect = ci->canvas_group_owner->global_rect_cache;
+					Rect2i group_rect = ci->canvas_group_owner->global_rect_cache_3d;
 					texture_storage->render_target_copy_to_back_buffer(p_to_render_target, group_rect, false);
 					if (ci->canvas_group_owner->canvas_group->mode == RS::CANVAS_GROUP_MODE_CLIP_AND_DRAW) {
 						ci->canvas_group_owner->use_canvas_group = false;
@@ -1601,7 +1824,7 @@ void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p
 				update_skeletons = false;
 			}
 
-			_render_items(p_to_render_target, item_count, canvas_transform_inverse, p_light_list, r_sdf_used, true, r_render_info);
+			_render_items(p_to_render_target, item_count, p_canvas_transform, canvas_transform_inverse, p_3d_info, p_light_list, r_sdf_used, true, r_render_info);
 			item_count = 0;
 
 			if (ci->canvas_group->blur_mipmaps) {
@@ -1625,7 +1848,7 @@ void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p
 				update_skeletons = false;
 			}
 
-			_render_items(p_to_render_target, item_count, canvas_transform_inverse, p_light_list, r_sdf_used, false, r_render_info);
+			_render_items(p_to_render_target, item_count, p_canvas_transform, canvas_transform_inverse, p_3d_info, p_light_list, r_sdf_used, false, r_render_info);
 			item_count = 0;
 
 			texture_storage->render_target_copy_to_back_buffer(p_to_render_target, back_buffer_rect, backbuffer_gen_mipmaps);
@@ -1655,7 +1878,7 @@ void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p
 				update_skeletons = false;
 			}
 
-			_render_items(p_to_render_target, item_count, canvas_transform_inverse, p_light_list, r_sdf_used, canvas_group_owner != nullptr, r_render_info);
+			_render_items(p_to_render_target, item_count, p_canvas_transform, canvas_transform_inverse, p_3d_info, p_light_list, r_sdf_used, canvas_group_owner != nullptr, r_render_info);
 			//then reset
 			item_count = 0;
 		}
@@ -2360,10 +2583,17 @@ void RendererCanvasRenderRD::CanvasShaderData::set_code(const String &p_code) {
 			};
 
 			RID shader_variant = canvas_singleton->shader.canvas_shader.version_get_shader(version, shader_variants[i][j]);
+			RD::PipelineDepthStencilState ds_state;
+			ds_state.enable_stencil = true;
+			ds_state.front_op.compare = RenderingDeviceCommons::COMPARE_OP_GREATER_OR_EQUAL;
+			ds_state.front_op.write_mask = 0x00;
+			ds_state.front_op.reference = 0x00;
+			ds_state.front_op.compare_mask = 0xFF;
+			ds_state.back_op = ds_state.front_op;
 			if (j == PIPELINE_VARIANT_QUAD_LCD_BLEND) {
-				pipeline_variants.variants[i][j].setup(shader_variant, primitive[j], RD::PipelineRasterizationState(), RD::PipelineMultisampleState(), RD::PipelineDepthStencilState(), blend_state_lcd, RD::DYNAMIC_STATE_BLEND_CONSTANTS);
+				pipeline_variants.variants[i][j].setup(shader_variant, primitive[j], RD::PipelineRasterizationState(), RD::PipelineMultisampleState(), RD::PipelineDepthStencilState(), blend_state_lcd, RD::DYNAMIC_STATE_BLEND_CONSTANTS | RD::DYNAMIC_STATE_STENCIL_REFERENCE);
 			} else {
-				pipeline_variants.variants[i][j].setup(shader_variant, primitive[j], RD::PipelineRasterizationState(), RD::PipelineMultisampleState(), RD::PipelineDepthStencilState(), blend_state, 0);
+				pipeline_variants.variants[i][j].setup(shader_variant, primitive[j], RD::PipelineRasterizationState(), RD::PipelineMultisampleState(), RD::PipelineDepthStencilState(), blend_state, RD::DYNAMIC_STATE_STENCIL_REFERENCE);
 			}
 		}
 	}
@@ -2546,10 +2776,17 @@ RendererCanvasRenderRD::RendererCanvasRenderRD() {
 				};
 
 				RID shader_variant = shader.canvas_shader.version_get_shader(shader.default_version, shader_variants[i][j]);
+				RD::PipelineDepthStencilState ds_state;
+				ds_state.enable_stencil = true;
+				ds_state.front_op.compare = RenderingDeviceCommons::COMPARE_OP_GREATER_OR_EQUAL;
+				ds_state.front_op.write_mask = 0x00;
+				ds_state.front_op.reference = 0x00;
+				ds_state.front_op.compare_mask = 0xFF;
+				ds_state.back_op = ds_state.front_op;
 				if (j == PIPELINE_VARIANT_QUAD_LCD_BLEND) {
-					shader.pipeline_variants.variants[i][j].setup(shader_variant, primitive[j], RD::PipelineRasterizationState(), RD::PipelineMultisampleState(), RD::PipelineDepthStencilState(), blend_state_lcd, RD::DYNAMIC_STATE_BLEND_CONSTANTS);
+					shader.pipeline_variants.variants[i][j].setup(shader_variant, primitive[j], RD::PipelineRasterizationState(), RD::PipelineMultisampleState(), ds_state, blend_state_lcd, RD::DYNAMIC_STATE_BLEND_CONSTANTS | RD::DYNAMIC_STATE_STENCIL_REFERENCE);
 				} else {
-					shader.pipeline_variants.variants[i][j].setup(shader_variant, primitive[j], RD::PipelineRasterizationState(), RD::PipelineMultisampleState(), RD::PipelineDepthStencilState(), blend_state, 0);
+					shader.pipeline_variants.variants[i][j].setup(shader_variant, primitive[j], RD::PipelineRasterizationState(), RD::PipelineMultisampleState(), ds_state, blend_state, RD::DYNAMIC_STATE_STENCIL_REFERENCE);
 				}
 			}
 		}
@@ -2585,6 +2822,7 @@ RendererCanvasRenderRD::RendererCanvasRenderRD() {
 		actions.renames["SPECULAR_SHININESS_TEXTURE"] = "specular_texture";
 		actions.renames["SPECULAR_SHININESS"] = "specular_shininess";
 		actions.renames["SCREEN_UV"] = "screen_uv";
+		actions.renames["CANVAS_COORD"] = "canvas_coord";
 		actions.renames["SCREEN_PIXEL_SIZE"] = "canvas_data.screen_pixel_size";
 		actions.renames["FRAGCOORD"] = "gl_FragCoord";
 		actions.renames["POINT_COORD"] = "gl_PointCoord";
@@ -2609,6 +2847,7 @@ RendererCanvasRenderRD::RendererCanvasRenderRD() {
 
 		actions.usage_defines["COLOR"] = "#define COLOR_USED\n";
 		actions.usage_defines["SCREEN_UV"] = "#define SCREEN_UV_USED\n";
+		actions.usage_defines["CANVAS_COORD"] = "#define CANVAS_COORD_USED\n";
 		actions.usage_defines["SCREEN_PIXEL_SIZE"] = "@SCREEN_UV";
 		actions.usage_defines["NORMAL"] = "#define NORMAL_USED\n";
 		actions.usage_defines["NORMAL_MAP"] = "#define NORMAL_MAP_USED\n";
@@ -2838,6 +3077,39 @@ void fragment() {
 		material_storage->material_set_shader(default_clip_children_material, default_clip_children_shader);
 	}
 
+	{
+		default_clip_debug_shader = material_storage->shader_allocate();
+		material_storage->shader_initialize(default_clip_debug_shader);
+
+		material_storage->shader_set_code(default_clip_debug_shader, R"(
+// Default clip debug shader.
+
+shader_type canvas_item;
+render_mode unshaded;
+
+)");
+		default_clip_debug_material = material_storage->material_allocate();
+		material_storage->material_initialize(default_clip_debug_material);
+
+		material_storage->material_set_shader(default_clip_debug_material, default_clip_debug_shader);
+	}
+
+	{
+		RD::PipelineColorBlendState cb_state = RD::PipelineColorBlendState::create_disabled();
+		cb_state.attachments.ptrw()[0].write_r = false;
+		cb_state.attachments.ptrw()[0].write_g = false;
+		cb_state.attachments.ptrw()[0].write_b = false;
+		cb_state.attachments.ptrw()[0].write_a = false;
+		RD::PipelineDepthStencilState ds_state;
+		ds_state.enable_stencil = true;
+		ds_state.front_op.compare_mask = 0x00;
+		ds_state.front_op.write_mask = 0xFF;
+		ds_state.front_op.fail = RenderingDeviceCommons::STENCIL_OP_REPLACE;
+		ds_state.front_op.pass = RenderingDeviceCommons::STENCIL_OP_REPLACE;
+		ds_state.back_op = ds_state.front_op;
+		stencil_write.pipeline.setup(shader.default_version_rd_shader, RD::RENDER_PRIMITIVE_TRIANGLES, RD::PipelineRasterizationState(), RD::PipelineMultisampleState(), ds_state, cb_state, RD::DYNAMIC_STATE_STENCIL_REFERENCE);
+	}
+
 	static_assert(sizeof(PushConstant) == 128);
 }
 
@@ -2888,6 +3160,10 @@ void RendererCanvasRenderRD::set_debug_redraw(bool p_enabled, double p_time, con
 	debug_redraw_color = p_color;
 }
 
+void RendererCanvasRenderRD::set_debug_cull(bool p_enabled) {
+	debug_cull = p_enabled;
+}
+
 RendererCanvasRenderRD::~RendererCanvasRenderRD() {
 	RendererRD::MaterialStorage *material_storage = RendererRD::MaterialStorage::get_singleton();
 	//canvas state
@@ -2897,6 +3173,9 @@ RendererCanvasRenderRD::~RendererCanvasRenderRD() {
 
 	material_storage->material_free(default_clip_children_material);
 	material_storage->shader_free(default_clip_children_shader);
+
+	material_storage->material_free(default_clip_debug_material);
+	material_storage->shader_free(default_clip_debug_shader);
 
 	{
 		if (state.canvas_state_buffer.is_valid()) {

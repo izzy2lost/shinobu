@@ -69,6 +69,7 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 	enum {
 
 		FLAGS_INSTANCING_MASK = 0x7F,
+		FLAG_DEBUG_DISABLE_PROJ = (1 << 6),
 		FLAGS_INSTANCING_HAS_COLORS = (1 << 7),
 		FLAGS_INSTANCING_HAS_CUSTOM_DATA = (1 << 8),
 
@@ -137,7 +138,6 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 		PIPELINE_LIGHT_MODE_ENABLED,
 		PIPELINE_LIGHT_MODE_MAX
 	};
-
 	struct PipelineVariants {
 		PipelineCacheRD variants[PIPELINE_LIGHT_MODE_MAX][PIPELINE_VARIANT_MAX];
 	};
@@ -329,6 +329,11 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 		RD::FramebufferFormatID sdf_framebuffer_format;
 	} shadow_render;
 
+	struct {
+		RID shader_version;
+		PipelineCacheRD pipeline;
+	} stencil_write;
+
 	/***************/
 	/**** STATE ****/
 	/***************/
@@ -339,8 +344,12 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 		//state buffer
 		struct Buffer {
 			float canvas_transform[16];
+			float canvas_transform_for_3d[16];
 			float screen_transform[16];
+			float screen_transform_for_3d[16];
 			float canvas_normal_transform[16];
+			float camera_projection[16];
+			float camera_view[16];
 			float canvas_modulate[4];
 
 			float screen_pixel_size[2];
@@ -353,8 +362,8 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 
 			uint32_t directional_light_count;
 			float tex_to_sdf;
+			uint32_t use_3d_transform;
 			uint32_t pad1;
-			uint32_t pad2;
 		};
 
 		LightUniform *light_uniforms = nullptr;
@@ -413,6 +422,9 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 	RID default_clip_children_material;
 	RID default_clip_children_shader;
 
+	RID default_clip_debug_material;
+	RID default_clip_debug_shader;
+
 	RS::CanvasItemTextureFilter default_filter = RS::CANVAS_ITEM_TEXTURE_FILTER_LINEAR;
 	RS::CanvasItemTextureRepeat default_repeat = RS::CANVAS_ITEM_TEXTURE_REPEAT_DISABLED;
 
@@ -422,9 +434,12 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 	Color debug_redraw_color;
 	double debug_redraw_time = 1.0;
 
+	bool debug_cull = false;
+
 	inline void _bind_canvas_texture(RD::DrawListID p_draw_list, RID p_texture, RS::CanvasItemTextureFilter p_base_filter, RS::CanvasItemTextureRepeat p_base_repeat, RID &r_last_texture, PushConstant &push_constant, Size2 &r_texpixel_size, bool p_texture_is_data = false); //recursive, so regular inline used instead.
-	void _render_item(RenderingDevice::DrawListID p_draw_list, RID p_render_target, const Item *p_item, RenderingDevice::FramebufferFormatID p_framebuffer_format, const Transform2D &p_canvas_transform_inverse, Item *&current_clip, Light *p_lights, PipelineVariants *p_pipeline_variants, bool &r_sdf_used, const Point2 &p_offset, RenderingMethod::RenderInfo *r_render_info = nullptr);
-	void _render_items(RID p_to_render_target, int p_item_count, const Transform2D &p_canvas_transform_inverse, Light *p_lights, bool &r_sdf_used, bool p_to_backbuffer = false, RenderingMethod::RenderInfo *r_render_info = nullptr);
+	void _write_to_stencil(RD::DrawListID p_draw_list, const Rect2 &p_rect, const Transform2D &p_canvas_transform_inverse, RenderingDevice::FramebufferFormatID p_framebuffer_format);
+	void _render_item(RenderingDevice::DrawListID p_draw_list, RID p_render_target, const Item *p_item, RenderingDevice::FramebufferFormatID p_framebuffer_format, const Transform2D &p_canvas_transform_inverse, RendererCanvasRender::Canvas3DInfo *p_3d_info, Item *&current_clip, Light *p_lights, PipelineVariants *p_pipeline_variants, bool &r_sdf_used, const Point2 &p_offset, const uint8_t p_clip_stencil_reference, RenderingMethod::RenderInfo *r_render_info = nullptr);
+	void _render_items(RID p_to_render_target, int p_item_count, const Transform2D &p_canvas_transform, const Transform2D &p_canvas_transform_inverse, RendererCanvasRender::Canvas3DInfo *p_3d_info, Light *p_lights, bool &r_sdf_used, bool p_to_backbuffer = false, RenderingMethod::RenderInfo *r_render_info = nullptr);
 
 	_FORCE_INLINE_ void _update_transform_2d_to_mat2x4(const Transform2D &p_transform, float *p_mat2x4);
 	_FORCE_INLINE_ void _update_transform_2d_to_mat2x3(const Transform2D &p_transform, float *p_mat2x3);
@@ -450,11 +465,12 @@ public:
 	void occluder_polygon_set_shape(RID p_occluder, const Vector<Vector2> &p_points, bool p_closed) override;
 	void occluder_polygon_set_cull_mode(RID p_occluder, RS::CanvasOccluderPolygonCullMode p_mode) override;
 
-	void canvas_render_items(RID p_to_render_target, Item *p_item_list, const Color &p_modulate, Light *p_light_list, Light *p_directional_light_list, const Transform2D &p_canvas_transform, RS::CanvasItemTextureFilter p_default_filter, RS::CanvasItemTextureRepeat p_default_repeat, bool p_snap_2d_vertices_to_pixel, bool &r_sdf_used, RenderingMethod::RenderInfo *r_render_info = nullptr) override;
+	void canvas_render_items(RID p_to_render_target, Item *p_item_list, const Color &p_modulate, Light *p_light_list, Light *p_directional_light_list, const Transform2D &p_canvas_transform, RendererCanvasRender::Canvas3DInfo *p_canvas_3d_info, RS::CanvasItemTextureFilter p_default_filter, RS::CanvasItemTextureRepeat p_default_repeat, bool p_snap_2d_vertices_to_pixel, bool &r_sdf_used, RenderingMethod::RenderInfo *r_render_info = nullptr) override;
 
 	virtual void set_shadow_texture_size(int p_size) override;
 
 	void set_debug_redraw(bool p_enabled, double p_time, const Color &p_color) override;
+	void set_debug_cull(bool p_enabled) override;
 
 	void set_time(double p_time);
 	void update() override;

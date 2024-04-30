@@ -4168,6 +4168,10 @@ void RenderingDeviceDriverVulkan::command_render_set_scissor(CommandBufferID p_c
 	vkCmdSetScissor((VkCommandBuffer)p_cmd_buffer.id, 0, p_scissors.size(), (VkRect2D *)p_scissors.ptr());
 }
 
+void RenderingDeviceDriverVulkan::command_render_set_stencil_reference(CommandBufferID p_cmd_buffer, uint8_t p_reference) {
+	vkCmdSetStencilReference((VkCommandBuffer)p_cmd_buffer.id, VkStencilFaceFlagBits::VK_STENCIL_FRONT_AND_BACK, p_reference);
+}
+
 void RenderingDeviceDriverVulkan::command_render_clear_attachments(CommandBufferID p_cmd_buffer, VectorView<AttachmentClear> p_attachment_clears, VectorView<Rect2i> p_rects) {
 	VkClearAttachment *vk_clears = ALLOCA_ARRAY(VkClearAttachment, p_attachment_clears.size());
 	for (uint32_t i = 0; i < p_attachment_clears.size(); i++) {

@@ -4222,6 +4222,15 @@ void RenderingDevice::draw_list_disable_scissor(DrawListID p_list) {
 	_draw_list_set_scissor(dl->viewport);
 }
 
+void RenderingDevice::draw_list_set_stencil_reference(DrawListID p_list, const uint8_t p_reference) {
+	DrawList *dl = _get_draw_list_ptr(p_list);
+	ERR_FAIL_NULL(dl);
+#ifdef DEBUG_ENABLED
+	ERR_FAIL_COND_MSG(!dl->validation.active, "Submitted Draw Lists can no longer be modified.");
+#endif
+	draw_graph.add_draw_list_set_stencil_reference(p_reference);
+}
+
 uint32_t RenderingDevice::draw_list_get_current_pass() {
 	return draw_list_current_subpass;
 }

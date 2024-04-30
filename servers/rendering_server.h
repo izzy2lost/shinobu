@@ -922,6 +922,8 @@ public:
 	virtual void viewport_attach_canvas(RID p_viewport, RID p_canvas) = 0;
 	virtual void viewport_remove_canvas(RID p_viewport, RID p_canvas) = 0;
 	virtual void viewport_set_canvas_transform(RID p_viewport, RID p_canvas, const Transform2D &p_offset) = 0;
+	virtual void viewport_set_canvas_use_3d_transform(RID p_viewport, RID p_canvas, bool p_use_3d_transform) = 0;
+	virtual void viewport_set_canvas_3d_transform(RID p_viewport, RID p_canvas, const Transform3D &p_offset) = 0;
 	virtual void viewport_set_transparent_background(RID p_viewport, bool p_enabled) = 0;
 	virtual void viewport_set_use_hdr_2d(RID p_viewport, bool p_use_hdr) = 0;
 	virtual void viewport_set_snap_2d_transforms_to_pixel(RID p_viewport, bool p_enabled) = 0;
@@ -1504,6 +1506,9 @@ public:
 
 	virtual void canvas_item_set_debug_redraw(bool p_enabled) = 0;
 	virtual bool canvas_item_get_debug_redraw() const = 0;
+
+	virtual void canvas_item_set_debug_cull(bool p_enabled) = 0;
+	virtual bool canvas_item_get_debug_cull() const = 0;
 
 	virtual void canvas_item_set_interpolated(RID p_item, bool p_interpolated) = 0;
 	virtual void canvas_item_reset_physics_interpolation(RID p_item) = 0;

@@ -5254,6 +5254,11 @@ void RenderingDeviceDriverD3D12::command_render_set_scissor(CommandBufferID p_cm
 	cmd_buf_info->cmd_list->RSSetScissorRects(p_scissors.size(), d3d12_scissors);
 }
 
+void RenderingDeviceDriverD3D12::command_render_set_stencil_reference(CommandBufferID p_cmd_buffer, uint8_t p_reference) {
+	const CommandBufferInfo *cmd_buf_info = (const CommandBufferInfo *)p_cmd_buffer.id;
+	cmd_buf_info->cmd_list->OMSetStencilRef(p_reference);
+}
+
 void RenderingDeviceDriverD3D12::command_render_clear_attachments(CommandBufferID p_cmd_buffer, VectorView<AttachmentClear> p_attachment_clears, VectorView<Rect2i> p_rects) {
 	const CommandBufferInfo *cmd_buf_info = (const CommandBufferInfo *)p_cmd_buffer.id;
 

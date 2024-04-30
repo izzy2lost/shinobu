@@ -1625,7 +1625,7 @@ void Viewport::_gui_call_notification(Control *p_control, int p_what) {
 	}
 }
 
-Control *Viewport::gui_find_control(const Point2 &p_global) {
+Control *Viewport::gui_find_control(const Point2 &p_global, Vector2 *r_mouse_screen_pos) {
 	ERR_MAIN_THREAD_GUARD_V(nullptr);
 	// Handle subwindows.
 	_gui_sort_roots();
@@ -1644,8 +1644,22 @@ Control *Viewport::gui_find_control(const Point2 &p_global) {
 			xform = sw->get_canvas_transform();
 		}
 
-		Control *ret = _gui_find_control_at_pos(sw, p_global, xform);
+		CanvasLayer *cl = sw->get_canvas_layer_node();
+
+		Vector2 pos = p_global;
+		if (cl && cl->get_use_3d_transform()) {
+			if (_intersect_screen_with_3d(cl, p_global, pos)) {
+				pos = xform.xform_inv(pos);
+			} else {
+				return nullptr;
+			}
+		}
+
+		Control *ret = _gui_find_control_at_pos(sw, pos, xform);
 		if (ret) {
+			if (r_mouse_screen_pos) {
+				*r_mouse_screen_pos = pos;
+			}
 			return ret;
 		}
 	}
@@ -1695,6 +1709,31 @@ Control *Viewport::_gui_find_control_at_pos(CanvasItem *p_node, const Point2 &p_
 	}
 
 	return nullptr;
+}
+
+bool Viewport::_intersect_screen_with_3d(const CanvasLayer *p_canvas_layer, const Vector2 &p_position, Vector2 &r_out) {
+	Camera3D *cam = get_camera_3d();
+	if (!cam) {
+		return false;
+	}
+	Plane canvas_plane(p_canvas_layer->get_transform_3d().basis.get_column(2), p_canvas_layer->get_transform_3d().origin);
+
+	Vector3 origin = cam->project_ray_origin(p_position);
+	Vector3 normal = cam->project_ray_normal(p_position);
+	Vector3 intersection;
+	if (!canvas_plane.intersects_ray(origin, normal, &intersection)) {
+		return false;
+	}
+
+	Size2i ssize = p_canvas_layer->get_viewport_size();
+	Transform3D screen_transform_for_3d;
+	screen_transform_for_3d.scale(Vector3(ssize.aspect() / ssize.width, -1.0f / ssize.height, 1.0f));
+
+	Vector3 out;
+	out = p_canvas_layer->get_transform_3d().affine_inverse().xform(intersection);
+	out = screen_transform_for_3d.affine_inverse().xform(out);
+	r_out = Vector2(out.x, out.y);
+	return true;
 }
 
 bool Viewport::_gui_drop(Control *p_at_control, Point2 p_at_pos, bool p_just_check) {
@@ -1895,8 +1934,11 @@ void Viewport::_gui_input_event(Ref<InputEvent> p_event) {
 		Control *over = nullptr;
 		if (gui.mouse_focus) {
 			over = gui.mouse_focus;
+			if (over->get_canvas_layer_node()) {
+				_intersect_screen_with_3d(over->get_canvas_layer_node(), mpos, mpos);
+			}
 		} else if (gui.mouse_in_viewport) {
-			over = gui_find_control(mpos);
+			over = gui_find_control(mpos, &mpos);
 		}
 
 		DisplayServer::CursorShape ds_cursor_shape = (DisplayServer::CursorShape)Input::get_singleton()->get_default_cursor_shape();

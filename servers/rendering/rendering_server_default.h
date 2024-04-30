@@ -636,6 +636,8 @@ public:
 	FUNC2(viewport_attach_canvas, RID, RID)
 
 	FUNC2(viewport_remove_canvas, RID, RID)
+	FUNC3(viewport_set_canvas_use_3d_transform, RID, RID, bool)
+	FUNC3(viewport_set_canvas_3d_transform, RID, RID, const Transform3D &)
 	FUNC3(viewport_set_canvas_transform, RID, RID, const Transform2D &)
 	FUNC2(viewport_set_transparent_background, RID, bool)
 	FUNC2(viewport_set_use_hdr_2d, RID, bool)
@@ -919,6 +921,9 @@ public:
 	FUNC5(canvas_item_set_visibility_notifier, RID, bool, const Rect2 &, const Callable &, const Callable &)
 
 	FUNC6(canvas_item_set_canvas_group_mode, RID, CanvasGroupMode, float, bool, float, bool)
+
+	FUNC1(canvas_item_set_debug_cull, bool)
+	FUNC0RC(bool, canvas_item_get_debug_cull)
 
 	FUNC1(canvas_item_set_debug_redraw, bool)
 	FUNC0RC(bool, canvas_item_get_debug_redraw)

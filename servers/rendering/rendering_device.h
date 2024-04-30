@@ -1159,6 +1159,7 @@ public:
 
 	void draw_list_enable_scissor(DrawListID p_list, const Rect2 &p_rect);
 	void draw_list_disable_scissor(DrawListID p_list);
+	void draw_list_set_stencil_reference(DrawListID p_list, const uint8_t p_reference);
 
 	uint32_t draw_list_get_current_pass();
 	DrawListID draw_list_switch_to_next_pass();

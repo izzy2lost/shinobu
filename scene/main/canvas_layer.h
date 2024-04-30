@@ -43,6 +43,8 @@ class CanvasLayer : public Node {
 	real_t rot = 0.0;
 	int layer = 1;
 	Transform2D transform;
+	bool use_3d_transform = false;
+	Transform3D transform_3d;
 	RID canvas;
 
 	ObjectID custom_viewport_id; // to check validity
@@ -105,6 +107,12 @@ public:
 
 	void set_follow_viewport_scale(float p_ratio);
 	float get_follow_viewport_scale() const;
+
+	bool get_use_3d_transform() const;
+	void set_use_3d_transform(bool p_use_3d_transform);
+
+	Transform3D get_transform_3d() const;
+	void set_transform_3d(const Transform3D &p_transform_3d);
 
 	RID get_canvas() const;
 
