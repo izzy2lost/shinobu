@@ -161,7 +161,7 @@ Error Shinobu::initialize(ma_backend forced_backend) {
 		}
 	}
 
-	clock->measure();
+	clock->measure(0);
 
 	ma_result result;
 
@@ -239,7 +239,8 @@ void Shinobu::ma_data_callback(ma_device *pDevice, void *pOutput, const void *pI
 	Shinobu *shinobu = (Shinobu *)pDevice->pUserData;
 	if (shinobu != NULL) {
 		ma_engine_read_pcm_frames(&shinobu->engine, pOutput, frameCount, NULL);
-		shinobu->clock->measure();
+		uint32_t sample_size_nsec = (frameCount * 1e+9) / ma_engine_get_sample_rate(&shinobu->engine);
+		shinobu->clock->measure(sample_size_nsec);
 	}
 }
 

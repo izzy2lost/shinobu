@@ -81,7 +81,9 @@ int64_t ShinobuSoundPlayer::get_playback_position_nsec() {
 	}
 
 	if (is_playing()) {
-		out_pos += clock->get_current_offset_nsec();
+		int64_t engine_offset = clock->get_current_offset_nsec();
+		engine_offset = ma_sound_get_pitch(&sound) * engine_offset;
+		out_pos += engine_offset;
 	}
 
 	return out_pos;
