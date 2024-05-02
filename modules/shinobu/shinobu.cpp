@@ -165,6 +165,8 @@ Error Shinobu::initialize(ma_backend forced_backend) {
 		}
 	}
 
+	clock->set_use_mix_size_compensation(shinobu_clock_mix_size_compensation);
+
 	clock->measure(0);
 
 	ma_result result;
