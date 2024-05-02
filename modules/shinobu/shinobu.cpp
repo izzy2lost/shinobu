@@ -155,9 +155,13 @@ Error Shinobu::initialize(ma_backend forced_backend) {
 	}
 #endif
 
+	bool shinobu_clock_mix_size_compensation = true;
+
 	for (int i = 0; i < args.size() - 1; i++) {
 		if (args[i] == "--shinobu-backend") {
 			backend_to_force = string_to_backend(args[i + 1]);
+		} else if (args[i] == "--shinobu-dev-disable-clock-msc") {
+			shinobu_clock_mix_size_compensation = false;
 		}
 	}
 
