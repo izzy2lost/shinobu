@@ -1133,7 +1133,7 @@ void Input::joy_axis(int p_device, JoyAxis p_axis, float p_value, uint64_t p_tim
 	joy.last_axis[(size_t)p_axis] = p_value;
 
 	if (joy.mapping == -1) {
-		_axis_event(p_device, p_axis, p_value);
+		_axis_event(p_device, p_axis, p_value, p_timestamp);
 		return;
 	}
 
