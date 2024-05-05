@@ -102,12 +102,16 @@ class JoypadSDL {
 	void process_inputs_run();
 	void joypad_vibration_start(int p_pad_idx, float p_weak, float p_strong, float p_duration, uint64_t timestamp);
 	void joypad_vibration_stop(int p_pad_idx, uint64_t timestamp);
+	static JoypadSDL *singleton;
 
 public:
-	JoypadSDL(Input *in);
-	~JoypadSDL();
+	static JoypadSDL *get_singleton();
 	Error initialize();
 	void process_events();
+	bool is_device_game_controller(int p_joy_device_idx) const;
+
+	JoypadSDL(Input *in);
+	~JoypadSDL();
 };
 
 #endif // SDL_ENABLED

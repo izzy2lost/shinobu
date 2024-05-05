@@ -1,5 +1,8 @@
 #include "ph_singleton.h"
 #include "thirdparty/linalg.h"
+#ifdef SDL_ENABLED
+#include "drivers/sdl/joypad_sdl.h"
+#endif
 
 PHNative *PHNative::singleton = NULL;
 
@@ -146,11 +149,22 @@ String PHNative::get_rendering_api_name() {
 	return "Unknown";
 }
 
+bool PHNative::is_sdl_device_game_controller(int p_joy_device_idx) {
+#ifdef SDL_ENABLED
+	if (JoypadSDL *sdl = JoypadSDL::get_singleton(); sdl) {
+		return sdl->is_device_game_controller(p_joy_device_idx);
+	}
+#else
+	return false;
+#endif
+}
+
 void PHNative::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("create_process", "path", "arguments", "working_directory", "open_stdin"), &PHNative::create_process, DEFVAL(Vector<String>()), DEFVAL(""), DEFVAL(false));
 	ClassDB::bind_static_method("PHNative", D_METHOD("load_ogg_from_file", "path"), &PHNative::load_ogg_from_file);
 	ClassDB::bind_static_method("PHNative", D_METHOD("load_ogg_from_buffer", "buffer"), &PHNative::load_ogg_from_buffer);
 	ClassDB::bind_static_method("PHNative", D_METHOD("get_rendering_api_name"), &PHNative::get_rendering_api_name);
+	ClassDB::bind_static_method("PHNative", D_METHOD("is_sdl_device_game_controller"), &PHNative::is_sdl_device_game_controller);
 }
 
 PHNative::PHNative() {

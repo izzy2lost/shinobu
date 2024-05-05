@@ -50,6 +50,8 @@
 #include "core/os/time.h"
 #include "thirdparty/sdl_headers/SDL.h"
 
+JoypadSDL *JoypadSDL::singleton = nullptr;
+
 void JoypadSDL::process_inputs_thread_func(void *p_userdata) {
 	JoypadSDL *joy = static_cast<JoypadSDL *>(p_userdata);
 	joy->process_inputs_run();
@@ -262,8 +264,13 @@ void JoypadSDL::joypad_vibration_stop(int p_pad_idx, uint64_t p_timestamp) {
 	pad.ff_effect_timestamp = p_timestamp;
 }
 
+JoypadSDL *JoypadSDL::get_singleton() {
+	return singleton;
+}
+
 JoypadSDL::JoypadSDL(Input *in) {
 	input = in;
+	singleton = this;
 }
 
 JoypadSDL::~JoypadSDL() {
@@ -285,6 +292,7 @@ JoypadSDL::~JoypadSDL() {
 		}
 		SDL_Quit();
 	}
+	singleton = nullptr;
 }
 
 Error JoypadSDL::initialize() {
@@ -395,5 +403,9 @@ void JoypadSDL::process_events() {
 			}
 		}
 	}
+}
+
+bool JoypadSDL::is_device_game_controller(int p_joy_device_idx) const {
+	return joypads[p_joy_device_idx].type == JoypadType::GAME_CONTROLLER;
 }
 #endif
