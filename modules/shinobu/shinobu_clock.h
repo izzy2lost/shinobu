@@ -42,6 +42,7 @@ public:
 	}
 
 	void set_use_mix_size_compensation(bool p_use_mix_size_compensation) {
+		print_line("Using mix size compensation:", p_use_mix_size_compensation);
 		use_mix_size_compensation = p_use_mix_size_compensation;
 	}
 };
