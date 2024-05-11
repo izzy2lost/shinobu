@@ -3208,12 +3208,24 @@ void TextureStorage::_create_render_target_backbuffer(RenderTarget *rt) {
 
 	rt->backbuffer = RD::get_singleton()->texture_create(tf, RD::TextureView());
 	RD::get_singleton()->set_resource_name(rt->backbuffer, "Render Target Back Buffer");
+
+	RD::TextureFormat tf_depth;
+	tf_depth.format = RD::DATA_FORMAT_D32_SFLOAT_S8_UINT;
+	tf_depth.width = rt->size.width;
+	tf_depth.height = rt->size.height;
+	tf_depth.usage_bits = RD::TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | RD::TEXTURE_USAGE_SAMPLING_BIT | RD::TEXTURE_USAGE_CAN_COPY_TO_BIT;
+	tf_depth.texture_type = RD::TEXTURE_TYPE_2D;
+
+	rt->backbuffer_depth_stencil = RD::get_singleton()->texture_create(tf_depth, RD::TextureView());
+	RD::get_singleton()->set_resource_name(rt->backbuffer_depth_stencil, "Render Target Back Buffer Depth Stencil");
+
 	rt->backbuffer_mipmap0 = RD::get_singleton()->texture_create_shared_from_slice(RD::TextureView(), rt->backbuffer, 0, 0);
 	RD::get_singleton()->set_resource_name(rt->backbuffer_mipmap0, "Back Buffer slice mipmap 0");
 
 	{
 		Vector<RID> fb_tex;
 		fb_tex.push_back(rt->backbuffer_mipmap0);
+		fb_tex.push_back(rt->backbuffer_depth_stencil);
 		rt->backbuffer_fb = RD::get_singleton()->framebuffer_create(fb_tex);
 	}
 

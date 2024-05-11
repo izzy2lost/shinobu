@@ -2591,9 +2591,9 @@ void RendererCanvasRenderRD::CanvasShaderData::set_code(const String &p_code) {
 			ds_state.front_op.compare_mask = 0xFF;
 			ds_state.back_op = ds_state.front_op;
 			if (j == PIPELINE_VARIANT_QUAD_LCD_BLEND) {
-				pipeline_variants.variants[i][j].setup(shader_variant, primitive[j], RD::PipelineRasterizationState(), RD::PipelineMultisampleState(), RD::PipelineDepthStencilState(), blend_state_lcd, RD::DYNAMIC_STATE_BLEND_CONSTANTS | RD::DYNAMIC_STATE_STENCIL_REFERENCE);
+				pipeline_variants.variants[i][j].setup(shader_variant, primitive[j], RD::PipelineRasterizationState(), RD::PipelineMultisampleState(), ds_state, blend_state_lcd, RD::DYNAMIC_STATE_BLEND_CONSTANTS | RD::DYNAMIC_STATE_STENCIL_REFERENCE);
 			} else {
-				pipeline_variants.variants[i][j].setup(shader_variant, primitive[j], RD::PipelineRasterizationState(), RD::PipelineMultisampleState(), RD::PipelineDepthStencilState(), blend_state, RD::DYNAMIC_STATE_STENCIL_REFERENCE);
+				pipeline_variants.variants[i][j].setup(shader_variant, primitive[j], RD::PipelineRasterizationState(), RD::PipelineMultisampleState(), ds_state, blend_state, RD::DYNAMIC_STATE_STENCIL_REFERENCE);
 			}
 		}
 	}

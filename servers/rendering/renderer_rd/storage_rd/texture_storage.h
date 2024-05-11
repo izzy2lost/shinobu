@@ -351,6 +351,7 @@ private:
 		RID backbuffer; //used for effects
 		RID backbuffer_fb;
 		RID backbuffer_mipmap0;
+		RID backbuffer_depth_stencil;
 
 		Vector<RID> backbuffer_mipmaps;
 
