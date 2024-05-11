@@ -157,14 +157,18 @@ Error Shinobu::initialize(ma_backend forced_backend) {
 
 	bool shinobu_clock_mix_size_compensation = true;
 
-	for (int i = 0; i < args.size(); i++) {
-		if (args[i] == "--shinobu-backend") {
-			if (i < args.size() - 1) {
-				backend_to_force = string_to_backend(args[i + 1]);
+	List<String>::Element *I = args.front();
+	while (I) {
+		List<String>::Element *N = I->next();
+		if (I->get() == "--shinobu-backend") {
+			if (N) {
+				backend_to_force = string_to_backend(N->get());
+				N = N->next();
 			}
-		} else if (args[i] == "--shinobu-dev-disable-clock-msc") {
+		} else if (I->get() == "--shinobu-dev-disable-clock-msc") {
 			shinobu_clock_mix_size_compensation = false;
 		}
+		I = N;
 	}
 
 	clock->set_use_mix_size_compensation(shinobu_clock_mix_size_compensation);
