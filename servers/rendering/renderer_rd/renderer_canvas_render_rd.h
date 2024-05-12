@@ -344,6 +344,7 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 		//state buffer
 		struct Buffer {
 			float canvas_transform[16];
+			float canvas_transform_inverse[16];
 			float canvas_transform_for_3d[16];
 			float screen_transform[16];
 			float screen_transform_for_3d[16];

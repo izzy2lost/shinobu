@@ -66,6 +66,7 @@ draw_data;
 
 layout(set = 0, binding = 1, std140) uniform CanvasData {
 	mat4 canvas_transform;
+	mat4 canvas_transform_inverse;
 	mat4 canvas_transform_for_3d;
 	mat4 screen_transform;
 	mat4 screen_transform_for_3d;

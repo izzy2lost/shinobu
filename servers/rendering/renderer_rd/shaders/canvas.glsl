@@ -575,7 +575,7 @@ void main() {
 #endif
 
 #if defined(CANVAS_COORD_USED)
-	vec2 canvas_coord = (inverse(canvas_data.canvas_transform) * vec4(vertex_interp, 0.0, 1.0)).xy;
+	vec2 canvas_coord = (canvas_data.canvas_transform_inverse * vec4(vertex_interp, 0.0, 1.0)).xy;
 #else
 	vec2 canvas_coord = vec2(0.0);
 #endif
