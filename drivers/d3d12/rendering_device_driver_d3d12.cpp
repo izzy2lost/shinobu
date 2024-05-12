@@ -5061,6 +5061,7 @@ void RenderingDeviceDriverD3D12::command_begin_render_pass(CommandBufferID p_cmd
 		} else if ((tex_info->desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL)) {
 			if (pass_info->attachments[i].stencil_load_op == ATTACHMENT_LOAD_OP_CLEAR) {
 				clear.aspect.set_flag(TEXTURE_ASPECT_DEPTH_BIT);
+				clear.aspect.set_flag(TEXTURE_ASPECT_STENCIL_BIT);
 			}
 		}
 		if (!clear.aspect.is_empty()) {
@@ -5338,7 +5339,7 @@ void RenderingDeviceDriverD3D12::command_bind_render_pipeline(CommandBufferID p_
 
 	cmd_buf_info->cmd_list->IASetPrimitiveTopology(pso_extra_info.dyn_params.primitive_topology);
 	cmd_buf_info->cmd_list->OMSetBlendFactor(pso_extra_info.dyn_params.blend_constant.components);
-	cmd_buf_info->cmd_list->OMSetStencilRef(pso_extra_info.dyn_params.stencil_reference);
+	//cmd_buf_info->cmd_list->OMSetStencilRef(pso_extra_info.dyn_params.stencil_reference);
 
 	if (misc_features_support.depth_bounds_supported) {
 		ComPtr<ID3D12GraphicsCommandList1> command_list_1;
