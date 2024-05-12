@@ -5767,6 +5767,8 @@ RDD::PipelineID RenderingDeviceDriverD3D12::render_pipeline_create(
 			bd.DestBlendAlpha = RD_TO_D3D12_BLEND_FACTOR[bs.dst_alpha_blend_factor];
 			bd.BlendOpAlpha = RD_TO_D3D12_BLEND_OP[bs.alpha_blend_op];
 
+			bd.RenderTargetWriteMask = 0;
+
 			if (bs.write_r) {
 				bd.RenderTargetWriteMask |= D3D12_COLOR_WRITE_ENABLE_RED;
 			}
