@@ -66,6 +66,9 @@ void HBStyleboxBlurDrawer::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_DRAW: {
 			const RID ci = get_canvas_item();
+			if (!RenderingDevice::get_singleton()) {
+				return;
+			}
 			if (stylebox.is_valid()) {
 				stylebox->draw(ci, Rect2(Vector2(0.0f, 0.0f), get_size()));
 			}
