@@ -3115,7 +3115,7 @@ void TextureStorage::_update_render_target(RenderTarget *rt) {
 	tf_depth.format = RD::DATA_FORMAT_D32_SFLOAT_S8_UINT;
 	tf_depth.width = rt->size.width;
 	tf_depth.height = rt->size.height;
-	tf_depth.usage_bits = RD::TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | RD::TEXTURE_USAGE_SAMPLING_BIT | RD::TEXTURE_USAGE_CAN_COPY_TO_BIT;
+	tf_depth.usage_bits = RD::TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | RD::TEXTURE_USAGE_SAMPLING_BIT;
 	tf_depth.texture_type = RD::TEXTURE_TYPE_2D;
 
 	rt->depth_stencil = RD::get_singleton()->texture_create(tf_depth, RD::TextureView());
@@ -3213,7 +3213,7 @@ void TextureStorage::_create_render_target_backbuffer(RenderTarget *rt) {
 	tf_depth.format = RD::DATA_FORMAT_D32_SFLOAT_S8_UINT;
 	tf_depth.width = rt->size.width;
 	tf_depth.height = rt->size.height;
-	tf_depth.usage_bits = RD::TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | RD::TEXTURE_USAGE_SAMPLING_BIT | RD::TEXTURE_USAGE_CAN_COPY_TO_BIT;
+	tf_depth.usage_bits = RD::TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | RD::TEXTURE_USAGE_SAMPLING_BIT;
 	tf_depth.texture_type = RD::TEXTURE_TYPE_2D;
 
 	rt->backbuffer_depth_stencil = RD::get_singleton()->texture_create(tf_depth, RD::TextureView());
