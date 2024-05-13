@@ -476,7 +476,7 @@ Copyright: 2016, University of North Carolina at Chapel Hill
 License: Apache-2.0
 
 Files: ./thirdparty/sdl_headers/
-Comment: SDL 
+Comment: SDL
 Copyright: 1997-2024 Sam Lantinga
 License: Zlib
 

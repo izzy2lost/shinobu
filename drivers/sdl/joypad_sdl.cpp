@@ -307,6 +307,7 @@ Error JoypadSDL::initialize() {
 		return ERR_CANT_OPEN;
 	}
 #endif
+	SDL_SetHint(SDL_HINT_JOYSTICK_THREAD, "1");
 	int error;
 	HANDLE_SDL_ERROR(SDL_Init(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER));
 
