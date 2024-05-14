@@ -308,6 +308,7 @@ Error JoypadSDL::initialize() {
 	}
 #endif
 	SDL_SetHint(SDL_HINT_JOYSTICK_THREAD, "1");
+	SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
 	int error;
 	HANDLE_SDL_ERROR(SDL_Init(SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER));
 
