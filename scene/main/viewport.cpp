@@ -1781,7 +1781,7 @@ void Viewport::_gui_input_event(Ref<InputEvent> p_event) {
 				// Do not steal mouse focus and stuff while a focus mask without the current mouse button exists.
 				gui.mouse_focus_mask.set_flag(button_mask);
 			} else {
-				gui.mouse_focus = gui_find_control(mpos);
+				gui.mouse_focus = gui_find_control(mpos, &mpos);
 
 				if (!gui.mouse_focus) {
 					return;
@@ -1934,7 +1934,7 @@ void Viewport::_gui_input_event(Ref<InputEvent> p_event) {
 		Control *over = nullptr;
 		if (gui.mouse_focus) {
 			over = gui.mouse_focus;
-			if (over->get_canvas_layer_node()) {
+			if (over->get_canvas_layer_node() && over->get_canvas_layer_node()->get_use_3d_transform()) {
 				_intersect_screen_with_3d(over->get_canvas_layer_node(), mpos, mpos);
 			}
 		} else if (gui.mouse_in_viewport) {
