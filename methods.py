@@ -201,7 +201,7 @@ def get_version_info(module_version_string="", silent=False):
         if not silent:
             print(f"Using custom build name: '{build_name}'.")
 
-    import version
+    import ph_version
 
     version_info = {
         "short_name": str(version.short_name),
@@ -345,10 +345,11 @@ def detect_modules(search_path, recursive=False):
     def is_engine(path):
         # Prevent recursively detecting modules in self and other
         # Godot sources when using `custom_modules` build option.
-        version_path = os.path.join(path, "version.py")
+        version_path = os.path.join(path, "ph_version.py")
         if os.path.exists(version_path):
             with open(version_path, "r", encoding="utf-8") as f:
-                if 'short_name = "godot"' in f.read():
+                fr = f.read()
+                if 'short_name = "godot"' in fr or 'short_name = "ph_engine"' in fr:
                     return True
         return False
 
