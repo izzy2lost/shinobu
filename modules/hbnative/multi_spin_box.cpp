@@ -336,7 +336,7 @@ void MultiSpinBox::_range_click_timeout() {
 	}
 }
 
-void MultiSpinBox::_gui_input(const Ref<InputEvent> &p_event) {
+void MultiSpinBox::gui_input(const Ref<InputEvent> &p_event) {
 	Ref<InputEventMouseButton> mb = p_event;
 
 	if (mb.is_valid() && mb->is_pressed() && mb->get_button_index() == MouseButton::LEFT) {
@@ -447,7 +447,6 @@ void MultiSpinBox::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("reset_expression"), &MultiSpinBox::reset_expression);
 
 	ClassDB::bind_method(D_METHOD("get_line_edit"), &MultiSpinBox::get_line_edit);
-	ClassDB::bind_method(D_METHOD("_gui_input"), &MultiSpinBox::_gui_input);
 	ClassDB::bind_method(D_METHOD("_range_click_timeout"), &MultiSpinBox::_range_click_timeout);
 	ClassDB::bind_method(D_METHOD("_text_entered"), &MultiSpinBox::_text_entered);
 	ClassDB::bind_method(D_METHOD("_line_edit_focus_enter"), &MultiSpinBox::_line_edit_focus_enter);
