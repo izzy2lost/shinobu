@@ -11,12 +11,14 @@ class HBStyleboxBlurDrawer : public Control {
 
 	void _update_stylebox();
 
+protected:
+	void _on_blur_controls_enabled_changed();
+
 public:
 	static Ref<ShaderMaterial> blur_material;
 	void set_stylebox_original(Ref<StyleBox> p_stylebox);
 	void _notification(int p_what);
 
-public:
 	HBStyleboxBlurDrawer();
 };
 

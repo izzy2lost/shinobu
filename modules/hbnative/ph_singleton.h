@@ -13,6 +13,8 @@ class PHNative : public Node {
 		OGG_SYNC_BUFFER_SIZE = 8192
 	};
 
+	bool blur_controls_enabled = true;
+
 protected:
 	static void _bind_methods();
 
@@ -24,6 +26,8 @@ public:
 	static Ref<AudioStreamOggVorbis> load_ogg_from_buffer(const Vector<uint8_t> &p_buffer);
 	static String get_rendering_api_name();
 	static bool is_sdl_device_game_controller(int p_joy_device_idx);
+	bool get_blur_controls_enabled() const;
+	void set_blur_controls_enabled(bool p_blur_controls_enabled);
 	PHNative();
 };
 

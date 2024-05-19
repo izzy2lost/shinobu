@@ -1,4 +1,5 @@
 #include "ph_blur_controls.h"
+#include "ph_singleton.h"
 #include "scene/resources/style_box_flat.h"
 
 Ref<ShaderMaterial> HBStyleboxBlurDrawer::blur_material;
@@ -8,11 +9,6 @@ void HBButtonBlurEX::_notification(int p_what) {
 		case NOTIFICATION_DRAW: {
 			Ref<StyleBox> stylebox = _get_current_stylebox();
 			blur_drawer->set_stylebox_original(stylebox);
-			if (!stylebox.is_valid()) {
-				blur_drawer->hide();
-			} else {
-				blur_drawer->show();
-			}
 		} break;
 	}
 }
@@ -38,8 +34,17 @@ void HBStyleboxBlurDrawer::_update_stylebox() {
 		flat_sb->set_anti_aliased(false);
 	}
 
-	if (stylebox_original.is_valid()) {
+	if (stylebox_original.is_valid() && PHNative::get_singleton()->get_blur_controls_enabled()) {
 		show();
+	} else {
+		hide();
+	}
+}
+
+void HBStyleboxBlurDrawer::_on_blur_controls_enabled_changed() {
+	if (PHNative::get_singleton()->get_blur_controls_enabled()) {
+		show();
+		queue_redraw();
 	} else {
 		hide();
 	}
@@ -64,6 +69,13 @@ void HBStyleboxBlurDrawer::set_stylebox_original(Ref<StyleBox> p_stylebox) {
 
 void HBStyleboxBlurDrawer::_notification(int p_what) {
 	switch (p_what) {
+		case NOTIFICATION_ENTER_TREE: {
+			PHNative::get_singleton()->connect(SNAME("blur_controls_enabled_changed"), callable_mp(this, &HBStyleboxBlurDrawer::_on_blur_controls_enabled_changed));
+			_on_blur_controls_enabled_changed();
+		} break;
+		case NOTIFICATION_EXIT_TREE: {
+			PHNative::get_singleton()->disconnect(SNAME("blur_controls_enabled_changed"), callable_mp(this, &HBStyleboxBlurDrawer::_on_blur_controls_enabled_changed));
+		} break;
 		case NOTIFICATION_DRAW: {
 			const RID ci = get_canvas_item();
 			if (!RenderingDevice::get_singleton()) {

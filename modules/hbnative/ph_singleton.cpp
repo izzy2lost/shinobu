@@ -165,8 +165,23 @@ void PHNative::_bind_methods() {
 	ClassDB::bind_static_method("PHNative", D_METHOD("load_ogg_from_buffer", "buffer"), &PHNative::load_ogg_from_buffer);
 	ClassDB::bind_static_method("PHNative", D_METHOD("get_rendering_api_name"), &PHNative::get_rendering_api_name);
 	ClassDB::bind_static_method("PHNative", D_METHOD("is_sdl_device_game_controller"), &PHNative::is_sdl_device_game_controller);
+
+	ClassDB::bind_method(D_METHOD("get_blur_controls_enabled"), &PHNative::get_blur_controls_enabled);
+	ClassDB::bind_method(D_METHOD("set_blur_controls_enabled", "blur_controls_enabled"), &PHNative::set_blur_controls_enabled);
+
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "blur_controls_enabled"), "set_blur_controls_enabled", "get_blur_controls_enabled");
+
+	ADD_SIGNAL(MethodInfo("blur_controls_enabled_changed"));
 }
 
 PHNative::PHNative() {
 	singleton = this;
+}
+
+bool PHNative::get_blur_controls_enabled() const {
+	return blur_controls_enabled;
+}
+void PHNative::set_blur_controls_enabled(bool p_blur_controls_enabled) {
+	blur_controls_enabled = p_blur_controls_enabled;
+	emit_signal(SNAME("blur_controls_enabled_changed"));
 }
