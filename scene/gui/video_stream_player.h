@@ -70,6 +70,7 @@ class VideoStreamPlayer : public Control {
 	int audio_track = 0;
 	int bus_index = 0;
 	float playback_speed = 1.0f;
+	bool process_while_paused = false;
 
 	StringName bus;
 
@@ -127,6 +128,9 @@ public:
 
 	float get_playback_speed() const;
 	void set_playback_speed(float p_playback_speed);
+
+	void set_process_while_paused(bool p_process_while_paused);
+	bool get_process_while_paused() const;
 
 	VideoStreamPlayer();
 	~VideoStreamPlayer();
