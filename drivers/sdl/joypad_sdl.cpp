@@ -347,6 +347,7 @@ void JoypadSDL::process_events() {
 				joypads[joy_id].attached = true;
 				joypads[joy_id].sdl_instance_idx = event.sdl_joystick_instance_id;
 				joypads[joy_id].supports_force_feedback = event.device_supports_force_feedback;
+				joypads[joy_id].type = event.device_type;
 
 				sdl_instance_id_to_joypad_id.insert(event.sdl_joystick_instance_id, joy_id);
 				// Don't give joysticks of type GAME_CONTROLLER a GUID to prevent godot from messing us up with its own remapping logic
