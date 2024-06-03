@@ -76,21 +76,34 @@ void ProcessTinyProcessLibrary::close_stdin() {
 	has_open_stdin = false;
 }
 
+TinyProcessLib::Process::string_type godot_to_std_string(const String &m_path) {
+	if (m_path.is_empty()) {
+		return TinyProcessLib::Process::string_type();
+	}
+#if defined(UNICODE) && defined(_WIN32)
+	return std::wstring((wchar_t *)m_path.utf16().ptr());
+#else
+	return std::string(m_path.utf8().get_data());
+#endif
+}
+
 ProcessTinyProcessLibrary::ProcessTinyProcessLibrary(const String &m_path, const Vector<String> &p_arguments, const String &p_working_dir, bool p_open_stdin) {
-	std::vector<std::string> args;
+	std::vector<TinyProcessLib::Process::string_type> args;
 
 	args.reserve(p_arguments.size() + 1);
 
-	args.emplace_back(m_path.utf8().get_data());
+	args.emplace_back(godot_to_std_string(m_path));
 
 	for (int i = 0; i < p_arguments.size(); i++) {
-		args.emplace_back(std::string(p_arguments[i].utf8().get_data()));
+		args.emplace_back(godot_to_std_string(p_arguments[i]));
 	}
 
 	has_open_stdin = p_open_stdin;
 
+	TinyProcessLib::Process::string_type working_dir = godot_to_std_string(p_working_dir);
+
 	process = memnew(TinyProcessLib::Process(
-			args, p_working_dir.utf8().get_data(),
+			args, working_dir,
 			std::bind(&ProcessTinyProcessLibrary::_on_stdout, this, std::placeholders::_1, std::placeholders::_2),
 			std::bind(&ProcessTinyProcessLibrary::_on_stderr, this, std::placeholders::_1, std::placeholders::_2),
 			p_open_stdin));
