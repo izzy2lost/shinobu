@@ -159,12 +159,23 @@ bool PHNative::is_sdl_device_game_controller(int p_joy_device_idx) {
 #endif
 }
 
+String PHNative::get_sdl_device_guid(int p_joy_device_idx) {
+#ifdef SDL_ENABLED
+	if (JoypadSDL *sdl = JoypadSDL::get_singleton(); sdl) {
+		return sdl->get_device_guid(p_joy_device_idx);
+	}
+#else
+	return "";
+#endif
+}
+
 void PHNative::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("create_process", "path", "arguments", "working_directory", "open_stdin"), &PHNative::create_process, DEFVAL(Vector<String>()), DEFVAL(""), DEFVAL(false));
 	ClassDB::bind_static_method("PHNative", D_METHOD("load_ogg_from_file", "path"), &PHNative::load_ogg_from_file);
 	ClassDB::bind_static_method("PHNative", D_METHOD("load_ogg_from_buffer", "buffer"), &PHNative::load_ogg_from_buffer);
 	ClassDB::bind_static_method("PHNative", D_METHOD("get_rendering_api_name"), &PHNative::get_rendering_api_name);
 	ClassDB::bind_static_method("PHNative", D_METHOD("is_sdl_device_game_controller"), &PHNative::is_sdl_device_game_controller);
+	ClassDB::bind_static_method("PHNative", D_METHOD("get_sdl_device_guid"), &PHNative::get_sdl_device_guid);
 
 	ClassDB::bind_method(D_METHOD("get_blur_controls_enabled"), &PHNative::get_blur_controls_enabled);
 	ClassDB::bind_method(D_METHOD("set_blur_controls_enabled", "blur_controls_enabled"), &PHNative::set_blur_controls_enabled);

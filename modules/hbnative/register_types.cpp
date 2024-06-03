@@ -3,13 +3,14 @@
 #include "register_types.h"
 
 #include "core/config/engine.h"
-#include "modules/hbnative/ph_blur_controls.h"
 #include "interval_tree.h"
+#include "modules/hbnative/ph_blur_controls.h"
 #include "multi_spin_box.h"
 #include "ph_audio_stream_editor.h"
 #include "ph_audio_stream_preview.h"
 #include "ph_blur_controls.h"
 #include "ph_singleton.h"
+#include "replay.h"
 
 #include "process/process.h"
 #include "process/process_tiny_process_lib.h"
@@ -58,19 +59,26 @@ void initialize_hbnative_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(HBPanelBlurEX);
 
 	Ref<Shader> blur_shader;
-	blur_shader.instantiate();
-	blur_shader->set_code(blur_shader_code);
+	if (RenderingServer::get_singleton()) {
+		blur_shader.instantiate();
+		blur_shader->set_code(blur_shader_code);
 
-	Ref<ShaderMaterial> blur_shader_mat;
-	blur_shader_mat.instantiate();
-	blur_shader_mat->set_shader(blur_shader);
-	HBStyleboxBlurDrawer::blur_material = blur_shader_mat;
+		Ref<ShaderMaterial> blur_shader_mat;
+		blur_shader_mat.instantiate();
+		blur_shader_mat->set_shader(blur_shader);
+		HBStyleboxBlurDrawer::blur_material = blur_shader_mat;
+	}
 
 	GDREGISTER_CLASS(Threen);
 	GDREGISTER_ABSTRACT_CLASS(Process);
 	GDREGISTER_ABSTRACT_CLASS(PHNative);
 	GDREGISTER_CLASS(MultiSpinBox);
 	GDREGISTER_CLASS(HBIntervalTree);
+	GDREGISTER_ABSTRACT_CLASS(HBReplayStateSnapshot);
+	GDREGISTER_ABSTRACT_CLASS(HBReplayReader);
+	GDREGISTER_ABSTRACT_CLASS(HBReplay);
+	GDREGISTER_CLASS(HBReplayWriter);
+	GDREGISTER_CLASS(HBReplayEvent);
 	Engine::get_singleton()->add_singleton(Engine::Singleton("PHAudioStreamPreviewGenerator", PHAudioStreamPreviewGenerator::get_singleton()));
 	Engine::get_singleton()->add_singleton(Engine::Singleton("PHNative", PHNative::get_singleton()));
 }

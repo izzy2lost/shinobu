@@ -49,6 +49,7 @@ class JoypadSDL {
 	struct Joypad {
 		bool attached = false;
 		JoypadType type;
+		StringName guid;
 
 		SDL_JoystickID sdl_instance_idx;
 
@@ -76,7 +77,7 @@ class JoypadSDL {
 
 	struct JoypadEvent {
 		String device_name;
-		String device_guid;
+		StringName device_guid;
 		JoypadType device_type;
 		JoypadEventType type;
 		SDL_JoystickID sdl_joystick_instance_id;
@@ -109,6 +110,7 @@ public:
 	Error initialize();
 	void process_events();
 	bool is_device_game_controller(int p_joy_device_idx) const;
+	StringName get_device_guid(int p_joy_device_idx) const;
 
 	JoypadSDL(Input *in);
 	~JoypadSDL();

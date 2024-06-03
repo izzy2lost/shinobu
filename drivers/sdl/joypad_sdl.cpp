@@ -29,6 +29,7 @@
 /**************************************************************************/
 
 #include "joypad_sdl.h"
+#include <iterator>
 #ifdef SDL_ENABLED
 #include "core/error/error_macros.h"
 
@@ -127,7 +128,7 @@ void JoypadSDL::process_inputs_run() {
 					char guid[MAX_GUID_SIZE] = {};
 
 					SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(joy), guid, MAX_GUID_SIZE);
-					joypad_event.device_guid = String(guid);
+					joypad_event.device_guid = StringName(String(guid));
 					joypad_event.device_supports_force_feedback = SDL_JoystickHasRumble(joy);
 
 					MutexLock lock(joypad_event_queue_lock);
@@ -348,6 +349,7 @@ void JoypadSDL::process_events() {
 				joypads[joy_id].sdl_instance_idx = event.sdl_joystick_instance_id;
 				joypads[joy_id].supports_force_feedback = event.device_supports_force_feedback;
 				joypads[joy_id].type = event.device_type;
+				joypads[joy_id].guid = event.device_guid;
 
 				sdl_instance_id_to_joypad_id.insert(event.sdl_joystick_instance_id, joy_id);
 				// Don't give joysticks of type GAME_CONTROLLER a GUID to prevent godot from messing us up with its own remapping logic
@@ -411,4 +413,12 @@ void JoypadSDL::process_events() {
 bool JoypadSDL::is_device_game_controller(int p_joy_device_idx) const {
 	return joypads[p_joy_device_idx].type == JoypadType::GAME_CONTROLLER;
 }
+
+StringName JoypadSDL::get_device_guid(int p_joy_device_idx) const {
+	ERR_FAIL_INDEX_V(p_joy_device_idx, (int)std::size(joypads), "");
+	ERR_FAIL_COND_V(!joypads[p_joy_device_idx].attached, "");
+
+	return joypads[p_joy_device_idx].guid;
+}
+
 #endif
