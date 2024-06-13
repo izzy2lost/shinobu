@@ -73,7 +73,8 @@ ShinobuSoundSource::~ShinobuSoundSource(){};
 
 Error ShinobuSoundSourceMemory::instantiate_sound(Ref<ShinobuGroup> m_group, bool use_source_channel_count, ma_sound *p_sound) {
 	ma_sound_config config = ma_sound_config_init();
-	config.pFilePath = name.utf8();
+	CharString string_data = name.utf8();
+	config.pFilePath = string_data.ptr();
 	config.flags = config.flags | MA_SOUND_FLAG_NO_SPATIALIZATION;
 	if (use_source_channel_count) {
 		config.flags = config.flags | MA_SOUND_FLAG_NO_DEFAULT_ATTACHMENT;

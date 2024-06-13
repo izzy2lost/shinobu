@@ -68,6 +68,18 @@ static ma_result ma_decoding_backend_init__libvorbis(void *pUserData, ma_read_pr
 	return MA_SUCCESS;
 }
 
+void *ma_malloc_godot(size_t p_size, void *p_user_data) {
+	return Memory::alloc_static(p_size);
+}
+
+void *ma_realloc_godot(void *p, size_t p_size, void *p_user_data) {
+	return Memory::realloc_static(p, p_size);
+}
+
+void ma_free_godot(void *p, void *p_user_data) {
+	Memory::free_static(p);
+}
+
 static ma_result ma_decoding_backend_init_file__libvorbis(void *pUserData, const char *pFilePath, const ma_decoding_backend_config *pConfig, const ma_allocation_callbacks *pAllocationCallbacks, ma_data_source **ppBackend) {
 	ma_result result;
 	ma_libvorbis *pVorbis;
@@ -198,7 +210,12 @@ Error Shinobu::initialize(ma_backend forced_backend) {
 		backends = new ma_backend[1]{ backend_to_force };
 	}
 
-	result = ma_context_init(backends, 1, NULL, &context);
+	ma_context_config ctx_config = ma_context_config_init();
+	ctx_config.allocationCallbacks.onFree = &ma_free_godot;
+	ctx_config.allocationCallbacks.onMalloc = &ma_malloc_godot;
+	ctx_config.allocationCallbacks.onRealloc = &ma_realloc_godot;
+
+	result = ma_context_init(backends, 1, &ctx_config, &context);
 	MA_ERR_RET(result, "Context init failed");
 
 	delete[] backends;
@@ -271,7 +288,9 @@ ma_engine *Shinobu::get_engine() {
 }
 
 Ref<ShinobuSoundSourceMemory> Shinobu::register_sound_from_memory(String m_name_hint, PackedByteArray m_data) {
-	return memnew(ShinobuSoundSourceMemory(m_name_hint, m_data));
+	Ref<ShinobuSoundSourceMemory> source;
+	source.instantiate(m_name_hint, m_data);
+	return source;
 }
 
 Ref<ShinobuGroup> Shinobu::create_group(String m_group_name, Ref<ShinobuGroup> m_parent_group) {
