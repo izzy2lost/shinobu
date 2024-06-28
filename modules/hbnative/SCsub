@@ -35,6 +35,7 @@ module_obj = []
 env_hbnative.Prepend(CPPDEFINES=["UNICODE"])
 env_hbnative.add_source_files(module_obj, "*.cpp")  # Add all cpp files to the build
 env_hbnative.add_source_files(module_obj, "process/*.cpp")
+env_hbnative.add_source_files(module_obj, "diva/*.cpp")
 
 env.modules_sources += module_obj
 

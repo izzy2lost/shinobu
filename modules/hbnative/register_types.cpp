@@ -3,6 +3,8 @@
 #include "register_types.h"
 
 #include "core/config/engine.h"
+#include "diva/bone_db.h"
+#include "diva/diva_object.h"
 #include "interval_tree.h"
 #include "modules/hbnative/ph_blur_controls.h"
 #include "multi_spin_box.h"
@@ -79,6 +81,9 @@ void initialize_hbnative_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(HBReplay);
 	GDREGISTER_CLASS(HBReplayWriter);
 	GDREGISTER_CLASS(HBReplayEvent);
+	GDREGISTER_CLASS(DIVABoneDB);
+	GDREGISTER_CLASS(DIVASkeleton);
+	GDREGISTER_CLASS(DIVAObjectSet);
 	Engine::get_singleton()->add_singleton(Engine::Singleton("PHAudioStreamPreviewGenerator", PHAudioStreamPreviewGenerator::get_singleton()));
 	Engine::get_singleton()->add_singleton(Engine::Singleton("PHNative", PHNative::get_singleton()));
 }
