@@ -67,6 +67,8 @@ TEST_SUITE("[HBReplay]") {
 
 		constexpr int64_t game_timestamp = 6969;
 
+		replay_data->begin_frame(0);
+
 		Ref<HBReplayEvent> button_event;
 		button_event.instantiate();
 
@@ -84,6 +86,7 @@ TEST_SUITE("[HBReplay]") {
 		Ref<HBReplayEvent> joy_single_axis_event;
 		joy_single_axis_event.instantiate();
 
+		replay_data->begin_frame(game_timestamp);
 		joy_single_axis_event->set_event_type(HBReplay::EventType::GAMEPAD_JOY_SINGLE_AXIS);
 		joy_single_axis_event->set_joystick_axis(0, JoyAxis::TRIGGER_LEFT);
 		joy_single_axis_event->set_joystick_position(Vector2(0.5, 0.0));
@@ -122,6 +125,10 @@ TEST_SUITE("[HBReplay]") {
 
 		Vector<Ref<HBReplayEvent>> events = reader->get_replay_events_in_interval(0, 6969);
 
+		for (Ref<HBReplayEvent> event : events) {
+			print_line("GS", event->get_game_timestamp());
+		}
+
 		CHECK_MESSAGE(events.size() == 1, "Getting replay events in an interval should be end exclusive");
 		CHECK_MESSAGE(events[0]->get_event_type() == HBReplay::EventType::GAMEPAD_BUTTON, "Getting replay events in an interval should return the correct event");
 		CHECK_MESSAGE(events[0]->get_gamepad_button_pressed(), "Test event should be pressed");
@@ -141,6 +148,7 @@ TEST_SUITE("[HBReplay]") {
 		event->set_keyboard_key((uint64_t)Key::H);
 		event->set_keyboard_key_pressed(true);
 		event->set_game_timestamp(70000);
+		replay_data->begin_frame(70000);
 		replay_data->push_event(event);
 
 		PackedByteArray buff = replay_data->write_to_buffer();
@@ -167,6 +175,7 @@ TEST_SUITE("[HBReplay]") {
 		event->set_press_actions(HBReplay::EventActionBitfield::SLIDE_LEFT_B | HBReplay::EventActionBitfield::HEART_NOTE_B);
 		event->set_joystick_position(Vector2(0.5, 0.75));
 		event->set_game_timestamp(70000);
+		replay_data->begin_frame(70000);
 		replay_data->push_event(event);
 
 		PackedByteArray buff = replay_data->write_to_buffer();
@@ -198,6 +207,7 @@ TEST_SUITE("[HBReplay]") {
 		event->set_gamepad_button_index((uint8_t)JoyButton::DPAD_RIGHT);
 		event->set_game_timestamp(70000);
 		event->set_press_actions(HBReplay::EventActionBitfield::NOTE_UP_B);
+		replay_data->begin_frame(70000);
 		replay_data->push_event(event);
 
 		PackedByteArray buff = replay_data->write_to_buffer();
@@ -222,6 +232,7 @@ TEST_SUITE("[HBReplay]") {
 		event->set_gamepad_button_index((uint8_t)JoyButton::DPAD_RIGHT);
 		event->set_game_timestamp(70000);
 		event->set_press_actions(HBReplay::EventActionBitfield::NOTE_UP_B);
+		replay_data->begin_frame(70000);
 		replay_data->push_event(event);
 
 		Ref<HBReplayEvent> event2;
@@ -231,6 +242,7 @@ TEST_SUITE("[HBReplay]") {
 		event2->set_gamepad_button_index((uint8_t)JoyButton::DPAD_RIGHT);
 		event2->set_game_timestamp(70002);
 		event2->set_release_actions(HBReplay::EventActionBitfield::NOTE_UP_B);
+		replay_data->begin_frame(70002);
 		replay_data->push_event(event2);
 
 		PackedByteArray buff = replay_data->write_to_buffer();

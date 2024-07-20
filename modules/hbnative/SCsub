@@ -23,6 +23,8 @@ if env_hbnative["builtin_libogg"]:
 if env_hbnative["builtin_libvorbis"]:
     env_hbnative.Prepend(CPPPATH=["#thirdparty/libvorbis/"])
 
+env_hbnative.Prepend(CCFLAGS="-std=c++20")
+
 env_process = env_modules.Clone()
 env_process.Prepend(CPPPATH=[thirdparty_dir])
 env_process.disable_warnings()

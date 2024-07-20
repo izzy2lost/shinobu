@@ -8,6 +8,7 @@
 #include <cstdint>
 
 class HBReplayEvent;
+class HBReplayFrame;
 
 class HBReplay : public RefCounted {
 	GDCLASS(HBReplay, RefCounted);
@@ -41,7 +42,6 @@ public:
 		HEART_NOTE,
 		NOTE_MAX
 	};
-
 	struct JoypadState {
 		std::array<float, (int)JoyAxis::MAX> axis_state = {};
 		std::array<bool, (int)JoyButton::MAX> button_state = {};
@@ -85,6 +85,15 @@ public:
 		EventData event_data;
 	};
 
+	struct ReplayFrame {
+		int64_t game_timestamp;
+		LocalVector<ReplayEvent> replay_events;
+	};
+
+	struct ReplayFrameComparator {
+		bool operator()(const ReplayFrame &p_left, const ReplayFrame &p_right) const;
+	};
+
 	struct GamepadDeviceInfo {
 		uint8_t device_id;
 		String device_name;
@@ -119,6 +128,36 @@ public:
 		PackedInt32Array out;
 
 		return state_snapshot.action_held_count[p_action];
+	}
+
+	Dictionary get_joypad_states() const {
+		Dictionary states_out;
+		for (const KeyValue<StringName, HBReplay::JoypadState> &kv : state_snapshot.joypad_state) {
+			Dictionary state;
+
+			TypedArray<float> axis_state;
+			for (const float &p_axis_state : kv.value.axis_state) {
+				axis_state.push_back(p_axis_state);
+			}
+
+			TypedArray<bool> button_state;
+			for (const bool &p_button_state : kv.value.button_state) {
+				button_state.push_back(p_button_state);
+			}
+
+			state["axis_state"] = axis_state;
+			state["button_state"] = button_state;
+
+			states_out[kv.key] = state;
+		}
+		Array held_count_arr;
+
+		for (const uint32_t held_count : state_snapshot.action_held_count) {
+			held_count_arr.push_back(held_count);
+		}
+
+		states_out["held_count"] = held_count_arr;
+		return states_out;
 	}
 
 	HBReplayStateSnapshot(HBReplay::StateSnapshot &p_state_snapshot) {
@@ -156,11 +195,14 @@ private:
 	String song_difficulty;
 	String song_chart_hash;
 	HashMap<HBReplay::GamepadGUID, HBReplay::GamepadDeviceInfo> gamepad_device_infos;
-	Vector<HBReplay::ReplayEvent> events;
+	//Vector<HBReplay::ReplayEvent> events;
+	LocalVector<HBReplay::ReplayFrame> frames;
+	int current_frame = -1;
 
 	int _get_joy_device_idx(StringName p_device_guid, const String &p_name);
 
 public:
+	void begin_frame(int64_t p_game_timestamp);
 	void push_event(const Ref<HBReplayEvent> &p_event);
 	String get_song_id() const;
 	void set_song_id(const String &p_song_id);
@@ -179,22 +221,22 @@ class HBReplayReader : public RefCounted {
 	Error error = OK;
 
 	Vector<HBReplay::GamepadDeviceInfo> gamepad_device_infos;
-	Vector<HBReplay::ReplayEvent> replay_events;
+	Vector<HBReplay::ReplayFrame> replay_frames;
 
 	String song_id;
 	String song_difficulty;
 	String song_chart_hash;
 
-	struct ReplayEventComparator {
-		bool operator()(const HBReplay::ReplayEvent &p_left, const HBReplay::ReplayEvent &p_right) const;
-	};
-
 private:
-	Vector<HBReplay::StateSnapshot> state_snapshots;
+	struct FrameReplaySnapshots {
+		Vector<HBReplay::StateSnapshot> state_snapshots;
+	};
+	Vector<FrameReplaySnapshots> state_snapshots;
 
 	void _show_error(Error p_error, String message);
 
-	bool _read_event(const Ref<StreamPeerBuffer> p_spb);
+	bool _read_event(const Ref<StreamPeerBuffer> p_spb, HBReplay::ReplayEvent &r_event);
+	bool _read_frame(const Ref<StreamPeerBuffer> p_spb);
 
 protected:
 	static void _bind_methods();
@@ -210,6 +252,8 @@ public:
 
 	Vector<Ref<HBReplayEvent>> get_replay_events_in_interval(int64_t p_start, int64_t p_end);
 	TypedArray<HBReplayEvent> get_replay_events_in_interval_bind(int64_t p_start, int64_t p_end);
+
+	void dump_state_changes();
 };
 
 class HBReplayEvent : public RefCounted {

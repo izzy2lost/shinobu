@@ -1,5 +1,6 @@
 #include "replay.h"
 #include "core/io/stream_peer.h"
+#include <format>
 
 void HBReplayWriter::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_song_chart_hash", "song_chart_hash"), &HBReplayWriter::set_song_chart_hash);
@@ -16,6 +17,7 @@ void HBReplayWriter::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("write_to_buffer"), &HBReplayWriter::write_to_buffer);
 	ClassDB::bind_method(D_METHOD("push_event", "event"), &HBReplayWriter::push_event);
+	ClassDB::bind_method(D_METHOD("begin_frame", "game_timestamp"), &HBReplayWriter::begin_frame);
 }
 
 int HBReplayWriter::_get_joy_device_idx(StringName p_device_guid, const String &p_name) {
@@ -32,8 +34,25 @@ int HBReplayWriter::_get_joy_device_idx(StringName p_device_guid, const String &
 	return dev_info->device_id;
 }
 
+void HBReplayWriter::begin_frame(int64_t p_game_timestamp) {
+	if (frames.size() > 0) {
+		if (frames[frames.size() - 1].replay_events.size() == 0) {
+			frames.remove_at(frames.size() - 1);
+		} else {
+			int64_t earliest_event_time = frames[frames.size() - 1].replay_events[0].game_timestamp;
+			for (int i = 1; i < frames[frames.size() - 1].replay_events.size(); i++) {
+				earliest_event_time = MIN(frames[frames.size() - 1].replay_events[i].game_timestamp, earliest_event_time);
+			}
+			frames[frames.size() - 1].game_timestamp = earliest_event_time;
+		}
+	}
+	frames.push_back({ .game_timestamp = p_game_timestamp });
+	current_frame = frames.size() - 1;
+}
+
 void HBReplayWriter::push_event(const Ref<HBReplayEvent> &p_event) {
 	ERR_FAIL_COND(!p_event.is_valid());
+	ERR_FAIL_COND(current_frame == -1);
 	// Rate limit events set as extra
 	if (p_event->get_is_extra()) {
 		if ((p_event->get_game_timestamp() >= last_extra_event_time + MAX_EXTRA_EVENT_RATE_W)) {
@@ -80,7 +99,7 @@ void HBReplayWriter::push_event(const Ref<HBReplayEvent> &p_event) {
 		} break;
 	}
 
-	events.push_back(event);
+	frames[current_frame].replay_events.push_back(event);
 
 	return;
 }
@@ -96,6 +115,10 @@ void HBReplayWriter::set_song_difficulty(const String &p_song_difficulty) { song
 String HBReplayWriter::get_song_chart_hash() const { return song_chart_hash; }
 
 void HBReplayWriter::set_song_chart_hash(const String &p_song_chart_hash) { song_chart_hash = p_song_chart_hash; }
+
+bool operator<(const HBReplay::ReplayEvent &lhs, const HBReplay::ReplayEvent &rhs) {
+	return lhs.game_timestamp < rhs.game_timestamp;
+}
 
 PackedByteArray HBReplayWriter::write_to_buffer() {
 	Ref<StreamPeerBuffer> peer_buffer;
@@ -122,37 +145,43 @@ PackedByteArray HBReplayWriter::write_to_buffer() {
 		peer_buffer->put_utf8_string(info.device_sdl_guid);
 	}
 
-	peer_buffer->put_u32(events.size());
+	peer_buffer->put_u32(frames.size());
 
-	for (const HBReplay::ReplayEvent &event : events) {
-		peer_buffer->put_u8(event.event_type);
-		peer_buffer->put_64(event.game_timestamp);
-		peer_buffer->put_u8(event.press_actions);
-		peer_buffer->put_u8(event.release_actions);
+	// Extremely hacky, but it should be fine, I hope
 
-		switch (event.event_type) {
-			case HBReplay::GAMEPAD_JOY_SINGLE_AXIS: {
-				peer_buffer->put_u8(event.event_data.gamepad.device_id);
-				peer_buffer->put_u8(event.event_data.gamepad.axis.joy_axis[0]);
-				peer_buffer->put_float(event.event_data.gamepad.axis.joystick_position[0]);
-			} break;
-			case HBReplay::GAMEPAD_JOY: {
-				peer_buffer->put_u8(event.event_data.gamepad.device_id);
-				peer_buffer->put_u8(event.event_data.gamepad.axis.joy_axis[0]);
-				peer_buffer->put_u8(event.event_data.gamepad.axis.joy_axis[1]);
-				peer_buffer->put_float(event.event_data.gamepad.axis.joystick_position[0]);
-				peer_buffer->put_float(event.event_data.gamepad.axis.joystick_position[1]);
-			} break;
-			case HBReplay::GAMEPAD_BUTTON: {
-				peer_buffer->put_u8(event.event_data.gamepad.device_id);
-				peer_buffer->put_u8(event.event_data.gamepad.button.button_pressed);
-				peer_buffer->put_u8(event.event_data.gamepad.button.gamepad_button_idx);
-			} break;
-			case HBReplay::KEYBOARD_KEY: {
-				peer_buffer->put_u8(event.event_data.keyboard.key_pressed);
-				peer_buffer->put_u32(event.event_data.keyboard.key);
-			} break;
-			default: {
+	for (HBReplay::ReplayFrame frame : frames) {
+		peer_buffer->put_64(frame.game_timestamp);
+		peer_buffer->put_u32(frame.replay_events.size());
+		for (const HBReplay::ReplayEvent &event : frame.replay_events) {
+			peer_buffer->put_u8(event.event_type);
+			peer_buffer->put_64(event.game_timestamp);
+			peer_buffer->put_u8(event.press_actions);
+			peer_buffer->put_u8(event.release_actions);
+
+			switch (event.event_type) {
+				case HBReplay::GAMEPAD_JOY_SINGLE_AXIS: {
+					peer_buffer->put_u8(event.event_data.gamepad.device_id);
+					peer_buffer->put_u8(event.event_data.gamepad.axis.joy_axis[0]);
+					peer_buffer->put_float(event.event_data.gamepad.axis.joystick_position[0]);
+				} break;
+				case HBReplay::GAMEPAD_JOY: {
+					peer_buffer->put_u8(event.event_data.gamepad.device_id);
+					peer_buffer->put_u8(event.event_data.gamepad.axis.joy_axis[0]);
+					peer_buffer->put_u8(event.event_data.gamepad.axis.joy_axis[1]);
+					peer_buffer->put_float(event.event_data.gamepad.axis.joystick_position[0]);
+					peer_buffer->put_float(event.event_data.gamepad.axis.joystick_position[1]);
+				} break;
+				case HBReplay::GAMEPAD_BUTTON: {
+					peer_buffer->put_u8(event.event_data.gamepad.device_id);
+					peer_buffer->put_u8(event.event_data.gamepad.button.button_pressed);
+					peer_buffer->put_u8(event.event_data.gamepad.button.gamepad_button_idx);
+				} break;
+				case HBReplay::KEYBOARD_KEY: {
+					peer_buffer->put_u8(event.event_data.keyboard.key_pressed);
+					peer_buffer->put_u32(event.event_data.keyboard.key);
+				} break;
+				default: {
+				}
 			}
 		}
 	}
@@ -354,14 +383,31 @@ void HBReplayReader::_show_error(Error p_error, String message) {
 	print_error("Error parsing replay file: " + message);
 }
 
-bool HBReplayReader::_read_event(const Ref<StreamPeerBuffer> p_spb) {
+bool HBReplayReader::_read_frame(const Ref<StreamPeerBuffer> p_spb) {
+	HBReplay::ReplayFrame frame;
+	frame.game_timestamp = p_spb->get_64();
+	uint32_t event_count = p_spb->get_u32();
+
+	for (uint32_t i = 0; i < event_count; i++) {
+		HBReplay::ReplayEvent event;
+		if (_read_event(p_spb, event)) {
+			frame.replay_events.push_back(event);
+		} else {
+			return false;
+		}
+	}
+	replay_frames.push_back(frame);
+	return true;
+}
+
+bool HBReplayReader::_read_event(const Ref<StreamPeerBuffer> p_spb, HBReplay::ReplayEvent &r_event) {
 	uint8_t event_type = p_spb->get_u8();
 	if (event_type >= HBReplay::EVENT_MAX) {
 		_show_error(ERR_PARSE_ERROR, "Event type was invalid");
 		return false;
 	}
 
-	HBReplay::ReplayEvent event{
+	r_event = HBReplay::ReplayEvent{
 		.event_type = (HBReplay::EventType)event_type,
 		.game_timestamp = p_spb->get_64(),
 		.press_actions = p_spb->get_u8(),
@@ -370,44 +416,42 @@ bool HBReplayReader::_read_event(const Ref<StreamPeerBuffer> p_spb) {
 
 	switch ((HBReplay::EventType)event_type) {
 		case HBReplay::GAMEPAD_JOY_SINGLE_AXIS: {
-			event.event_data.gamepad.device_id = p_spb->get_u8();
-			event.event_data.gamepad.axis.joy_axis[0] = p_spb->get_u8();
-			event.event_data.gamepad.axis.joystick_position[0] = p_spb->get_float();
-			if (event.event_data.gamepad.axis.joy_axis[0] >= (int)JoyAxis::MAX) {
+			r_event.event_data.gamepad.device_id = p_spb->get_u8();
+			r_event.event_data.gamepad.axis.joy_axis[0] = p_spb->get_u8();
+			r_event.event_data.gamepad.axis.joystick_position[0] = p_spb->get_float();
+			if (r_event.event_data.gamepad.axis.joy_axis[0] >= (int)JoyAxis::MAX) {
 				_show_error(ERR_PARSE_ERROR, "Invalid joypad axis");
 			}
 		} break;
 		case HBReplay::GAMEPAD_JOY: {
-			event.event_data.gamepad.device_id = p_spb->get_u8();
-			event.event_data.gamepad.axis.joy_axis[0] = p_spb->get_u8();
-			event.event_data.gamepad.axis.joy_axis[1] = p_spb->get_u8();
-			event.event_data.gamepad.axis.joystick_position[0] = p_spb->get_float();
-			event.event_data.gamepad.axis.joystick_position[1] = p_spb->get_float();
+			r_event.event_data.gamepad.device_id = p_spb->get_u8();
+			r_event.event_data.gamepad.axis.joy_axis[0] = p_spb->get_u8();
+			r_event.event_data.gamepad.axis.joy_axis[1] = p_spb->get_u8();
+			r_event.event_data.gamepad.axis.joystick_position[0] = p_spb->get_float();
+			r_event.event_data.gamepad.axis.joystick_position[1] = p_spb->get_float();
 
-			if (event.event_data.gamepad.axis.joy_axis[0] >= (int)JoyAxis::MAX) {
+			if (r_event.event_data.gamepad.axis.joy_axis[0] >= (int)JoyAxis::MAX) {
 				_show_error(ERR_PARSE_ERROR, "Invalid joypad axis 0");
 			}
-			if (event.event_data.gamepad.axis.joy_axis[1] >= (int)JoyAxis::MAX) {
+			if (r_event.event_data.gamepad.axis.joy_axis[1] >= (int)JoyAxis::MAX) {
 				_show_error(ERR_PARSE_ERROR, "Invalid joypad axis 1");
 			}
 		} break;
 		case HBReplay::GAMEPAD_BUTTON: {
-			event.event_data.gamepad.device_id = p_spb->get_u8();
-			event.event_data.gamepad.button.button_pressed = p_spb->get_u8();
-			event.event_data.gamepad.button.gamepad_button_idx = p_spb->get_u8();
-			if (event.event_data.gamepad.button.gamepad_button_idx >= (int)JoyButton::MAX) {
+			r_event.event_data.gamepad.device_id = p_spb->get_u8();
+			r_event.event_data.gamepad.button.button_pressed = p_spb->get_u8();
+			r_event.event_data.gamepad.button.gamepad_button_idx = p_spb->get_u8();
+			if (r_event.event_data.gamepad.button.gamepad_button_idx >= (int)JoyButton::MAX) {
 				_show_error(ERR_PARSE_ERROR, "Invalid joypad button");
 			}
 		} break;
 		case HBReplay::KEYBOARD_KEY: {
-			event.event_data.keyboard.key_pressed = p_spb->get_u8();
-			event.event_data.keyboard.key = p_spb->get_u32();
+			r_event.event_data.keyboard.key_pressed = p_spb->get_u8();
+			r_event.event_data.keyboard.key = p_spb->get_u32();
 		} break;
 		case HBReplay::EVENT_MAX: {
 		} break;
 	}
-
-	replay_events.push_back(event);
 
 	return true;
 }
@@ -417,6 +461,7 @@ void HBReplayReader::_bind_methods() {
 	ClassDB::bind_static_method(SNAME("HBReplayReader"), D_METHOD("from_buffer", "buffer"), &HBReplayReader::from_buffer);
 	ClassDB::bind_method(D_METHOD("get_gamepad_info_count"), &HBReplayReader::get_gamepad_info_count);
 	ClassDB::bind_method(D_METHOD("get_gamepad_guid"), &HBReplayReader::get_gamepad_guid);
+	ClassDB::bind_method(D_METHOD("dump_state_changes"), &HBReplayReader::dump_state_changes);
 }
 
 Ref<HBReplayReader> HBReplayReader::from_buffer(const PackedByteArray &p_buffer) {
@@ -462,10 +507,10 @@ Ref<HBReplayReader> HBReplayReader::from_buffer(const PackedByteArray &p_buffer)
 		reader->gamepad_device_infos.push_back(device_info);
 	}
 
-	uint32_t event_count = spb->get_u32();
+	uint32_t frame_count = spb->get_u32();
 
-	for (uint32_t i = 0; i < event_count; i++) {
-		if (!reader->_read_event(spb)) {
+	for (uint32_t i = 0; i < frame_count; i++) {
+		if (!reader->_read_frame(spb)) {
 			return reader;
 		}
 	}
@@ -477,105 +522,115 @@ Ref<HBReplayReader> HBReplayReader::from_buffer(const PackedByteArray &p_buffer)
 		current_snapshot.joypad_state.insert(reader->gamepad_device_infos[i].device_sdl_guid, HBReplay::JoypadState());
 	}
 
-	reader->state_snapshots.resize(reader->replay_events.size() + 1);
+	reader->state_snapshots.resize(reader->replay_frames.size() + 1);
 
-	HBReplay::StateSnapshot *sn = reader->state_snapshots.ptrw();
-	sn[0] = current_snapshot;
+	reader->state_snapshots.ptrw()[0].state_snapshots.push_back(current_snapshot);
 
-	for (int i = 0; i < reader->replay_events.size(); i++) {
-		const HBReplay::ReplayEvent &event = reader->replay_events[i];
+	FrameReplaySnapshots *frame_snapshots = reader->state_snapshots.ptrw();
 
-		bool event_pressed = event.press_actions != 0;
+	for (int frame_i = 0; frame_i < reader->replay_frames.size(); frame_i++) {
+		FrameReplaySnapshots *frame_snapshot = &frame_snapshots[frame_i + 1];
+		uint32_t event_count = reader->replay_frames[frame_i].replay_events.size();
+		frame_snapshot->state_snapshots.resize(event_count);
 
-		HBReplay::EventActionBitfield press_actions = (HBReplay::EventActionBitfield)(uint8_t)event.press_actions;
-		HBReplay::EventActionBitfield release_actions = (HBReplay::EventActionBitfield)(uint8_t)event.release_actions;
+		HBReplay::StateSnapshot *sn = frame_snapshot->state_snapshots.ptrw();
 
-		switch (event.event_type) {
-			case HBReplay::EventType::GAMEPAD_BUTTON: {
-				int gp_device = event.event_data.gamepad.device_id;
-				int gp_button = event.event_data.gamepad.button.gamepad_button_idx;
-				GamepadGUID gp_device_guid = reader->gamepad_device_infos[gp_device].device_sdl_guid;
-				current_snapshot.joypad_state[gp_device_guid].button_state[gp_button] = event_pressed;
-				current_snapshot.joypad_state[gp_device_guid].button_action_state[gp_button].set_flag(press_actions);
-				current_snapshot.joypad_state[gp_device_guid].button_action_state[gp_button].clear_flag(release_actions);
-				current_snapshot.joypad_state[gp_device_guid].button_state[gp_button] = event.event_data.gamepad.button.button_pressed;
-			} break;
-			case HBReplay::GAMEPAD_JOY_SINGLE_AXIS: {
-				int gp_device = event.event_data.gamepad.device_id;
-				int gp_axis = event.event_data.gamepad.axis.joy_axis[0];
-				GamepadGUID gp_device_guid = reader->gamepad_device_infos[gp_device].device_sdl_guid;
+		for (uint32_t i = 0; i < event_count; i++) {
+			const HBReplay::ReplayEvent &event = reader->replay_frames[frame_i].replay_events[i];
 
-				current_snapshot.joypad_state[gp_device_guid].axis_state[gp_axis] = event.event_data.gamepad.axis.joystick_position[0];
+			bool event_pressed = event.press_actions != 0;
 
-				current_snapshot.joypad_state[gp_device_guid].axis_action_state[gp_axis].set_flag(press_actions);
-				current_snapshot.joypad_state[gp_device_guid].axis_action_state[gp_axis].clear_flag(release_actions);
-			} break;
-			case HBReplay::GAMEPAD_JOY: {
-				int gp_device = event.event_data.gamepad.device_id;
+			HBReplay::EventActionBitfield press_actions = (HBReplay::EventActionBitfield)(uint8_t)event.press_actions;
+			HBReplay::EventActionBitfield release_actions = (HBReplay::EventActionBitfield)(uint8_t)event.release_actions;
 
-				for (int gp_axis_i = 0; gp_axis_i < 2; gp_axis_i++) {
-					int gp_axis = event.event_data.gamepad.axis.joy_axis[gp_axis_i];
+			switch (event.event_type) {
+				case HBReplay::EventType::GAMEPAD_BUTTON: {
+					int gp_device = event.event_data.gamepad.device_id;
+					int gp_button = event.event_data.gamepad.button.gamepad_button_idx;
+					GamepadGUID gp_device_guid = reader->gamepad_device_infos[gp_device].device_sdl_guid;
+					current_snapshot.joypad_state[gp_device_guid].button_state[gp_button] = event_pressed;
+					current_snapshot.joypad_state[gp_device_guid].button_action_state[gp_button].clear_flag(release_actions);
+					current_snapshot.joypad_state[gp_device_guid].button_action_state[gp_button].set_flag(press_actions);
+					current_snapshot.joypad_state[gp_device_guid].button_state[gp_button] = event.event_data.gamepad.button.button_pressed;
+				} break;
+				case HBReplay::GAMEPAD_JOY_SINGLE_AXIS: {
+					int gp_device = event.event_data.gamepad.device_id;
+					int gp_axis = event.event_data.gamepad.axis.joy_axis[0];
 					GamepadGUID gp_device_guid = reader->gamepad_device_infos[gp_device].device_sdl_guid;
 
-					current_snapshot.joypad_state[gp_device_guid].axis_state[gp_axis] = event.event_data.gamepad.axis.joystick_position[gp_axis_i];
-					if (gp_axis_i == 0) {
-						current_snapshot.joypad_state[gp_device_guid].axis_action_state[gp_axis].set_flag(press_actions);
-						current_snapshot.joypad_state[gp_device_guid].axis_action_state[gp_axis].clear_flag(release_actions);
+					current_snapshot.joypad_state[gp_device_guid].axis_state[gp_axis] = event.event_data.gamepad.axis.joystick_position[0];
+
+					current_snapshot.joypad_state[gp_device_guid].axis_action_state[gp_axis].clear_flag(release_actions);
+					current_snapshot.joypad_state[gp_device_guid].axis_action_state[gp_axis].set_flag(press_actions);
+				} break;
+				case HBReplay::GAMEPAD_JOY: {
+					int gp_device = event.event_data.gamepad.device_id;
+
+					for (int gp_axis_i = 0; gp_axis_i < 2; gp_axis_i++) {
+						int gp_axis = event.event_data.gamepad.axis.joy_axis[gp_axis_i];
+						GamepadGUID gp_device_guid = reader->gamepad_device_infos[gp_device].device_sdl_guid;
+
+						current_snapshot.joypad_state[gp_device_guid].axis_state[gp_axis] = event.event_data.gamepad.axis.joystick_position[gp_axis_i];
+						if (gp_axis_i == 0) {
+							current_snapshot.joypad_state[gp_device_guid].axis_action_state[gp_axis].clear_flag(release_actions);
+							current_snapshot.joypad_state[gp_device_guid].axis_action_state[gp_axis].set_flag(press_actions);
+						}
 					}
-				}
-			} break;
-			case HBReplay::KEYBOARD_KEY: {
-				Key k = (Key)event.event_data.keyboard.key;
-				bool key_pressed = event.event_data.keyboard.key_pressed;
-				if (!key_pressed && current_snapshot.pressed_keys.has(k)) {
-					current_snapshot.pressed_keys.erase(k);
-				} else if (key_pressed && !current_snapshot.pressed_keys.has(k)) {
-					current_snapshot.pressed_keys.insert(k);
-				}
+				} break;
+				case HBReplay::KEYBOARD_KEY: {
+					Key k = (Key)event.event_data.keyboard.key;
+					bool key_pressed = event.event_data.keyboard.key_pressed;
+					if (!key_pressed && current_snapshot.pressed_keys.has(k)) {
+						current_snapshot.pressed_keys.erase(k);
+					} else if (key_pressed && !current_snapshot.pressed_keys.has(k)) {
+						current_snapshot.pressed_keys.insert(k);
+					}
 
-				if (current_snapshot.pressed_key_action_state.has(k)) {
-					current_snapshot.pressed_key_action_state.erase(k);
-				}
+					if (current_snapshot.pressed_key_action_state.has(k)) {
+						current_snapshot.pressed_key_action_state.erase(k);
+					}
 
-				BitField<HBReplay::EventActionBitfield> value;
-				value.set_flag(press_actions);
-				current_snapshot.pressed_key_action_state.insert(k, press_actions);
+					BitField<HBReplay::EventActionBitfield> value;
+					value.set_flag(press_actions);
+					current_snapshot.pressed_key_action_state.insert(k, press_actions);
 
-			} break;
-			case HBReplay::EVENT_MAX: {
-				DEV_ASSERT(false);
+				} break;
+				case HBReplay::EVENT_MAX: {
+					DEV_ASSERT(false);
 
-			} break;
-		}
-
-		// Recalculate action held count vector
-
-		for (int j = 0; j < HBReplay::EventAction::NOTE_MAX; j++) {
-			current_snapshot.action_held_count[j] = 0;
-			HBReplay::EventActionBitfield action = (HBReplay::EventActionBitfield)(1 << (j));
-			for (KeyValue<Key, BitField<HBReplay::EventActionBitfield>> &kv : current_snapshot.pressed_key_action_state) {
-				if (kv.value.has_flag(action)) {
-					current_snapshot.action_held_count[j] += 1;
-				}
+				} break;
 			}
 
-			for (KeyValue<StringName, HBReplay::JoypadState> &kv : current_snapshot.joypad_state) {
-				for (size_t k = 0; k < std::size(kv.value.axis_action_state); k++) {
-					if (kv.value.axis_action_state[k].has_flag(action)) {
+			// Recalculate action held count vector
+
+			for (uint32_t j = 0; j < HBReplay::EventAction::NOTE_MAX; j++) {
+				current_snapshot.action_held_count[j] = 0;
+				HBReplay::EventActionBitfield action = (HBReplay::EventActionBitfield)(1 << (j));
+				for (KeyValue<Key, BitField<HBReplay::EventActionBitfield>> &kv : current_snapshot.pressed_key_action_state) {
+					if (kv.value.has_flag(action)) {
 						current_snapshot.action_held_count[j] += 1;
 					}
 				}
 
-				for (size_t k = 0; k < std::size(kv.value.button_action_state); k++) {
-					if (kv.value.button_action_state[k].has_flag(action)) {
-						current_snapshot.action_held_count[j] += 1;
+				for (KeyValue<StringName, HBReplay::JoypadState> &kv : current_snapshot.joypad_state) {
+					for (size_t k = 0; k < std::size(kv.value.axis_action_state); k++) {
+						if (kv.value.axis_action_state[k].has_flag(action)) {
+							current_snapshot.action_held_count[j] += 1;
+						}
+					}
+
+					for (size_t k = 0; k < std::size(kv.value.button_action_state); k++) {
+						if (kv.value.button_action_state[k].has_flag(action)) {
+							current_snapshot.action_held_count[j] += 1;
+						}
 					}
 				}
 			}
-		}
 
-		sn[i + 1] = current_snapshot;
+			sn[i] = current_snapshot;
+		}
 	}
+
 	return reader;
 }
 
@@ -598,65 +653,69 @@ Vector<Ref<HBReplayEvent>> HBReplayReader::get_replay_events_in_interval(int64_t
 	ERR_FAIL_COND_V(p_start > p_end, events_out);
 
 	// Dummy
-	HBReplay::ReplayEvent dummy{};
+	HBReplay::ReplayFrame dummy{};
 	dummy.game_timestamp = p_start;
-	int start = replay_events.bsearch_custom<ReplayEventComparator>(dummy, true);
+	int start = replay_frames.bsearch_custom<HBReplay::ReplayFrameComparator>(dummy, true);
 
-	if (start >= replay_events.size() || start < 0 || replay_events.size() == 0) {
+	if (start >= replay_frames.size() || start < 0 || replay_frames.size() == 0) {
 		return events_out;
 	}
 
-	for (int i = start; i < replay_events.size(); i++) {
-		if (replay_events[i].game_timestamp < p_start) {
+	for (int i = start; i < replay_frames.size(); i++) {
+		const HBReplay::ReplayFrame &frame = replay_frames[i];
+		if (frame.game_timestamp < p_start) {
 			continue;
 		}
 
-		if (replay_events[i].game_timestamp >= p_end) {
+		if (frame.game_timestamp >= p_end) {
 			break;
 		}
 
-		Ref<HBReplayEvent> ev;
-		ev.instantiate();
+		for (uint32_t j = 0; j < frame.replay_events.size(); j++) {
+			const HBReplay::ReplayEvent &event = frame.replay_events[j];
+			Ref<HBReplayEvent> ev;
+			ev.instantiate();
 
-		ev->set_event_type(replay_events[i].event_type);
-		ev->set_game_timestamp(replay_events[i].game_timestamp);
-		ev->set_press_actions(replay_events[i].press_actions);
-		ev->set_release_actions(replay_events[i].release_actions);
-		ev->set_release_actions(replay_events[i].release_actions);
-		const HBReplay::StateSnapshot &snp = state_snapshots[i + 1];
+			ev->set_event_type(event.event_type);
+			ev->set_game_timestamp(event.game_timestamp);
+			ev->set_press_actions(event.press_actions);
+			ev->set_release_actions(event.release_actions);
+			ev->set_release_actions(event.release_actions);
+			const HBReplay::StateSnapshot &snp = state_snapshots[i + 1].state_snapshots[j];
 
-		ev->set_state_snapshot(snp);
+			ev->set_state_snapshot(snp);
 
-		if (ev->is_gamepad_event()) {
-			uint8_t device_id = replay_events[i].event_data.gamepad.device_id;
-			ev->set_device_guid(get_gamepad_guid(device_id));
-			ev->set_device_name(get_gamepad_name(device_id));
+			if (ev->is_gamepad_event()) {
+				uint8_t device_id = event.event_data.gamepad.device_id;
+				ev->set_device_guid(get_gamepad_guid(device_id));
+				ev->set_device_name(get_gamepad_name(device_id));
+			}
+
+			switch (event.event_type) {
+				case HBReplay::GAMEPAD_JOY_SINGLE_AXIS: {
+					ev->set_joystick_axis(0, (JoyAxis)event.event_data.gamepad.axis.joy_axis[0]);
+					ev->set_joystick_position(Vector2(event.event_data.gamepad.axis.joystick_position[0], 0.0));
+				} break;
+				case HBReplay::GAMEPAD_JOY: {
+					ev->set_joystick_axis(0, (JoyAxis)event.event_data.gamepad.axis.joy_axis[0]);
+					ev->set_joystick_axis(1, (JoyAxis)event.event_data.gamepad.axis.joy_axis[1]);
+					ev->set_joystick_position(Vector2(event.event_data.gamepad.axis.joystick_position[0], event.event_data.gamepad.axis.joystick_position[1]));
+				} break;
+				case HBReplay::GAMEPAD_BUTTON: {
+					ev->set_gamepad_button_pressed(event.event_data.gamepad.button.button_pressed);
+					ev->set_gamepad_button_index(event.event_data.gamepad.button.gamepad_button_idx);
+				} break;
+				case HBReplay::KEYBOARD_KEY: {
+					ev->set_keyboard_key_pressed(event.event_data.keyboard.key_pressed);
+					ev->set_keyboard_key(event.event_data.keyboard.key);
+				} break;
+				case HBReplay::EVENT_MAX:
+					break;
+			};
+			ev->set_press_actions(event.press_actions);
+			ev->set_release_actions(event.release_actions);
+			events_out.push_back(ev);
 		}
-
-		switch (replay_events[i].event_type) {
-			case HBReplay::GAMEPAD_JOY_SINGLE_AXIS: {
-				ev->set_joystick_axis(0, (JoyAxis)replay_events[i].event_data.gamepad.axis.joy_axis[0]);
-				ev->set_joystick_position(Vector2(replay_events[i].event_data.gamepad.axis.joystick_position[0], 0.0));
-			} break;
-			case HBReplay::GAMEPAD_JOY: {
-				ev->set_joystick_axis(0, (JoyAxis)replay_events[i].event_data.gamepad.axis.joy_axis[0]);
-				ev->set_joystick_axis(1, (JoyAxis)replay_events[i].event_data.gamepad.axis.joy_axis[1]);
-				ev->set_joystick_position(Vector2(replay_events[i].event_data.gamepad.axis.joystick_position[0], replay_events[i].event_data.gamepad.axis.joystick_position[1]));
-			} break;
-			case HBReplay::GAMEPAD_BUTTON: {
-				ev->set_gamepad_button_pressed(replay_events[i].event_data.gamepad.button.button_pressed);
-				ev->set_gamepad_button_index(replay_events[i].event_data.gamepad.button.gamepad_button_idx);
-			} break;
-			case HBReplay::KEYBOARD_KEY: {
-				ev->set_keyboard_key_pressed(replay_events[i].event_data.keyboard.key_pressed);
-				ev->set_keyboard_key(replay_events[i].event_data.keyboard.key);
-			} break;
-			case HBReplay::EVENT_MAX:
-				break;
-		};
-		ev->set_press_actions(replay_events[i].press_actions);
-		ev->set_release_actions(replay_events[i].release_actions);
-		events_out.push_back(ev);
 	}
 
 	return events_out;
@@ -672,7 +731,66 @@ TypedArray<HBReplayEvent> HBReplayReader::get_replay_events_in_interval_bind(int
 	return out;
 }
 
-bool HBReplayReader::ReplayEventComparator::operator()(const HBReplay::ReplayEvent &p_left, const HBReplay::ReplayEvent &p_right) const {
+void HBReplayReader::dump_state_changes() {
+	{
+		String event_2_string[HBReplay::EventType::EVENT_MAX] = {
+			"JOY_SINGLE",
+			"JOY",
+			"BUTTON",
+			"KEY"
+		};
+
+		Ref<FileAccess> f = FileAccess::open("user://state_changes.txt", FileAccess::WRITE);
+		for (int fr = 0; fr < replay_frames.size(); fr++) {
+			const LocalVector<HBReplay::ReplayEvent> replay_events = replay_frames[fr].replay_events;
+			for (int i = 0; i < replay_events.size(); i++) {
+				std::string formatted_str_press = std::format("{:07b}", (uint8_t)replay_events[i].press_actions);
+				std::string formatted_str_rel = std::format("{:07b}", (uint8_t)replay_events[i].release_actions);
+
+				f->store_string(event_2_string[replay_events[i].event_type]);
+				f->store_string("\t");
+				f->store_string(String(formatted_str_press.c_str()));
+				f->store_string(" ");
+				f->store_string(String(formatted_str_rel.c_str()));
+				f->store_string("\t");
+				switch (replay_events[i].event_type) {
+					case HBReplay::GAMEPAD_JOY_SINGLE_AXIS: {
+						f->store_string(vformat("%02d", replay_events[i].event_data.gamepad.axis.joy_axis[0]));
+					} break;
+					case HBReplay::GAMEPAD_JOY: {
+						f->store_string(vformat("%d %d", replay_events[i].event_data.gamepad.axis.joy_axis[0], replay_events[i].event_data.gamepad.axis.joy_axis[1]));
+					} break;
+					case HBReplay::GAMEPAD_BUTTON: {
+						f->store_string(vformat("%d %s", replay_events[i].event_data.gamepad.button.gamepad_button_idx, replay_events[i].event_data.gamepad.button.button_pressed ? "t" : "f"));
+					} break;
+					case HBReplay::KEYBOARD_KEY:
+					case HBReplay::EVENT_MAX:
+						break;
+				}
+				f->store_string("\t");
+				for (int action_i = HBReplay::EventAction::NOTE_MAX - 1; action_i >= 0; action_i--) {
+					if (action_i < HBReplay::EventAction::NOTE_MAX - 1) {
+						f->store_string(" ");
+					}
+					f->store_string(vformat("%d", state_snapshots[i + 1].action_held_count[action_i]));
+				}
+				for (const KeyValue<StringName, HBReplay::JoypadState> &kv : state_snapshots[i + 1].joypad_state) {
+					int count = 0;
+					for (bool state : kv.value.button_state) {
+						if (state) {
+							count++;
+						}
+					}
+					f->store_string(vformat(" | %d", count));
+				}
+				f->store_string(vformat("| %d", replay_events[i].game_timestamp));
+				f->store_string("\n");
+			}
+		}
+	}
+}
+
+bool HBReplay::ReplayFrameComparator::operator()(const HBReplay::ReplayFrame &p_left, const HBReplay::ReplayFrame &p_right) const {
 	return p_left.game_timestamp < p_right.game_timestamp;
 }
 
@@ -702,4 +820,5 @@ void HBReplay::_bind_methods() {
 
 void HBReplayStateSnapshot::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_action_held_count", "action"), &HBReplayStateSnapshot::get_action_held_count);
+	ClassDB::bind_method(D_METHOD("get_joypad_states"), &HBReplayStateSnapshot::get_joypad_states);
 }
