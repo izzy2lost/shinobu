@@ -224,7 +224,11 @@ void main() {
 	vertex_interp = vertex;
 	uv_interp = uv;
 
-	gl_Position = canvas_data.screen_transform * vec4(vertex, 0.0, 1.0);
+	if (canvas_data.use_3d_transform) {
+		gl_Position = canvas_data.projection_matrix * canvas_data.view_matrix * canvas_data.canvas_transform * canvas_data.screen_transform * vec4(vertex, 0.0, 1.0);
+	} else {
+		gl_Position = canvas_data.screen_transform * vec4(vertex, 0.0, 1.0);
+	}
 
 #ifdef USE_POINT_SIZE
 	gl_PointSize = point_size;

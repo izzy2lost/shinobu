@@ -274,7 +274,11 @@ void main() {
 	vertex_interp = vertex;
 	uv_interp = uv;
 
-	gl_Position = screen_transform * vec4(vertex, 0.0, 1.0);
+	if (use_3d_transform) {
+		gl_Position = projection_matrix * view_matrix * canvas_transform * screen_transform * vec4(vertex, 0.0, 1.0);
+	} else {
+		gl_Position = screen_transform * vec4(vertex, 0.0, 1.0);
+	}
 
 #ifdef USE_POINT_SIZE
 	gl_PointSize = point_size;
