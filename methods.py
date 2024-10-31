@@ -201,7 +201,7 @@ def get_version_info(module_version_string="", silent=False):
         if not silent:
             print(f"Using custom build name: '{build_name}'.")
 
-    import version
+    import ph_version as version
 
     version_info = {
         "short_name": str(version.short_name),
