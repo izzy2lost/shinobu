@@ -1,4 +1,4 @@
-name: 🏁 Windows Builds
+name: 🏁 Windows Builds New
 on: [push, pull_request]
 
 # Global Settings
